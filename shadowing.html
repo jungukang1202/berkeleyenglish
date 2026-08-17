@@ -323,7 +323,6 @@ function buildShadowingControls(targetText) {
   const wrap = document.createElement('div');
   wrap.innerHTML = `
     <div class="controls">
-      <button class="btn-ghost btn-small listen-btn" ${hasTTS ? '' : 'disabled title="이 브라우저는 TTS를 지원하지 않습니다"'}>🔊 듣기</button>
       <select class="rate-select">
         <option value="1">보통 속도</option>
         <option value="0.8" selected>약간 천천히</option>
@@ -334,6 +333,7 @@ function buildShadowingControls(targetText) {
         <span style="font-size:0.78rem; color:var(--muted);">회 반복</span>
       </span>
       <button class="btn-primary btn-small mic-btn" ${hasSTT ? '' : 'disabled title="이 브라우저는 음성 인식을 지원하지 않습니다(Chrome 권장)"'}>🎙️ 따라 말하기</button>
+      <button class="btn-ghost btn-small listen-btn" ${hasTTS ? '' : 'disabled title="이 브라우저는 TTS를 지원하지 않습니다"'}>🔊 듣기 시작</button>
       <span class="repeat-count-badge" style="display:none;"></span>
       <span class="score-badge" style="display:none;"></span>
     </div>
@@ -374,7 +374,7 @@ function buildShadowingControls(targetText) {
     if (!playState.stopped) {
       playState.stopped = true;
       window.speechSynthesis.cancel();
-      listenBtn.textContent = '🔊 듣기';
+      listenBtn.textContent = '🔊 듣기 시작';
       return;
     }
 
@@ -397,7 +397,7 @@ function buildShadowingControls(targetText) {
       if (i < count) await new Promise(r => setTimeout(r, 500)); // 반복 사이 짧은 텀
     }
     playState.stopped = true;
-    listenBtn.textContent = '🔊 듣기';
+    listenBtn.textContent = '🔊 듣기 시작';
   });
 
   // 마이크 인식 한 번을 실행하고, 결과(인식 성공/실패)를 Promise로 돌려줍니다.
