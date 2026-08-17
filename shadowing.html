@@ -293,6 +293,7 @@ async function translateText(text, target = 'ko', source = 'en', retries = 2) {
 const hasTTS = 'speechSynthesis' in window;
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 const hasSTT = !!SpeechRecognitionCtor;
+const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
 // Word-level alignment between target text and recognized speech (LCS-based diff + match score).
 function compareWords(target, heard) {
@@ -350,7 +351,7 @@ function buildShadowingControls(targetText) {
   const compareEl = wrap.querySelector('.word-compare');
 
   let playState = { stopped: true };
-  let micState = { stopped: true, activeRecognition: null };
+  let micState = { stopped: true, activeRecognition: null, pendingResume: null };
   let shadowingCount = 0; // "따라 말하기"로 마이크에 목소리가 인식된 횟수(이 카드 한정, 페이지를 새로고침하면 0으로 돌아갑니다)
 
   function speakOnce(rate) {
@@ -443,10 +444,19 @@ function buildShadowingControls(targetText) {
       return;
     }
 
-    // "회 반복"에 설정된 횟수만큼 마이크 인식을 반복합니다(듣기 반복 횟수와 같은 입력칸을 공유해요).
-    let target = parseInt(repeatInput.value, 10);
-    if (!target || target < 1) target = 1;
-    if (target > 30) target = 30;
+    // 모바일에서 "권한이 이미 있었는데 자동 반복 중 막힌" 경우, 이어서 할 시작 지점이 저장되어 있습니다.
+    let startIndex = 1;
+    let target;
+    if (micState.pendingResume) {
+      target = micState.pendingResume.target;
+      startIndex = micState.pendingResume.nextIndex;
+      micState.pendingResume = null;
+    } else {
+      // "회 반복"에 설정된 횟수만큼 마이크 인식을 반복합니다(듣기 반복 횟수와 같은 입력칸을 공유해요).
+      target = parseInt(repeatInput.value, 10);
+      if (!target || target < 1) target = 1;
+      if (target > 30) target = 30;
+    }
 
     micState.stopped = false;
     heardEl.style.display = 'none';
@@ -454,7 +464,7 @@ function buildShadowingControls(targetText) {
     compareEl.innerHTML = '';
 
     (async () => {
-      for (let i = 1; i <= target; i++) {
+      for (let i = startIndex; i <= target; i++) {
         if (micState.stopped) break;
         micBtn.innerHTML = `<span class="rec-dot"></span>듣는 중... (${i}/${target})`;
 
@@ -477,8 +487,17 @@ function buildShadowingControls(targetText) {
           const permHTML = micPermissionErrorHTML(result.error);
           heardEl.style.display = 'block';
           if (permHTML) {
-            heardEl.innerHTML = permHTML;
-            break; // 권한 문제는 반복해도 소용없으니 여기서 멈춥니다.
+            // 이 "재시작 시 다시 눌러야 하는" 우회는 모바일 브라우저에서만 적용합니다.
+            // 데스크탑 브라우저의 기존 동작(자동 반복)은 그대로 둡니다.
+            if (isMobileDevice && i > 1) {
+              // 이미 첫 시도에서는 마이크가 정상 작동했으므로, 진짜 권한 거부가 아니라
+              // 모바일 브라우저가 "사용자가 방금 직접 누른 동작"에서만 마이크를 다시 허용하는 정책 때문일 가능성이 높습니다.
+              heardEl.innerHTML = '📱 일부 모바일 브라우저는 보안 정책상 마이크를 자동으로 여러 번 연달아 켤 수 없어요. 아래 버튼을 다시 눌러서 이어가 주세요.';
+              micState.pendingResume = { nextIndex: i, target };
+            } else {
+              heardEl.innerHTML = permHTML;
+            }
+            break; // 권한 문제(또는 모바일 정책)는 반복해도 소용없으니 여기서 멈춥니다.
           }
           heardEl.textContent = `⚠️ ${i}번째 시도에서 소리를 인식하지 못했어요 (${result.error}). 계속 진행합니다.`;
         }
@@ -487,7 +506,9 @@ function buildShadowingControls(targetText) {
       }
       micState.stopped = true;
       micState.activeRecognition = null;
-      micBtn.innerHTML = '🎙️ 따라 말하기';
+      micBtn.innerHTML = micState.pendingResume
+        ? `🎙️ 이어서 따라 말하기 (${micState.pendingResume.nextIndex}/${target})`
+        : '🎙️ 따라 말하기';
     })();
   });
 
