@@ -402,7 +402,10 @@ function buildShadowingControls(targetText) {
   });
 
   // 마이크 인식 한 번을 실행하고, 결과(인식 성공/실패)를 Promise로 돌려줍니다.
-  function runOneRecognition() {
+  // onReady: 마이크가 실제로 듣기 시작한 순간(브라우저의 onstart 이벤트)에 호출됩니다.
+  // 이 콜백이 오기 전까지는 화면에 "듣는 중"이라고 표시하지 않아야, 학생이 실제로 녹음이
+  // 시작되기 전에 말해버려서 앞부분을 놓치는 일(특히 안드로이드에서 no-speech 오류로 이어짐)을 줄일 수 있습니다.
+  function runOneRecognition(onReady) {
     return new Promise((resolve) => {
       let settled = false;
       const settle = (val) => { if (!settled) { settled = true; resolve(val); } };
@@ -414,6 +417,7 @@ function buildShadowingControls(targetText) {
       micState.activeRecognition = recognition;
 
       let heard = null;
+      recognition.onstart = () => { if (onReady) onReady(); };
       recognition.onresult = (event) => { heard = event.results[0][0].transcript; };
       recognition.onerror = (event) => { if (!heard) settle({ ok: false, error: event.error }); };
       recognition.onend = () => { settle(heard ? { ok: true, heard } : { ok: false, error: 'no-speech' }); };
@@ -466,9 +470,12 @@ function buildShadowingControls(targetText) {
     (async () => {
       for (let i = startIndex; i <= target; i++) {
         if (micState.stopped) break;
-        micBtn.innerHTML = `<span class="rec-dot"></span>듣는 중... (${i}/${target})`;
+        micBtn.innerHTML = `<span class="rec-dot"></span>마이크 준비 중... (${i}/${target})`;
 
-        const result = await runOneRecognition();
+        const result = await runOneRecognition(() => {
+          // 마이크가 실제로 듣기 시작한 순간에만 "말씀하세요"로 바꿔서, 학생이 이 시점부터 말하게 합니다.
+          if (!micState.stopped) micBtn.innerHTML = `<span class="rec-dot"></span>🗣️ 지금 말씀하세요! (${i}/${target})`;
+        });
         if (micState.stopped) break;
 
         if (result.ok) {
@@ -502,7 +509,7 @@ function buildShadowingControls(targetText) {
           heardEl.textContent = `⚠️ ${i}번째 시도에서 소리를 인식하지 못했어요 (${result.error}). 계속 진행합니다.`;
         }
 
-        if (!micState.stopped && i < target) await new Promise(r => setTimeout(r, 400)); // 다음 반복 전 짧은 텀
+        if (!micState.stopped && i < target) await new Promise(r => setTimeout(r, 700)); // 다음 반복 전 짧은 텀(안드로이드는 마이크 재시작에 시간이 더 필요해서 조금 더 둡니다)
       }
       micState.stopped = true;
       micState.activeRecognition = null;
