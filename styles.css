@@ -1407,7 +1407,7 @@ body.trial-modal-open {
 .trial-modal {
   position: fixed;
   inset: 0;
-  z-index: 999;
+  z-index: 1100;
   display: none;
   align-items: flex-start;
   justify-content: center;
