@@ -83,7 +83,7 @@ Sentence: "${sentence}"`;
 
     return jsonResponse({ variants }, 200);
   } catch (e) {
-    return jsonResponse({ error: 'ai_failed' }, 502);
+    return jsonResponse({ error: 'ai_failed', debug: String(e && e.stack || e) }, 502);
   }
 };
 
