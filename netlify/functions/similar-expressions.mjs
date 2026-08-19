@@ -40,7 +40,17 @@ export default async (req) => {
     return jsonResponse({ error: 'not_configured' }, 500);
   }
 
-  const prompt = `Rewrite this English sentence in 4 different natural, everyday ways that keep the exact same meaning, tense, and subject. Each of the 4 rewrites must use noticeably different wording from the original sentence and from each other — do not just repeat the original. Keep each rewrite about the same length as the original. Return ONLY a raw JSON array of exactly 4 strings — no markdown, no code fences, no explanation.
+  const prompt = `You are helping a Korean English learner practice natural spoken English.
+
+Rewrite this English sentence in 4 different ways that a native English speaker would actually SAY out loud in casual, everyday conversation — the way people really talk, not textbook or literary grammar.
+
+Rules:
+- Keep the exact same meaning, tense, and subject.
+- Use natural spoken grammar. For comparisons, prefer the way people actually talk (e.g. "He's taller than me" or "He's taller than I am" — NOT stiff/archaic forms like "He is higher than I").
+- Avoid uncommon, overly formal, or literary vocabulary (e.g. don't say "outstretches" when "is taller than" works fine).
+- Each of the 4 rewrites must sound noticeably different from each other and from the original — don't just repeat the original sentence.
+- Keep each rewrite about the same length as the original.
+- Return ONLY a raw JSON array of exactly 4 strings — no markdown, no code fences, no explanation.
 
 Sentence: "${sentence}"`;
 
@@ -56,7 +66,7 @@ Sentence: "${sentence}"`;
       body: JSON.stringify({
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
+        temperature: 0.5,
         max_tokens: 1024, // gpt-oss는 추론 모델이라 답변 전에 내부적으로 생각(reasoning)을 소모합니다 —
                            // 너무 낮게 잡으면 추론만 하다 끝나서 실제 답변(content)이 비어버립니다.
         reasoning_effort: 'low', // 굳이 깊게 추론할 필요 없는 단순 패러프레이즈 작업이라 낮게 설정
