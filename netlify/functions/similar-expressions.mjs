@@ -57,7 +57,9 @@ Sentence: "${sentence}"`;
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
-        max_tokens: 300,
+        max_tokens: 1024, // gpt-oss는 추론 모델이라 답변 전에 내부적으로 생각(reasoning)을 소모합니다 —
+                           // 너무 낮게 잡으면 추론만 하다 끝나서 실제 답변(content)이 비어버립니다.
+        reasoning_effort: 'low', // 굳이 깊게 추론할 필요 없는 단순 패러프레이즈 작업이라 낮게 설정
       }),
       signal: controller.signal,
     });
