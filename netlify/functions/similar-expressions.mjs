@@ -7,7 +7,7 @@
 //   -> 4xx/5xx { "error": "..." }  (클라이언트는 이 경우 사전 기반 대체 표현을 그대로 씁니다)
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.1-8b-instant';
+const MODEL = 'openai/gpt-oss-20b';
 const MAX_SENTENCE_LEN = 300;
 
 function jsonResponse(obj, status) {
