@@ -40,7 +40,7 @@ export default async (req) => {
     return jsonResponse({ error: 'not_configured' }, 500);
   }
 
-  const prompt = `Rewrite this English sentence in 4 different natural, everyday ways that keep the exact same meaning, tense, and subject. Keep each rewrite about the same length as the original. Return ONLY a raw JSON array of exactly 4 strings — no markdown, no code fences, no explanation.
+  const prompt = `Rewrite this English sentence in 4 different natural, everyday ways that keep the exact same meaning, tense, and subject. Each of the 4 rewrites must use noticeably different wording from the original sentence and from each other — do not just repeat the original. Keep each rewrite about the same length as the original. Return ONLY a raw JSON array of exactly 4 strings — no markdown, no code fences, no explanation.
 
 Sentence: "${sentence}"`;
 
@@ -85,7 +85,7 @@ Sentence: "${sentence}"`;
 
     return jsonResponse({ variants }, 200);
   } catch (e) {
-    return jsonResponse({ error: 'ai_failed', debug: String(e && e.stack || e) }, 502);
+    return jsonResponse({ error: 'ai_failed' }, 502);
   }
 };
 
