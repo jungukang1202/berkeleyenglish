@@ -105,6 +105,10 @@
   summary{cursor:pointer; color:var(--accent2); font-size:0.85rem; font-weight:700;}
   .export-box{margin-top:12px;}
   .export-box textarea{min-height:110px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.82rem;}
+  .variant-details{margin-top:12px; border-top:1px dashed var(--border); padding-top:10px;}
+  .variant-details summary{cursor:pointer; font-size:0.83rem; font-weight:700; color:var(--accent2);}
+  .variant-item{background:var(--bg); border:1px dashed var(--border); border-radius:10px; margin-top:8px; padding:10px 12px;}
+  .variant-item .o-line{font-size:0.92rem; margin-bottom:4px;}
 </style>
 </head>
 <body>
@@ -127,7 +131,7 @@
   <!-- ============ 문장 교정 쉐도잉 ============ -->
   <div class="card">
     <h2>① 문장 교정 쉐도잉</h2>
-    <div class="card-desc">원어민 피드백을 한 번에 여러 개 붙여넣거나, 한 쌍씩 추가할 수 있어요. ⚠️ 아래 "한 번에 추가"는 기존 문장 목록을 지우고 새로 붙여넣은 내용으로만 교체합니다.</div>
+    <div class="card-desc">원어민 피드백을 한 번에 여러 개 붙여넣거나, 한 쌍씩 추가할 수 있어요. ⚠️ 아래 "한 번에 추가"는 기존 문장 목록을 지우고 새로 붙여넣은 내용으로만 교체합니다.<br>✨ 교정된 문장마다 비슷한 표현 4개를 자동으로 만들어드려요(사전 기반 · AI 미사용 · 100% 무료). 각 표현도 그대로 듣기/따라 말하기 연습이 가능합니다.</div>
 
     <label for="bulkPasteArea">📋 여러 개 한 번에 붙여넣기 (한 줄에 문장 하나씩, "o:" 접두어는 없어도 됨)</label>
     <textarea id="bulkPasteArea" placeholder="I stayed at home today.
@@ -137,6 +141,10 @@ I feel proud of myself when I get a perfect score.
 (또는 아래처럼 틀린 문장도 같이 넣고 싶으면 x:/o: 형식으로)
 x: Yes.
 o: I stayed at home today."></textarea>
+    <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400; margin-top:10px; cursor:pointer;">
+      <input type="checkbox" id="pairModeCheckbox" checked style="margin-top:3px;">
+      <span style="font-size:0.82rem; color:var(--muted);">접두어 없이 <b>두 줄씩 짝</b>으로 되어 있어요 (홀수 줄 = 틀린 문장, 짝수 줄 = 맞는 문장). 체크하면 화면에는 맞는 문장만 보이고, 문법 해석은 그대로 만들어드려요. (기본으로 켜져 있어요 — 이미 맞는 문장들만 쭉 나열할 때는 체크를 꺼주세요.)</span>
+    </label>
     <div class="row">
       <button class="btn-primary" id="bulkAddBtn">📋 붙여넣은 내용으로 새로 만들기</button>
     </div>
@@ -221,7 +229,7 @@ schedule"></textarea>
   </div>
 
   <footer>
-    ⓘ 한글 번역은 <a href="https://mymemory.translated.net" style="color:var(--accent);" target="_blank" rel="noopener">MyMemory</a> 무료 번역 API를 사용합니다 (네트워크 필요, 실패 시 번역이 표시되지 않을 수 있어요).<br>
+    ⓘ 한글 번역은 구글 번역을 우선 사용하고(실패 시 MyMemory로 대체), 무료 API라 네트워크가 필요하며 드물게 번역이 표시되지 않을 수 있어요.<br>
     ⓘ 듣기(TTS)와 발음 인식(STT)은 브라우저의 Web Speech API를 사용하며, Chrome 데스크톱에서 가장 안정적으로 동작합니다.<br>
     ⓘ 문법 설명은 외부 API 없이 이 페이지 안에서 규칙 기반으로 자동 생성되는 근사치입니다.
   </footer>
@@ -235,7 +243,29 @@ function escapeHTML(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;'
 const translationCache = new Map();
 // MyMemory는 키 없이 쓰는 무료 API라 가끔 응답이 늦거나(타임아웃), 순간적으로 요청이 몰려 실패할 때가 있어요.
 // 그래서 한 번 실패해도 바로 포기하지 않고 몇 번 더 재시도합니다.
-async function translateOnce(text, target, source, timeoutMs) {
+// 구글 번역의 비공식 무료 엔드포인트(별도 API 키 필요 없음, client=gtx). 문장 단위 의역이
+// MyMemory보다 훨씬 자연스러워서 1순위로 사용하고, 혹시 실패하면 아래 MyMemory로 대체합니다.
+async function translateOnceGoogle(text, target, source, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source}&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
+    const resp = await fetch(url, { signal: controller.signal });
+    if (!resp.ok) throw new Error('google translate HTTP ' + resp.status);
+    const data = await resp.json();
+    // 응답 형태: [[["번역된 조각","원문 조각",...], ...], ...] — 조각들을 순서대로 이어붙입니다.
+    const translated = Array.isArray(data) && Array.isArray(data[0])
+      ? data[0].map(seg => (Array.isArray(seg) ? seg[0] : '')).join('')
+      : '';
+    if (!translated) throw new Error('empty google translation');
+    return translated;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// 예전에 쓰던 MyMemory 무료 번역 API. 구글 번역이 막히거나 실패했을 때만 대체용으로 사용합니다.
+async function translateOnceMyMemory(text, target, source, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -250,6 +280,15 @@ async function translateOnce(text, target, source, timeoutMs) {
     return translated;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function translateOnce(text, target, source, timeoutMs) {
+  try {
+    return await translateOnceGoogle(text, target, source, timeoutMs);
+  } catch (err) {
+    console.warn('구글 번역 실패, MyMemory로 대체합니다:', err);
+    return await translateOnceMyMemory(text, target, source, timeoutMs);
   }
 }
 
@@ -294,6 +333,20 @@ const hasTTS = 'speechSynthesis' in window;
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 const hasSTT = !!SpeechRecognitionCtor;
 const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+// 마이크 권한을 페이지당 한 번만 물어보도록, getUserMedia로 스트림을 미리 받아서 페이지가 열려있는
+// 동안 계속 붙잡아 둡니다(트랙을 stop하지 않음). 이렇게 하면 브라우저가 마이크를 "계속 사용 중"으로
+// 인식해서, 카드마다/반복마다 음성인식(SpeechRecognition)을 새로 시작해도 권한을 또 묻는 일이 줄어요.
+// (단, file://로 직접 연 경우는 크롬이 마이크 권한 자체를 저장하지 못하는 근본적인 한계가 있어서
+// 완전히 사라지지 않을 수 있어요 — 이 문제는 https로 배포하면 확실히 해결됩니다.)
+let micWarmupPromise = null;
+function warmupMic() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.resolve(null);
+  if (!micWarmupPromise) {
+    micWarmupPromise = navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+  }
+  return micWarmupPromise;
+}
 
 // Word-level alignment between target text and recognized speech (LCS-based diff + match score).
 function compareWords(target, heard) {
@@ -401,6 +454,20 @@ function buildShadowingControls(targetText) {
     listenBtn.textContent = '🔊 듣기 시작';
   });
 
+  // 이 카드용 SpeechRecognition 인스턴스를 한 번만 만들어서 계속 재사용합니다. 반복(회 반복)마다,
+  // 또는 "따라 말하기"를 여러 번 눌러도 매번 새 인스턴스를 만들지 않게 해서, 크롬이 마이크 권한을
+  // 다시 물어보는 빈도를 크게 줄여줍니다.
+  let sharedRecognition = null;
+  function getSharedRecognition() {
+    if (!sharedRecognition) {
+      sharedRecognition = new SpeechRecognitionCtor();
+      sharedRecognition.lang = 'en-US';
+      sharedRecognition.interimResults = false;
+      sharedRecognition.maxAlternatives = 1;
+    }
+    return sharedRecognition;
+  }
+
   // 마이크 인식 한 번을 실행하고, 결과(인식 성공/실패)를 Promise로 돌려줍니다.
   // onReady: 마이크가 실제로 듣기 시작한 순간(브라우저의 onstart 이벤트)에 호출됩니다.
   // 이 콜백이 오기 전까지는 화면에 "듣는 중"이라고 표시하지 않아야, 학생이 실제로 녹음이
@@ -410,10 +477,7 @@ function buildShadowingControls(targetText) {
       let settled = false;
       const settle = (val) => { if (!settled) { settled = true; resolve(val); } };
 
-      const recognition = new SpeechRecognitionCtor();
-      recognition.lang = 'en-US';
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
+      const recognition = getSharedRecognition();
       micState.activeRecognition = recognition;
 
       let heard = null;
@@ -468,6 +532,7 @@ function buildShadowingControls(targetText) {
     compareEl.innerHTML = '';
 
     (async () => {
+      await warmupMic(); // 마이크 스트림을 미리 받아 붙잡아 둬서 권한 재요청을 줄입니다.
       for (let i = startIndex; i <= target; i++) {
         if (micState.stopped) break;
         micBtn.innerHTML = `<span class="rec-dot"></span>마이크 준비 중... (${i}/${target})`;
@@ -532,18 +597,22 @@ if (hasTTS) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesi
 
 /* ===================== x: / o: / w: 텍스트 파서 (공용) ===================== */
 // "x: ...", "o: ...", "w: ..." 형식의 줄들을 파싱합니다. 헤더(# 문장 등)는 무시해도 되고 없어도 됩니다.
-// x/o/w 접두어는 콜론(x:)이 있어도 없어도("x " 처럼 띄어쓰기만) 인식됩니다.
-// 단, 접두어 뒤에 콜론이나 공백이 최소 하나는 있어야 인식돼요 (예: "xylophone"처럼 x로 시작하는
+// x/o/w 접두어는 콜론(x:)이나 하이픈(x-)이 있어도 없어도("x " 처럼 띄어쓰기만) 인식됩니다.
+// 단, 접두어 뒤에 콜론/하이픈이나 공백이 최소 하나는 있어야 인식돼요 (예: "xylophone"처럼 x로 시작하는
 // 일반 단어까지 접두어로 오인하지 않도록).
-const X_PREFIX_RE = /^x\s*(?:[:：]\s*|\s+)/i;
-const O_PREFIX_RE = /^o\s*(?:[:：]\s*|\s+)/i;
-const W_PREFIX_RE = /^w\s*(?:[:：]\s*|\s+)/i;
+const X_PREFIX_RE = /^x\s*(?:[:：\-－]\s*|\s+)/i;
+const O_PREFIX_RE = /^o\s*(?:[:：\-－]\s*|\s+)/i;
+const W_PREFIX_RE = /^w\s*(?:[:：\-－]\s*|\s+)/i;
 
-function parseFeedbackBlock(text) {
+// pairMode: 접두어(x:/o:) 없는 줄들을 "두 줄씩 짝" (홀수=틀린 문장, 짝수=맞는 문장)으로 처리합니다.
+// 이때 만들어지는 카드는 hideX 표시를 붙여서, 화면에는 맞는 문장만 보이고(틀린 문장은 숨김)
+// 문법 해석(explainDifference)은 기존처럼 두 문장을 다 이용해서 그대로 만들어줍니다.
+function parseFeedbackBlock(text, pairMode) {
   const lines = text.split('\n');
   const newSentences = [];
   const newWords = [];
   let pendingX = '';
+  let pendingPairX = null; // pairMode에서만 사용: 접두어 없는 줄 중 아직 짝이 안 지어진 "틀린 문장" 줄
   lines.forEach(raw => {
     const line = raw.trim();
     if (!line || line.startsWith('#')) return;
@@ -556,6 +625,13 @@ function parseFeedbackBlock(text) {
     } else if (W_PREFIX_RE.test(line)) {
       const w = line.replace(W_PREFIX_RE, '');
       if (w) newWords.push(w);
+    } else if (pairMode) {
+      if (pendingPairX === null) {
+        pendingPairX = line;
+      } else {
+        newSentences.push({ x: pendingPairX, o: line, hideX: true });
+        pendingPairX = null;
+      }
     } else {
       // 접두어 없이 그냥 문장만 한 줄씩 있는 경우 — 바로 앞에 x 줄이 있었으면 그 줄과 짝을 짓고,
       // 없었으면 교정 문장(o)으로만 취급합니다.
@@ -563,6 +639,10 @@ function parseFeedbackBlock(text) {
       pendingX = '';
     }
   });
+  // pairMode에서 마지막 줄이 짝을 못 찾은 채로 남아있으면(홀수 개), 버리지 않고 맞는 문장 하나로 살립니다.
+  if (pendingPairX !== null) {
+    newSentences.push({ x: '', o: pendingPairX });
+  }
   return { newSentences, newWords };
 }
 
@@ -765,6 +845,121 @@ function updateSummary() {
   if (summaryArea) summaryArea.value = buildSummaryText();
 }
 
+/* ===================== 비슷한 표현 4개 생성 (오프라인, 사전 기반 - AI/API 미사용) ===================== */
+// 서버나 API 없이 브라우저에서만 동작해야 해서, 자주 나오는 단어/구를 자연스러운 유사 표현으로
+// 바꿔치기하는 사전 기반 방식으로 만듭니다. AI가 새로 문장을 짓는 것보다 다양성은 제한적이지만
+// 비용이나 크레딧 없이 누구나 무제한으로 쓸 수 있어요.
+const PARAPHRASE_DICT = [
+  // 구(phrase) 단위 — 단어보다 먼저 매칭되도록 배열 앞쪽에 둡니다.
+  [/\ba lot of\b/gi, ['plenty of', 'lots of', 'a good amount of', 'quite a few']],
+  [/\bi think\b/gi, ['I believe', 'I feel like', 'In my opinion,', 'It seems to me']],
+  [/\bi want to\b/gi, ["I'd like to", "I'm planning to", 'I hope to', "I'm hoping to"]],
+  [/\bi like\b/gi, ['I enjoy', "I'm a fan of", 'I really like', "I'm into"]],
+  [/\bi love\b/gi, ['I really love', 'I adore', "I'm crazy about", 'I truly enjoy']],
+  [/\bi feel proud of myself\b/gi, ['I feel really proud', "I'm proud of myself", 'It makes me proud', 'I feel a sense of pride']],
+  [/\bmakes? me excited\b/gi, ['get me excited', 'make me feel thrilled', 'make me really happy', 'get me pumped']],
+  [/\ba perfect score\b/gi, ['a perfect mark', 'full marks', '100 percent', 'top marks']],
+  [/\bstayed at home\b/gi, ['stayed home', 'stayed in', 'spent the day at home', "didn't go out"]],
+  // 단어 단위
+  [/\bhappy\b/gi, ['glad', 'pleased', 'delighted', 'thrilled']],
+  [/\bsad\b/gi, ['upset', 'down', 'unhappy', 'blue']],
+  [/\bgood\b/gi, ['great', 'nice', 'solid', 'decent']],
+  [/\bbad\b/gi, ['not great', 'poor', 'rough', 'unpleasant']],
+  [/\bnice\b/gi, ['great', 'lovely', 'pleasant', 'wonderful']],
+  [/\bgreat\b/gi, ['awesome', 'fantastic', 'wonderful', 'excellent']],
+  [/\binteresting\b/gi, ['fascinating', 'intriguing', 'engaging', 'compelling']],
+  [/\bboring\b/gi, ['dull', 'tedious', 'not very interesting', 'a bit flat']],
+  [/\bdifficult\b/gi, ['hard', 'challenging', 'tough', 'tricky']],
+  [/\beasy\b/gi, ['simple', 'straightforward', 'not hard', 'a breeze']],
+  [/\bimportant\b/gi, ['essential', 'crucial', 'key', 'significant']],
+  [/\bexcited\b/gi, ['thrilled', 'pumped', 'stoked', 'really looking forward to it']],
+  [/\bproud\b/gi, ['pleased with myself', 'satisfied', 'delighted', 'accomplished']],
+  [/\btired\b/gi, ['exhausted', 'worn out', 'sleepy', 'beat']],
+  [/\bbusy\b/gi, ['swamped', 'tied up', 'occupied', 'slammed']],
+  [/\bcomfortable\b/gi, ['cozy', 'relaxed', 'at ease', 'comfy']],
+  [/\bbeautiful\b/gi, ['gorgeous', 'lovely', 'stunning', 'pretty']],
+  [/\bexpensive\b/gi, ['pricey', 'costly', 'a bit much', 'overpriced']],
+  [/\bcheap\b/gi, ['affordable', 'inexpensive', 'budget-friendly', 'a good deal']],
+  [/\bfast\b/gi, ['quick', 'speedy', 'rapid', 'swift']],
+  [/\bslow\b/gi, ['sluggish', 'unhurried', 'gradual', 'leisurely']],
+  [/\bdelicious\b/gi, ['tasty', 'yummy', 'amazing', 'mouthwatering']],
+  [/\bfun\b/gi, ['enjoyable', 'entertaining', 'a good time', 'a blast']],
+  [/\bscary\b/gi, ['frightening', 'creepy', 'terrifying', 'spooky']],
+  [/\bangry\b/gi, ['mad', 'annoyed', 'frustrated', 'upset']],
+  [/\bworried\b/gi, ['concerned', 'anxious', 'nervous', 'uneasy']],
+  [/\bnervous\b/gi, ['anxious', 'on edge', 'a little worried', 'jittery']],
+  [/\bconfident\b/gi, ['sure of myself', 'self-assured', 'certain', 'assured']],
+  [/\bconfused\b/gi, ['puzzled', 'lost', 'mixed up', 'unsure']],
+  [/\bfamily\b/gi, ['family members', 'loved ones', 'relatives', 'folks']],
+  [/\bfriends\b/gi, ['buddies', 'close friends', 'pals', 'people I know']],
+];
+
+function toTitleCaseFirst(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// 문장 하나를 받아서 사전에 매칭되는 단어/구를 각기 다른 유사어로 바꾼 4개의 변형을 만듭니다.
+// 구(phrase) 매칭을 먼저 찾고, 이미 매칭된 구간과 겹치는 단어 매칭은 건너뛰어서(예: "I feel proud
+// of myself"를 통째로 바꾼 뒤 그 안의 "proud"를 또 따로 바꿔서 어색해지는 것을 방지) 문법이 깨지지
+// 않도록 합니다. 매칭되는 게 거의 없으면(사전에 없는 단어로만 이루어진 문장) 자연스러운 구어체
+// 시작어구를 붙여 최소한의 4개를 채워줍니다.
+function generateSimilarExpressions(sentence) {
+  const base = (sentence || '').trim();
+  if (!base) return [];
+
+  // 1) 사전 항목을 앞쪽(구 단위)부터 순서대로 검사하면서, 이미 찾은 매칭 구간과 겹치지 않는
+  //    매칭만 채택합니다.
+  const matches = [];
+  PARAPHRASE_DICT.forEach(([re, alts]) => {
+    const flags = re.flags.includes('g') ? re.flags : re.flags + 'g';
+    const globalRe = new RegExp(re.source, flags);
+    let m;
+    while ((m = globalRe.exec(base)) !== null) {
+      const start = m.index;
+      const end = start + m[0].length;
+      const overlaps = matches.some(mm => start < mm.end && end > mm.start);
+      if (!overlaps) matches.push({ start, end, text: m[0], alts });
+      if (globalRe.lastIndex === m.index) globalRe.lastIndex++; // 빈 매칭 무한루프 방지
+    }
+  });
+  matches.sort((a, b) => a.start - b.start);
+
+  const rawVariants = [];
+  if (matches.length) {
+    for (let i = 0; i < 4; i++) {
+      let out = '';
+      let cursor = 0;
+      matches.forEach(mm => {
+        out += base.slice(cursor, mm.start);
+        const alt = mm.alts[i % mm.alts.length];
+        const isCapitalized = mm.text.charAt(0) === mm.text.charAt(0).toUpperCase() && mm.text.charAt(0) !== mm.text.charAt(0).toLowerCase();
+        out += isCapitalized ? toTitleCaseFirst(alt) : alt;
+        cursor = mm.end;
+      });
+      out += base.slice(cursor);
+      rawVariants.push({ text: out, changed: true });
+    }
+  }
+
+  const starters = ['Actually, ', 'Honestly, ', 'You know, ', 'To be honest, '];
+  const lowerBase = base.charAt(0).toLowerCase() + base.slice(1);
+  const seen = new Set();
+  const result = [];
+  for (let i = 0; i < 4; i++) {
+    const v = rawVariants[i];
+    let text = (v && !seen.has(v.text)) ? v.text : (starters[i] + lowerBase);
+    if (!seen.has(text)) { seen.add(text); result.push(text); }
+  }
+  let si = 0;
+  while (result.length < 4 && si < starters.length) {
+    const candidate = starters[si] + lowerBase;
+    if (!seen.has(candidate)) { seen.add(candidate); result.push(candidate); }
+    si++;
+  }
+  return result.slice(0, 4);
+}
+
 /* ===================== ① 문장 교정 쉐도잉 ===================== */
 
 const sentenceList = document.getElementById('sentenceList');
@@ -798,7 +993,7 @@ function renderSentences() {
     el.innerHTML = `
       <div class="item-top">
         <div style="flex:1;">
-          ${item.x ? `<div class="x-line">✗ ${escapeHTML(item.x)}</div>` : ''}
+          ${item.x && !item.hideX ? `<div class="x-line">✗ ${escapeHTML(item.x)}</div>` : ''}
           <div class="o-line">✓ ${escapeHTML(item.o)}</div>
           <div class="kr-meaning">🇰🇷 뜻: <span class="kr-text">번역 중...</span></div>
           ${explanation ? `<div class="explain-block">🔎 <b>왜 틀렸을까요?</b> ${escapeHTML(explanation)}</div>` : ''}
@@ -829,6 +1024,27 @@ function renderSentences() {
     });
 
     el.appendChild(buildShadowingControls(item.o));
+
+    const similar = generateSimilarExpressions(item.o);
+    if (similar.length) {
+      const variantWrap = document.createElement('details');
+      variantWrap.className = 'variant-details';
+      const summary = document.createElement('summary');
+      summary.textContent = `🗣️ 비슷한 표현 ${similar.length}개로 더 연습하기`;
+      variantWrap.appendChild(summary);
+      similar.forEach(vText => {
+        const vEl = document.createElement('div');
+        vEl.className = 'item variant-item';
+        const vLine = document.createElement('div');
+        vLine.className = 'o-line';
+        vLine.textContent = `➜ ${vText}`;
+        vEl.appendChild(vLine);
+        vEl.appendChild(buildShadowingControls(vText));
+        variantWrap.appendChild(vEl);
+      });
+      el.appendChild(variantWrap);
+    }
+
     sentenceList.appendChild(el);
   });
 
@@ -853,7 +1069,8 @@ addSentenceBtn.addEventListener('click', () => {
 bulkAddBtn.addEventListener('click', () => {
   const text = bulkPasteArea.value;
   if (!text.trim()) { bulkStatus.textContent = '붙여넣을 내용이 없어요.'; return; }
-  const { newSentences, newWords } = parseFeedbackBlock(text);
+  const pairMode = document.getElementById('pairModeCheckbox').checked;
+  const { newSentences, newWords } = parseFeedbackBlock(text, pairMode);
   if (!newSentences.length && !newWords.length) {
     bulkStatus.textContent = '⚠️ x:/o: 형식을 찾지 못했어요. "x: 문장" / "o: 문장" 형식으로 붙여넣어주세요.';
     return;
