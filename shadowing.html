@@ -655,9 +655,46 @@ function __wavBlob(samples, sr) {
   }
   return new Blob([bytes], { type: 'audio/wav' });
 }
+// ── "띵동" 시작음 ──
+// 버튼을 누른 뒤 첫 원어민 음성 바로 앞에 "띵동"을 넣어 줍니다. 진짜 소리라서 USB·블루투스 이어폰도 확실히 깨워요.
+let __dingPending = false; // 버튼을 누르면 true → 첫 원어민 음성에서 한 번만 사용
+function __dingSamples(sr) {
+  const notes = [[659.25, 0.32], [523.25, 0.5]]; // 띵(미) → 동(도)
+  const total = Math.round(sr * (notes[0][1] + notes[1][1]));
+  const out = new Float32Array(total);
+  let off = 0;
+  for (const [f, d] of notes) {
+    const n = Math.round(sr * d);
+    for (let i = 0; i < n && off + i < total; i++) {
+      const t = i / sr;
+      const env = Math.min(1, t / 0.005) * Math.exp(-t * 4.5); // 종소리처럼 '띵' 하고 잦아듦
+      out[off + i] = 0.3 * env * (Math.sin(2 * Math.PI * f * t) + 0.35 * Math.sin(4 * Math.PI * f * t) + 0.12 * Math.sin(6 * Math.PI * f * t));
+    }
+    off += n;
+  }
+  return out;
+}
+let __dingAudioUrl = null, __dingAudio = null;
+// PC(기기 음성 엔진)용: 띵동을 따로 재생하고 끝나면 resolve
+function __playDingStandalone() {
+  return new Promise(resolve => {
+    let done = false;
+    const fin = () => { if (!done) { done = true; resolve(); } };
+    try {
+      if (!__dingAudioUrl) __dingAudioUrl = URL.createObjectURL(__wavBlob(__dingSamples(24000), 24000));
+      if (!__dingAudio) __dingAudio = new Audio();
+      __dingAudio.src = __dingAudioUrl;
+      __dingAudio.onended = () => setTimeout(fin, 250);
+      __dingAudio.onerror = fin;
+      const p = __dingAudio.play();
+      if (p && p.catch) p.catch(fin);
+      setTimeout(fin, 2000);
+    } catch (e) { fin(); }
+  });
+}
 // 속도가 적용된 음성 주소를 돌려줍니다. 실패하면 null(그때는 예전처럼 Chrome 재생 속도로 처리).
-async function __getStretchedVoiceUrl(url, rate) {
-  const key = rate.toFixed(3) + '|' + url;
+async function __getStretchedVoiceUrl(url, rate, withDing) {
+  const key = rate.toFixed(3) + (withDing ? '|ding|' : '|') + url;
   if (__stretchCache.has(key)) return __stretchCache.get(key);
   try {
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
@@ -674,9 +711,19 @@ async function __getStretchedVoiceUrl(url, rate) {
     const stretched = Math.abs(rate - 1) < 0.02 ? ch : __wsola(ch, buf.sampleRate, rate);
     // 서버가 붙인 앞 무음(0.9초)도 빨라지면 짧아져요(빠르게 1.44배 → 0.63초). USB 이어폰은 깨어나는 데 약 0.7초가
     // 걸려 첫 단어(I)가 잘리므로, 속도와 상관없이 앞 무음이 항상 1초가 되도록 모자란 만큼 더 붙입니다.
-    const extra = Math.max(0, Math.round((1.0 - 0.9 / rate) * buf.sampleRate));
-    const out = new Float32Array(extra + stretched.length);
-    out.set(stretched, extra);
+    let out;
+    if (withDing) {
+      // [0.3초 무음] 띵동 [0.1초 쉼 + 서버 무음] 원어민 음성 — 띵동이 이어폰을 깨우므로 추가 무음은 필요 없어요.
+      const ding = __dingSamples(buf.sampleRate);
+      const pre = Math.round(0.3 * buf.sampleRate), gap = Math.round(0.1 * buf.sampleRate);
+      out = new Float32Array(pre + ding.length + gap + stretched.length);
+      out.set(ding, pre);
+      out.set(stretched, pre + ding.length + gap);
+    } else {
+      const extra = Math.max(0, Math.round((1.0 - 0.9 / rate) * buf.sampleRate));
+      out = new Float32Array(extra + stretched.length);
+      out.set(stretched, extra);
+    }
     const objUrl = URL.createObjectURL(__wavBlob(out, buf.sampleRate));
     __stretchCache.set(key, objUrl);
     return objUrl;
@@ -685,17 +732,20 @@ async function __getStretchedVoiceUrl(url, rate) {
   }
 }
 
-async function __speakViaAudio(text, rate, gen) {
+async function __speakViaAudio(text, rate, gen, withDing) {
   const r = rate * ONLINE_VOICE_SPEED_BOOST;
   // 매번 재생 직전에 이어폰을 깨우고, 깨우기 소리가 실제로 날 때까지 기다린 뒤 재생합니다.
   await wakeOutputViaTTS();
   if (gen !== __voiceGen) return;
+  let first = true;
   for (const chunk of __splitForTTS(text, 180)) {
     if (gen !== __voiceGen) return;
+    const ding = withDing && first; first = false;
     const url = TTS_AUDIO_ENDPOINT + '?v=3&q=' + encodeURIComponent(chunk);
-    const stretched = await __getStretchedVoiceUrl(url, r);
+    const stretched = await __getStretchedVoiceUrl(url, r, ding);
     if (gen !== __voiceGen) return;
     // 사이트가 속도를 미리 적용한 파일이면 1배속으로, 실패했으면 예전처럼 Chrome 재생 속도로 재생
+    if (!stretched && ding) { await __playDingStandalone(); if (gen !== __voiceGen) return; }
     const ok = stretched ? await __playAudioOnce(stretched, 1) : await __playAudioOnce(url, r);
     if (!ok) return;
   }
@@ -704,6 +754,8 @@ async function __speakViaAudio(text, rate, gen) {
 // 문장 하나를 원어민 음성으로 읽어 줍니다(끝나면 resolve). 어떤 방식으로 재생할지는 자동으로 고릅니다.
 async function speakText(text, rate) {
   const gen = __voiceGen;
+  let withDing = __dingPending; // 버튼을 누른 뒤 첫 재생이면 앞에 '띵동'
+  __dingPending = false;
   if (__voiceMode !== 'audio') {
     if (!('speechSynthesis' in window)) {
       __voiceMode = 'audio';
@@ -728,11 +780,12 @@ async function speakText(text, rate) {
         window.speechSynthesis.speak(warm);
       } catch (e) {}
     }
+    if (withDing) { await __playDingStandalone(); withDing = false; if (gen !== __voiceGen) return; }
     const ok = await __speakViaSynth(text, rate);
     if (ok || gen !== __voiceGen) return;
     __voiceMode = 'audio'; // 이 기기는 음성 엔진이 실제로 소리를 못 냄 → 이후로는 인터넷 음성 사용
   }
-  await __speakViaAudio(text, rate, gen);
+  await __speakViaAudio(text, rate, gen, withDing);
 }
 
 // ── 따라 말하기 "서버 받아쓰기" 대체 모듈 ──
@@ -1049,7 +1102,7 @@ function buildShadowingControls(targetText) {
     stopVoice();
     // 태블릿: 버튼을 누른 바로 이 순간(마이크 권한 대기 등 await 이전)에 음성 재생을 깨워야 소리가 납니다.
     unlockVoice();
-    startOutputKeepAlive(); // 연습하는 동안 이어폰이 잠들지 않게
+    __dingPending = true; // 이번에 누른 뒤 첫 원어민 음성 앞에 '띵동' (무음 흘리기는 효과가 없어 뺐어요)
 
     // 삐 소리용 오디오를 버튼을 누른 이 순간에 준비해 둡니다(브라우저는 사용자가 직접 누른 동작 안에서만 소리 재생을 허용해요).
     unlockBeep();
@@ -1084,7 +1137,7 @@ function buildShadowingControls(targetText) {
         // 1) 먼저 원어민 음성(TTS)으로 들려줍니다.
         if (hasTTS) {
           shadowBtn.innerHTML = `🔊 듣는 중... (${i}/${target})`;
-          await speakOnce(rate);
+          await speakOnce(parseFloat(rateSelect.value) || rate); // 반복마다 지금 선택된 속도로(반복 중에 바꿔도 바로 반영)
           if (state.stopped) break;
         }
 
