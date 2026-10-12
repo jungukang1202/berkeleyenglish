@@ -1,3 +1,10 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+
+# 코드·화면 파일은 브라우저가 저장해 둔 옛 버전을 쓰지 않고, 열 때마다 최신인지 확인하게 합니다.
+# (배포 후 다른 기기에서 예전 동작이 남아 있던 문제 방지)
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache"

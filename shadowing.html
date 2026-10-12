@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="원어민이 교정해준 문장/단어 발음 피드백을 직접 입력하고, 듣기+따라 말하기(쉐도잉)로 연습하는 도구">
 <meta name="color-scheme" content="light">
-<link rel="icon" type="image/png" href="images/영클원어민영어회화-badge.png">
-<link rel="canonical" href="https://youngcle.co.kr/shadowing.html">
-<title>쉐도잉 연습장 | 영클원어민영어회화</title>
+<link rel="icon" type="image/png" href="images/버클리원어민영어회화-badge.png">
+<link rel="canonical" href="https://berkeleyenglish.co.kr/shadowing.html">
+<title>쉐도잉 연습장 | 버클리원어민영어회화</title>
 <style>
   :root{
     --bg:#FAF6EC; --panel:#FFFFFF; --panel2:#FFFFFF; --border:#EAE1C8;
@@ -128,10 +128,10 @@
 <body>
 <header>
   <div class="wrap" style="padding:0 16px;">
-    <a href="index.html" style="display:inline-block; margin-bottom:8px; font-size:0.85rem; color:var(--text); font-weight:700; text-decoration:none;">🏠 영클원어민영어회화 홈으로</a>
+    <a href="index.html" style="display:inline-block; margin-bottom:8px; font-size:0.85rem; color:var(--text); font-weight:700; text-decoration:none;">🏠 버클리원어민영어회화 홈으로</a>
     <h1>🗣️ 원어민 피드백 쉐도잉 연습장</h1>
     <div class="sub">수업에서 원어민이 교정해준 문장(x → o)이나 발음 지적을 받은 단어를 직접 입력하면,
-    듣기(TTS)와 따라 말하기(음성 인식)로 쉐도잉 연습을 할 수 있어요. (Chrome 브라우저 권장 — 마이크 권한 필요)</div>
+    듣기(TTS)와 따라 말하기(음성 인식)로 쉐도잉 연습을 할 수 있어요. (마이크 권한 필요)</div>
   </div>
 </header>
 <div class="wrap">
@@ -249,8 +249,9 @@
 
   <footer>
     ⓘ 한글 번역은 구글 번역을 우선 사용하고(실패 시 MyMemory로 대체), 무료 API라 네트워크가 필요하며 드물게 번역이 표시되지 않을 수 있어요.<br>
-    ⓘ 듣기(TTS)와 발음 인식(STT)은 브라우저의 Web Speech API를 사용하며, Chrome 데스크톱에서 가장 안정적으로 동작합니다.<br>
+    ⓘ Chrome·Edge·Safari·Firefox·웨일에서 사용할 수 있어요. Chrome은 브라우저 음성 인식을, 그 밖의 브라우저와 태블릿은 녹음 후 서버에서 받아쓰는 방식을 사용합니다.<br>
     ⓘ 문법 설명은 외부 API 없이 이 페이지 안에서 규칙 기반으로 자동 생성되는 근사치입니다.
+    <div id="engineVersion" style="margin-top:6px; opacity:0.7;"></div>
   </footer>
 </div>
 
@@ -350,7 +351,20 @@ async function translateText(text, target = 'ko', source = 'en', retries = 2) {
 
 const hasTTS = true; // 기기 음성 엔진이 없어도 인터넷 음성(/api/tts)으로 들을 수 있어서 항상 true
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-const hasSTT = !!SpeechRecognitionCtor;
+// 브라우저 내장 음성 인식은 Google 음성 서버를 쓰는 '진짜 Chrome'에서만 안정적이에요.
+// Edge·웨일·Brave·삼성 인터넷·Opera는 Google 서버를 못 써서 오류가 나고, Safari는 자주 실패하며, Firefox는 기능이 없어요.
+// → Chrome이 아니면 사이트가 직접 녹음해서 서버(/api/stt)에서 받아쓰는 방식을 씁니다.
+function isGoogleChrome() {
+  const ua = navigator.userAgent || '';
+  if (/Edg\/|EdgA\/|EdgiOS|OPR\/|Opera|SamsungBrowser|Whale|YaBrowser|Vivaldi|CriOS|FxiOS|Firefox|NAVER|KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(ua)) return false;
+  const brands = navigator.userAgentData && navigator.userAgentData.brands;
+  if (brands && brands.length) return brands.some(b => b.brand === 'Google Chrome');
+  return /Chrome\/\d+/.test(ua) && navigator.vendor === 'Google Inc.' && !(navigator.brave);
+}
+const isChrome = isGoogleChrome();
+const canBrowserSTT = !!SpeechRecognitionCtor && isChrome;
+const canServerSTT = !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+const hasSTT = canBrowserSTT || canServerSTT || !!SpeechRecognitionCtor;
 const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) // iPadOS
   // 안드로이드 태블릿 Chrome은 기본으로 '데스크톱 사이트' 모드라서 자신을 Linux PC라고 소개해요.
@@ -379,6 +393,27 @@ let __voiceGen = 0;
 let __lastTtsEnd = 0;
 // 지금 재생 중인 카드의 '멈춤' 함수. 다른 카드를 누르면 이걸 불러서 앞 카드의 반복을 완전히 멈춥니다(소리 겹침 방지).
 let __activeShadowStop = null;
+const ENGINE_VERSION = '2026-10-12c'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+// 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
+const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
+function __dbg(msg) {
+  if (!__DEBUG_ON) return;
+  try {
+    let box = document.getElementById('__dbgBox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = '__dbgBox';
+      box.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:99999;max-width:min(360px,90vw);max-height:40vh;overflow:auto;background:rgba(27,42,78,.92);color:#fff;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;white-space:pre-wrap;';
+      document.body.appendChild(box);
+    }
+    const t = new Date().toTimeString().slice(0, 8);
+    box.textContent += `${t} ${msg}\n`;
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {}
+}
+// 음성 엔진 깨우기용 문장. 예전엔 'Okay.'였는데 일부 기기(안드로이드 등)는 볼륨 설정을 무시해서
+// "okay"가 작게 들렸어요. 쉼표는 소리 없는 짧은 쉼으로 읽혀서 엔진만 깨우고 단어는 들리지 않아요.
+const WARMUP_TEXT = ',';
 // 페이지에서 처음 화면을 터치(또는 클릭)하는 순간, 거의 안 들리는 짧은 음성으로 태블릿 음성 엔진을 미리 깨워 둡니다.
 // (태블릿은 엔진이 처음 켜질 때 첫 단어가 잘리는 경우가 있어서, 버튼을 누르기 전에 준비시켜 두는 거예요)
 (function prewarmTTSOnFirstTouch() {
@@ -389,7 +424,7 @@ let __activeShadowStop = null;
     try {
       const synth = window.speechSynthesis;
       if (synth.speaking || synth.pending) return;
-      const u = new SpeechSynthesisUtterance('Okay.');
+      const u = new SpeechSynthesisUtterance(WARMUP_TEXT);
       u.lang = 'en-US'; u.volume = 0.01; u.rate = 1.5;
       const v = pickEnglishVoice(); if (v) u.voice = v;
       __ttsKeepAlive.push(u);
@@ -407,9 +442,13 @@ let __silentWavUrl = null;
 function __isEnglishVoice(v) { return /^en([-_]|$)/i.test(v.lang || ''); }
 function pickEnglishVoice() {
   if (!('speechSynthesis' in window)) return null;
-  const voices = window.speechSynthesis.getVoices() || [];
+  const all = window.speechSynthesis.getVoices() || [];
+  // Mac(Safari)에는 영어 목록 맨 앞에 "Albert", "Bubbles" 같은 장난감·로봇 목소리가 있어서 빼고 고릅니다.
+  const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Kathy|Ralph|Grandma|Grandpa|Eddy|Flo|Reed|Rocko|Sandy|Shelley)\b/i;
+  const voices = all.filter(v => !NOVELTY.test(v.name || ''));
+  const lang = v => (v.lang || '').replace('_', '-').toLowerCase(); // 일부 Safari는 en_US 형식
   // 원래 사이트와 같은 기준: 첫 번째 미국 영어(en-US) 음성 → 없으면 아무 영어 음성
-  return voices.find(v => v.lang === 'en-US') || voices.find(v => (v.lang || '').startsWith('en')) || null;
+  return voices.find(v => lang(v) === 'en-us') || voices.find(v => lang(v).startsWith('en')) || null;
 }
 function __waitVoices(ms) {
   return new Promise(resolve => {
@@ -476,9 +515,9 @@ function wakeOutputViaTTS() {
   return new Promise(resolve => {
     let done = false;
     const fin = () => { if (!done) { done = true; clearTimeout(timer); resolve(); } };
-    const timer = setTimeout(fin, 2500);
+    const timer = setTimeout(fin, 1200); // 예전 2.5초 → 1.2초(소리 없는 깨우기는 시작 신호가 안 오는 기기가 있어 너무 오래 기다렸어요)
     try {
-      const u = new SpeechSynthesisUtterance('Okay.');
+      const u = new SpeechSynthesisUtterance(WARMUP_TEXT);
       u.lang = 'en-US'; u.volume = 0.01; u.rate = 1.5;
       const v = pickEnglishVoice(); if (v) u.voice = v;
       __ttsKeepAlive.push(u);
@@ -657,7 +696,7 @@ function __wavBlob(samples, sr) {
 }
 // ── "띵동" 시작음 ──
 // 버튼을 누른 뒤 첫 원어민 음성 바로 앞에 "띵동"을 넣어 줍니다. 진짜 소리라서 USB·블루투스 이어폰도 확실히 깨워요.
-let __dingPending = false; // 버튼을 누르면 true → 첫 원어민 음성에서 한 번만 사용
+let __dingPending = false; // 재생 직전에 true → 그 원어민 음성 앞에 '띵동' 한 번(반복마다 다시 켬)
 function __dingSamples(sr) {
   const notes = [[659.25, 0.32], [523.25, 0.5]]; // 띵(미) → 동(도)
   const total = Math.round(sr * (notes[0][1] + notes[1][1]));
@@ -677,20 +716,30 @@ function __dingSamples(sr) {
 let __dingAudioUrl = null, __dingAudio = null;
 // PC(기기 음성 엔진)용: 띵동을 따로 재생하고 끝나면 resolve
 function __playDingStandalone() {
-  return new Promise(resolve => {
-    let done = false;
-    const fin = () => { if (!done) { done = true; resolve(); } };
+  // 1순위: 버튼을 누를 때 이미 깨워 둔 원어민 음성 재생기로 띵동을 틉니다.
+  //        삼성 인터넷 등은 '버튼으로 깨운 재생기'가 아니면 자동 재생을 막아서 따로 만든 재생기로는 소리가 안 났어요.
+  // 2순위: 그게 안 되면 예전처럼 띵동 전용 재생기로 시도합니다.
+  return (async () => {
     try {
       if (!__dingAudioUrl) __dingAudioUrl = URL.createObjectURL(__wavBlob(__dingSamples(24000), 24000));
-      if (!__dingAudio) __dingAudio = new Audio();
-      __dingAudio.src = __dingAudioUrl;
-      __dingAudio.onended = () => setTimeout(fin, 250);
-      __dingAudio.onerror = fin;
-      const p = __dingAudio.play();
-      if (p && p.catch) p.catch(fin);
-      setTimeout(fin, 2000);
-    } catch (e) { fin(); }
-  });
+      const ok = await __playAudioOnce(__dingAudioUrl, 1);
+      __dbg(ok ? '띵동(따로) 재생됨' : '띵동(따로) 재생 막힘 → 다른 방법 시도');
+      if (ok) { await new Promise(r => setTimeout(r, 250)); return; }
+    } catch (e) {}
+    await new Promise(resolve => {
+      let done = false;
+      const fin = () => { if (!done) { done = true; resolve(); } };
+      try {
+        if (!__dingAudio) __dingAudio = new Audio();
+        __dingAudio.src = __dingAudioUrl;
+        __dingAudio.onended = () => setTimeout(fin, 250);
+        __dingAudio.onerror = fin;
+        const pr = __dingAudio.play();
+        if (pr && pr.catch) pr.catch(() => { __dbg('띵동 전용 재생기도 막힘'); fin(); });
+        setTimeout(fin, 2000);
+      } catch (e) { fin(); }
+    });
+  })();
 }
 // 속도가 적용된 음성 주소를 돌려줍니다. 실패하면 null(그때는 예전처럼 Chrome 재생 속도로 처리).
 async function __getStretchedVoiceUrl(url, rate, withDing) {
@@ -735,7 +784,8 @@ async function __getStretchedVoiceUrl(url, rate, withDing) {
 async function __speakViaAudio(text, rate, gen, withDing) {
   const r = rate * ONLINE_VOICE_SPEED_BOOST;
   // 매번 재생 직전에 이어폰을 깨우고, 깨우기 소리가 실제로 날 때까지 기다린 뒤 재생합니다.
-  await wakeOutputViaTTS();
+  // 띵동이 이어폰을 깨워 주므로, 띵동이 있는 재생은 깨우기 대기를 건너뜁니다(반복 사이 간격 단축).
+  if (!withDing) await wakeOutputViaTTS();
   if (gen !== __voiceGen) return;
   let first = true;
   for (const chunk of __splitForTTS(text, 180)) {
@@ -747,6 +797,7 @@ async function __speakViaAudio(text, rate, gen, withDing) {
     // 사이트가 속도를 미리 적용한 파일이면 1배속으로, 실패했으면 예전처럼 Chrome 재생 속도로 재생
     if (!stretched && ding) { await __playDingStandalone(); if (gen !== __voiceGen) return; }
     const ok = stretched ? await __playAudioOnce(stretched, 1) : await __playAudioOnce(url, r);
+    __dbg(`인터넷 음성 ${ok ? '재생됨' : '재생 실패/막힘'}${stretched ? (ding ? ' (띵동 포함 파일)' : '') : ' (가공 실패 → 원본)'}`);
     if (!ok) return;
   }
 }
@@ -772,7 +823,7 @@ async function speakText(text, rate) {
       if (gen !== __voiceGen) return;
       // 소리 없는(볼륨 0) 짧은 준비 음성을 바로 앞에 줄 세워서, 스피커·음성 엔진이 이미 켜진 상태로 문장이 시작되게 합니다.
       try {
-        const warm = new SpeechSynthesisUtterance('Okay.');
+        const warm = new SpeechSynthesisUtterance(WARMUP_TEXT);
         warm.lang = 'en-US'; warm.volume = 0.01; warm.rate = 1.5; // 0이면 엔진이 건너뛰어서 효과가 없어요
         const v = pickEnglishVoice(); if (v) warm.voice = v;
         __ttsKeepAlive.push(warm);
@@ -781,6 +832,7 @@ async function speakText(text, rate) {
       } catch (e) {}
     }
     if (withDing) { await __playDingStandalone(); withDing = false; if (gen !== __voiceGen) return; }
+    __dbg(`기기 음성으로 재생 (띵동 ${withDing ? '먼저 재생함' : '없음'})`);
     const ok = await __speakViaSynth(text, rate);
     if (ok || gen !== __voiceGen) return;
     __voiceMode = 'audio'; // 이 기기는 음성 엔진이 실제로 소리를 못 냄 → 이후로는 인터넷 음성 사용
@@ -795,7 +847,6 @@ async function speakText(text, rate) {
 // 주소 끝에 ?stt=server 를 붙이면 처음부터 서버 받아쓰기로 테스트할 수 있어요.
 const STT_SERVER_ENDPOINT = '/api/stt';
 const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug=1 → 실패 원인을 화면에 표시
-const canServerSTT = !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 // 태블릿·휴대폰은 처음부터 서버 받아쓰기를 씁니다. 안드로이드 Chrome 내장 인식은 Google 음성 서비스 상태,
 // USB 이어폰 등에 따라 소리를 못 받는 경우가 잦았어요. PC는 Chrome 내장 인식을 그대로 씁니다.
 // (주소 끝 ?stt=server → 서버 받아쓰기 강제, ?stt=browser → Chrome 내장 인식 강제)
@@ -805,9 +856,10 @@ const __isTouchDevice = (navigator.maxTouchPoints || 0) > 0;
 function __sttRememberedServer() { try { return localStorage.getItem(__STT_MEMO_KEY) === '1'; } catch (e) { return false; } }
 function __sttRememberServer() { try { localStorage.setItem(__STT_MEMO_KEY, '1'); } catch (e) {} }
 let __sttMode = !canServerSTT ? 'browser'
+  : !SpeechRecognitionCtor ? 'server'
   : /[?&]stt=server\b/.test(location.search) ? 'server'
   : /[?&]stt=browser\b/.test(location.search) ? 'browser'
-  : (isMobileDevice || __sttRememberedServer() ? 'server' : 'browser');
+  : (isMobileDevice || !canBrowserSTT || __sttRememberedServer() ? 'server' : 'browser');
 let __sttNoSpeechStreak = 0;
 let __sttActive = null; // 진행 중인 서버 받아쓰기 녹음(중단 버튼용)
 
@@ -816,6 +868,12 @@ let __sttActive = null; // 진행 중인 서버 받아쓰기 녹음(중단 버�
 function noteBrowserSTTResult(result) {
   if (__sttMode !== 'browser') return false;
   if (result.ok) { __sttNoSpeechStreak = 0; return false; }
+  // 인식 서비스 자체가 안 되는 오류는 다시 해도 소용없으니 바로 서버 받아쓰기로 바꾸고 기억합니다.
+  if (canServerSTT && ['network', 'service-not-allowed', 'language-not-supported', 'start-failed'].includes(result.error)) {
+    __sttMode = 'server';
+    __sttRememberServer();
+    return true;
+  }
   if (result.error === 'no-speech' || result.error === 'audio-capture') __sttNoSpeechStreak++;
   // 터치 화면 기기(태블릿·휴대폰)는 한 번만 실패해도 바로 서버 받아쓰기로 바꾸고 그 기기에 기억합니다.
   // (기기 판별이 빗나가 태블릿이 PC로 보이는 경우까지 대비) PC는 2번 연속 실패 시에만 바꿉니다.
@@ -832,6 +890,112 @@ function stopServerSTT() { if (__sttActive) __sttActive.abort(); }
 
 // 마이크로 직접 녹음 → 서버에서 받아쓰기. 결과 형식은 브라우저 인식과 같습니다({ ok, heard } / { ok:false, error }).
 // 녹음 길이는 문장 길이에 맞춰 정합니다(말이 느린 학생도 충분히 말할 수 있도록 여유 있게).
+
+// ── 서버 받아쓰기 업로드 ──
+// 1) 녹음 파일을 그대로 보내고, 실패하면 2) 어느 브라우저 녹음이든 받아쓰기 서비스가 확실히 읽는 WAV(16kHz)로 바꿔 한 번 더 보냅니다.
+//    (삼성 인터넷 등 일부 브라우저의 녹음 형식을 받아쓰기 서비스가 거부하는 경우 대비)
+// 3) 받아쓰기 엔진(Whisper)은 조용한 녹음에서 "Thank you." 같은 말을 지어내는 버릇이 있어서,
+//    연습 문장에 없는 그런 말만 나오면 "목소리가 안 들렸어요"로 처리합니다.
+const __STT_HALLUCINATIONS = /^(thank you( very much)?( for watching)?|thanks( for watching)?|bye( bye)?|you|okay|ok|so|um+|uh+|hmm+|oh|subtitles?.*|.*amara\.org.*)$/i;
+function __sttNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9'\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
+async function __toWav16k(blob) {
+  const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!AC) return null;
+  const ab = await blob.arrayBuffer();
+  const tmp = new AC(1, 2, 16000);
+  const buf = await new Promise((resolve, reject) => {
+    const p = tmp.decodeAudioData(ab, resolve, reject);
+    if (p && p.then) p.then(resolve, reject);
+  });
+  const len = Math.max(1, Math.ceil(buf.duration * 16000));
+  const ctx = new AC(1, len, 16000);
+  const src = ctx.createBufferSource();
+  src.buffer = buf; src.connect(ctx.destination); src.start(0);
+  const out = await ctx.startRendering();
+  const ch = out.getChannelData(0);
+  const bytes = new ArrayBuffer(44 + ch.length * 2), dv = new DataView(bytes);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); dv.setUint32(4, 36 + ch.length * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, 16000, true); dv.setUint32(28, 32000, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  str(36, 'data'); dv.setUint32(40, ch.length * 2, true);
+  for (let i = 0; i < ch.length; i++) { const v = Math.max(-1, Math.min(1, ch[i])); dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  return new Blob([bytes], { type: 'audio/wav' });
+}
+async function __postSTT(body, type) {
+  try {
+    const r = await fetch(STT_SERVER_ENDPOINT, { method: 'POST', headers: { 'Content-Type': type }, body });
+    const data = await r.json().catch(() => ({}));
+    return r.ok ? { ok: true, data } : { ok: false, code: String(r.status), detail: data.error || '' };
+  } catch (e) {
+    return { ok: false, code: 'network', detail: (e && e.message) || '' };
+  }
+}
+async function __serverTranscribe(blob, type, targetText, dbg) {
+  let res = await __postSTT(blob, type);
+  let note = '';
+  if (!res.ok) {
+    // 원래 형식이 거부됐거나 업로드가 끊김 → WAV로 바꿔 한 번 더
+    const first = res;
+    try {
+      const wav = await __toWav16k(blob);
+      if (wav) { res = await __postSTT(wav, 'audio/wav'); note = ' (WAV 재시도)'; }
+    } catch (e) {}
+    if (!res.ok) {
+      if (!note) res = await __postSTT(blob, type); // 변환이 안 되면 원래 파일로 한 번 더
+      if (!res.ok) return { ok: false, error: 'server-stt-failed', code: first.code, debug: dbg + (STT_DEBUG ? ` / 서버 ${first.code} ${first.detail}${note}` : '') };
+    }
+  }
+  const data = res.data || {};
+  const text = (data.text || '').trim();
+  const n = __sttNorm(text);
+  if (n && __STT_HALLUCINATIONS.test(n) && !__sttNorm(targetText).includes(n)) {
+    return { ok: false, error: 'no-speech', debug: dbg + (STT_DEBUG ? ` / 지어낸 말 걸러냄 "${text}"` : '') };
+  }
+  return text ? { ok: true, heard: text } : { ok: false, error: 'no-speech', debug: dbg + (STT_DEBUG ? ` / 원문 "${data.raw || ''}" / 무음확률 ${JSON.stringify(data.noSpeechProb)}` : '') };
+}
+
+
+// ── 말이 끝나면 녹음 일찍 멈추기 ──
+// 예전엔 문장 길이로 정한 시간(예: 6초)을 다 채워 녹음해서 다 말한 뒤에도 기다려야 했어요.
+// 마이크 소리 크기를 0.1초마다 재서, 말을 시작한 뒤 1초 동안 조용하면 바로 녹음을 끝냅니다.
+// (소리 크기를 못 재는 기기면 아무 일도 안 하고, 예전처럼 정해진 시간까지 녹음해요)
+function __watchSilence(stream, onSilence) {
+  let ctx = null, timer = null, stopped = false;
+  const stop = () => { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch (e) {} };
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return stop;
+    ctx = new AC();
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(() => {});
+    const src = ctx.createMediaStreamSource(stream);
+    const an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    src.connect(an);
+    const data = new Float32Array(an.fftSize);
+    const t0 = Date.now();
+    let noise = 0, noiseN = 0, loudFrames = 0, speechAt = 0, quietMs = 0;
+    timer = setInterval(() => {
+      if (stopped) return;
+      an.getFloatTimeDomainData(data);
+      let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+      const rms = Math.sqrt(sum / data.length);
+      const elapsed = Date.now() - t0;
+      if (elapsed < 400) { noise += rms; noiseN++; return; }           // 처음 0.4초: 주변 소음 크기 재기
+      const floor = noiseN ? noise / noiseN : 0;
+      const th = Math.max(0.015, floor * 2.5);
+      if (!speechAt) {
+        loudFrames = rms > th ? loudFrames + 1 : 0;
+        if (loudFrames >= 2) speechAt = Date.now();                       // 0.2초 이상 소리가 나면 '말 시작'
+        return;
+      }
+      quietMs = rms < th * 0.8 ? quietMs + 100 : 0;
+      if (quietMs >= 1000 && Date.now() - speechAt >= 500) { stop(); onSilence(); }
+    }, 100);
+  } catch (e) { stop(); }
+  return stop;
+}
+
 function recordAndTranscribe(targetText, onReady) {
   return new Promise(async (resolve) => {
     let settled = false, stream = null, recorder = null, timer = null, aborted = false;
@@ -870,20 +1034,14 @@ function recordAndTranscribe(targetText, onReady) {
       const blob = new Blob(chunks, { type });
       const dbg = STT_DEBUG ? `[진단] 녹음 ${(blob.size/1024).toFixed(1)}KB, ${type}` : '';
       if (!blob.size) return settle({ ok: false, error: 'no-speech', debug: dbg });
-      try {
-        const r = await fetch(STT_SERVER_ENDPOINT, { method: 'POST', headers: { 'Content-Type': type }, body: blob });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) return settle({ ok: false, error: 'server-stt-failed', debug: dbg + (STT_DEBUG ? ` / 서버 ${r.status} ${data.error || ''}` : '') });
-        const text = (data.text || '').trim();
-        settle(text ? { ok: true, heard: text } : { ok: false, error: 'no-speech', debug: dbg + (STT_DEBUG ? ` / 원문 "${data.raw || ''}" / 무음확률 ${JSON.stringify(data.noSpeechProb)}` : '') });
-      } catch (e) {
-        settle({ ok: false, error: 'server-stt-failed', debug: dbg + (STT_DEBUG ? ` / 네트워크 오류 ${e && e.message}` : '') });
-      }
+      settle(await __serverTranscribe(blob, type, targetText, dbg));
     };
 
     const words = targetText.trim().split(/\s+/).filter(Boolean).length;
     const seconds = Math.min(25, 3 + words * 0.65);
     recorder.start();
+    const stopWatch = __watchSilence(stream, () => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} });
+    recorder.addEventListener('stop', stopWatch);
     if (onReady) onReady();
     timer = setTimeout(() => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) { settle({ ok: false, error: 'no-speech' }); } }, seconds * 1000);
   });
@@ -892,7 +1050,7 @@ function recordAndTranscribe(targetText, onReady) {
 // 따라 말하기 결과가 실패일 때 화면에 보여줄 안내 문구
 function __sttFailTextBase(i, result) {
   if (result.switchedToServer) return `📱 이 기기에서는 브라우저 음성 인식이 소리를 받지 못하고 있어요(이어폰 마이크 등). 다음 차례부터 사이트가 직접 녹음해서 받아쓰는 방식으로 바꿨어요.`;
-  if (result.error === 'server-stt-failed') return `⚠️ ${i}번째 시도: 서버 받아쓰기에 실패했어요(인터넷 연결 확인). 계속 진행합니다.`;
+  if (result.error === 'server-stt-failed') return `⚠️ ${i}번째 시도: 서버 받아쓰기에 실패했어요${result.code ? ` (오류 ${result.code})` : ''}. 인터넷 연결을 확인해 주세요. 계속 진행합니다.`;
   if (result.error === 'no-speech') return `⚠️ ${i}번째 시도에서 목소리가 들리지 않았어요. "지금 말씀하세요!"가 뜬 뒤 또렷하게 말해 주세요. 계속 진행합니다.`;
   return `⚠️ ${i}번째 시도에서 소리를 인식하지 못했어요 (${result.error}). 계속 진행합니다.`;
 }
@@ -961,7 +1119,7 @@ function buildShadowingControls(targetText) {
     : hasTTS ? '🔊 듣기 시작'
     : hasSTT ? '🎙️ 따라 말하기'
     : '🗣️ 듣고 따라 말하기';
-  const disabledAttr = (hasTTS || hasSTT) ? '' : 'disabled title="이 브라우저는 TTS/음성 인식을 지원하지 않습니다(Chrome 권장)"';
+  const disabledAttr = (hasTTS || hasSTT) ? '' : 'disabled title="이 브라우저는 듣기/마이크 녹음을 지원하지 않아요. 최신 Chrome·Edge·Safari로 열어주세요."';
 
   const wrap = document.createElement('div');
   wrap.innerHTML = `
@@ -1137,6 +1295,7 @@ function buildShadowingControls(targetText) {
         // 1) 먼저 원어민 음성(TTS)으로 들려줍니다.
         if (hasTTS) {
           shadowBtn.innerHTML = `🔊 듣는 중... (${i}/${target})`;
+          __dingPending = true; // 반복할 때마다 원어민 음성 앞에 '띵동'
           await speakOnce(parseFloat(rateSelect.value) || rate); // 반복마다 지금 선택된 속도로(반복 중에 바꿔도 바로 반영)
           if (state.stopped) break;
         }
@@ -1200,7 +1359,7 @@ function buildShadowingControls(targetText) {
           }
         }
 
-        if (!state.stopped && i < target) await new Promise(r => setTimeout(r, isMobileDevice ? 1500 : 700)); // 태블릿: 블루투스 이어폰이 통화 모드에서 돌아올 시간 // 다음 반복 전 짧은 텀(안드로이드는 마이크 재시작에 시간이 더 필요해서 조금 더 둡니다)
+        if (!state.stopped && i < target) await new Promise(r => setTimeout(r, isMobileDevice ? 900 : 700)); // 태블릿: 블루투스 이어폰이 통화 모드에서 돌아올 시간 // 다음 반복 전 짧은 텀(안드로이드는 마이크 재시작에 시간이 더 필요해서 조금 더 둡니다)
       }
       state.stopped = true;
       state.activeRecognition = null;
@@ -2125,6 +2284,7 @@ copySummaryBtn.addEventListener('click', async () => {
     copyStatus.textContent = '⚠️ 자동 복사에 실패했어요. 위 텍스트 상자가 선택되어 있으니 Ctrl+C / Cmd+C로 직접 복사해주세요.';
   }
 });
+try { document.getElementById('engineVersion').textContent = '버전 ' + ENGINE_VERSION; } catch (e) {}
 </script>
 </body>
 </html>
