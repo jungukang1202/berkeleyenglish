@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light">
+<link rel="icon" type="image/png" href="images/버클리원어민영어회화-badge.png">
+<title>쉐도잉 관리자 | 버클리원어민영어회화</title>
+<style>
+  :root{
+    --bg:#FAF6EC; --panel:#FFFFFF; --border:#EAE1C8; --input-bg:#FBF9F2;
+    --text:#1B2A4E; --body-text:#3C4257; --muted:#7C7566;
+    --accent:#C9A227; --accent-light:#E8CE73; --accent2:#1B2A4E;
+    --good:#1E8E5A; --bad:#C4453A; --warn:#B9790A; --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,Roboto,sans-serif; background:var(--bg); color:var(--body-text); min-height:100vh; padding:0 0 80px;}
+  .wrap{max-width:920px; margin:0 auto; padding:0 16px;}
+  header{background:var(--panel); border-bottom:1px solid var(--border); padding:20px 16px; margin-bottom:28px;}
+  header .wrap{padding:0 16px;}
+  h1{font-size:1.4rem; margin:0 0 6px; font-weight:800; letter-spacing:-0.02em; color:var(--text);}
+  .sub{color:var(--muted); font-size:0.9rem; line-height:1.55;}
+  .home-link{display:inline-flex; align-items:center; gap:6px; margin-bottom:10px; font-size:1rem; font-weight:800; color:var(--accent2); text-decoration:none;}
+  .home-link:hover{color:var(--accent);}
+  .home-link .home-icon{font-size:1.15rem; line-height:1;}
+  .card{background:var(--panel); border:1px solid var(--border); border-top:3px solid var(--accent); border-radius:var(--radius); padding:22px; margin-bottom:20px; box-shadow:0 8px 20px rgba(27,42,78,0.06);}
+  .card h2{font-size:1.02rem; margin:0 0 4px; display:flex; align-items:center; gap:8px; color:var(--text); font-weight:800;}
+  .card .card-desc{color:var(--muted); font-size:0.85rem; margin-bottom:16px;}
+  label{display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px; font-weight:700;}
+  input[type=text], input[type=password], textarea, select.full{
+    width:100%; resize:vertical; background:var(--input-bg); border:1px solid var(--border); border-radius:10px;
+    color:var(--text); padding:10px 12px; font-size:0.95rem; line-height:1.5; font-family:inherit; outline:none;
+  }
+  input:focus, textarea:focus, select:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(201,162,39,0.15);}
+  .field{margin-bottom:12px;}
+  .row{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center;}
+  button{cursor:pointer; border:none; border-radius:10px; padding:10px 16px; font-size:0.9rem; font-weight:700; font-family:inherit; transition:transform .08s ease, opacity .15s ease;}
+  button:active{transform:scale(0.97);}
+  button:disabled{opacity:0.45; cursor:not-allowed;}
+  .btn-primary{background:var(--accent); color:#1B1503; box-shadow:0 4px 10px rgba(201,162,39,0.35);}
+  .btn-primary:hover{background:var(--accent-light);}
+  .btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--border);}
+  .btn-danger{background:#FBEAE8; color:var(--bad); border:1px solid #F0C6C1;}
+  .btn-small{padding:6px 11px; font-size:0.78rem;}
+  .status{font-size:0.82rem; color:var(--muted); margin-top:8px; white-space:pre-line;}
+  .status.error{color:var(--bad); font-weight:700;}
+  .status.success{color:var(--good); font-weight:700;}
+  table{width:100%; border-collapse:collapse; font-size:0.86rem; margin-top:8px;}
+  th, td{text-align:left; padding:9px 8px; border-bottom:1px solid var(--border);}
+  th{color:var(--muted); font-weight:700; font-size:0.78rem;}
+  .pill{display:inline-flex; align-items:center; gap:4px; font-size:0.76rem; font-weight:700; padding:2px 8px; border-radius:999px; background:#EFEAFB; color:var(--accent2);}
+  .empty{color:var(--muted); font-size:0.85rem; padding:10px 2px;}
+  .hidden{display:none !important;}
+  .set-item{background:var(--input-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+  .set-item .meta{font-size:0.78rem; color:var(--muted);}
+  .set-item .title{font-weight:700; color:var(--text); font-size:0.95rem;}
+  footer{color:var(--muted); font-size:0.78rem; text-align:center; margin-top:28px;}
+  .top-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  code{background:var(--input-bg); border:1px solid var(--border); padding:1px 6px; border-radius:5px; font-size:0.85em; color:var(--text);}
+
+  /* ============ 미리보기(연습 화면) 카드 — member.html과 동일한 스타일 ============ */
+  .list{display:flex; flex-direction:column; gap:12px; margin-top:6px;}
+  .item{background:var(--input-bg); border:1px solid var(--border); border-radius:12px; padding:14px 16px;}
+  .item-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .x-line{font-size:0.85rem; color:var(--bad); text-decoration:line-through; opacity:0.8; margin-bottom:6px;}
+  .o-line{font-size:1.02rem; margin-bottom:6px; line-height:1.5; color:var(--text); font-weight:600;}
+  .word-line{font-size:1.15rem; font-weight:800; margin-bottom:6px; color:var(--text);}
+  .kr-meaning{margin:-2px 0 8px; font-size:0.86rem; color:var(--muted);}
+  .explain-block{margin:0 0 10px; font-size:0.84rem; color:var(--body-text); line-height:1.6; background:#FCF6E3; border:1px solid #EFE0AE; border-radius:8px; padding:10px 12px; white-space:pre-line;}
+  .kr-text-retry{color:var(--bad); cursor:pointer; text-decoration:underline dotted;}
+  .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .score-badge{display:inline-flex; align-items:center; gap:6px; font-size:0.85rem; font-weight:700; padding:4px 10px; border-radius:999px; margin-left:auto;}
+  .score-badge.good{background:#E4F5EC; color:var(--good);}
+  .score-badge.mid{background:#FCF1DA; color:var(--warn);}
+  .score-badge.bad{background:#FBEAE8; color:var(--bad);}
+  .repeat-count-badge{display:inline-flex; align-items:center; gap:6px; font-size:0.85rem; font-weight:700; padding:4px 10px; border-radius:999px; background:#EFEAFB; color:var(--accent2);}
+  .word-compare{margin-top:10px; font-size:0.95rem; line-height:2.1;}
+  .word-compare span{padding:2px 6px; border-radius:6px; margin-right:2px; display:inline-block;}
+  .w-ok{background:#E4F5EC; color:var(--good);}
+  .w-miss{background:#FBEAE8; color:var(--bad); text-decoration:line-through;}
+  .w-extra{background:#FCF1DA; color:var(--warn);}
+  .heard{margin-top:8px; font-size:0.82rem; color:var(--muted);}
+  .rec-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--bad); margin-right:6px; animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.25;}}
+  .variant-details{margin-top:12px; border-top:1px dashed var(--border); padding-top:10px;}
+  .variant-details summary{cursor:pointer; font-size:0.83rem; font-weight:700; color:var(--accent2);}
+  .variant-item{background:var(--bg); border:1px dashed var(--border); border-radius:10px; margin-top:8px; padding:10px 12px;}
+  .variant-item .o-line{font-size:0.92rem; margin-bottom:4px;}
+
+  /* ============ 미리보기 모달 ============ */
+  .preview-overlay{position:fixed; inset:0; background:rgba(27,42,78,0.55); z-index:1000; display:flex; justify-content:center; padding:24px 16px; overflow-y:auto;}
+  .preview-panel{background:var(--bg); border-radius:16px; max-width:880px; width:100%; padding:20px; box-shadow:0 20px 60px rgba(0,0,0,0.35); margin-bottom:40px; height:fit-content;}
+  .preview-header{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; position:sticky; top:0; background:var(--bg); padding:4px 0 10px; border-bottom:1px solid var(--border);}
+  .preview-header h2{margin:0; font-size:1.05rem; color:var(--text); font-weight:800;}
+
+  /* ============ 엔보임 피드백 가져오기 ============ */
+  .imp-row{background:var(--input-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px;}
+  .imp-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .imp-head .imp-name{font-weight:800; color:var(--text);}
+  .imp-head .imp-id{font-size:0.8rem; color:var(--muted);}
+  .imp-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
+  .imp-grid3{grid-template-columns:1fr 1fr 1fr;}
+  .date-input{width:100%; background:var(--input-bg); border:1px solid var(--border); border-radius:10px; color:var(--text); padding:9px 12px; font-size:0.95rem; font-family:inherit;}
+  @media (max-width:560px){ .imp-grid, .imp-grid3{grid-template-columns:1fr;} }
+  .imp-grid select, .imp-grid input{width:100%;}
+  .imp-preview{margin-top:8px; font-size:0.82rem;}
+  .imp-preview summary{cursor:pointer; color:var(--accent2); font-weight:700;}
+  .imp-preview ol{margin:8px 0 0; padding-left:20px; line-height:1.6;}
+  .imp-preview .x{color:var(--bad); text-decoration:line-through; opacity:0.8;}
+  .imp-state{font-size:0.8rem; font-weight:700; margin-left:auto;}
+  .imp-state.ok{color:var(--good);} .imp-state.err{color:var(--bad);} .imp-state.warn{color:var(--warn);}
+  .sub-h{font-size:0.9rem; margin:18px 0 6px; color:var(--text); font-weight:800; display:flex; align-items:center; gap:8px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap" style="padding:0 16px;">
+    <a href="index.html" class="home-link"><span class="home-icon">🏠</span> 버클리원어민영어회화 홈으로</a>
+    <h1>🛠️ 쉐도잉 관리자</h1>
+    <div class="sub">회원 아이디/비밀번호를 등록하고, 회원별로 쉐도잉할 문장·단어를 회차별로 붙여넣어 등록하세요. 회원은 <code>member.html</code>에서 로그인해서 연습합니다.</div>
+  </div>
+</header>
+<div class="wrap">
+
+  <!-- ============ 로그인 ============ -->
+  <div class="card" id="loginCard">
+    <h2>🔐 관리자 로그인</h2>
+    <div class="card-desc">Netlify 환경변수 <code>ADMIN_PASSWORD</code>로 설정한 비밀번호를 입력하세요.</div>
+    <div class="field">
+      <label for="adminPasswordInput">관리자 비밀번호</label>
+      <input type="password" id="adminPasswordInput" placeholder="비밀번호">
+    </div>
+    <div class="row">
+      <button class="btn-primary" id="adminLoginBtn">로그인</button>
+    </div>
+    <div class="status" id="loginStatus"></div>
+  </div>
+
+  <div id="mainArea" class="hidden">
+    <div class="top-actions">
+      <div class="sub" style="margin:0;">관리자로 로그인됨</div>
+      <button class="btn-ghost btn-small" id="logoutBtn">로그아웃</button>
+    </div>
+
+    <!-- ============ 엔보임 피드백 자동 가져오기 ============ -->
+    <div class="card" id="nvoimCard">
+      <h2>📥 엔보임 피드백 자동 가져오기</h2>
+      <div class="card-desc">
+        등록한 엔보임 계정으로 <b>1시간마다 자동으로</b> 로그인해서 그날 수업 피드백(문장교정·발음교정)을 가져와 회원에게 저장해요.
+        엔보임 아이디와 같은 버클리 회원이 있거나, 한 번 연결해 둔 학생은 자동으로 저장돼요.
+      </div>
+
+      <h3 class="sub-h">🔑 엔보임 계정</h3>
+      <div id="nvoimAccounts"></div>
+      <div class="imp-grid imp-grid3">
+        <div><label for="nvoimLabel">이름 (선택)</label><input type="text" id="nvoimLabel" placeholder="예: 강준구 플래너" autocomplete="off"></div>
+        <div><label for="nvoimUserId">엔보임 아이디</label><input type="text" id="nvoimUserId" autocomplete="off"></div>
+        <div><label for="nvoimPassword">엔보임 비밀번호</label><input type="password" id="nvoimPassword" autocomplete="new-password"></div>
+      </div>
+      <div class="row">
+        <button class="btn-ghost" id="nvoimAddBtn">➕ 계정 추가 (로그인 확인)</button>
+      </div>
+      <div class="status" id="nvoimAccountStatus"></div>
+
+      <h3 class="sub-h">⚠️ 회원 선택 필요 <span class="pill" id="nvoimPendingCount">0</span></h3>
+      <div class="card-desc" style="margin-bottom:6px;">버클리 회원과 아직 연결되지 않은 학생이에요. 회원을 고르면 저장되고, 다음부터는 자동으로 저장돼요. (회원이 없으면 위 회원 관리에서 먼저 등록)</div>
+      <div id="nvoimPending"></div>
+
+      <div class="row" style="margin-top:16px; align-items:center;">
+        <button class="btn-primary" id="nvoimRunBtn">🔄 지금 바로 가져오기</button>
+        <span class="sub" id="nvoimLastRun" style="margin:0;"></span>
+      </div>
+      <div class="status" id="nvoimRunStatus"></div>
+
+      <h3 class="sub-h">📅 지난 날짜 한 번에 가져오기</h3>
+      <div class="card-desc" style="margin-bottom:6px;">기간을 고르면 그 기간의 엔보임 피드백을 날짜별로 모두 가져와요. 이미 저장된 수업은 건너뛰어요.</div>
+      <div class="imp-grid imp-grid3" style="align-items:end;">
+        <div><label for="nvoimFrom">시작일</label><input type="date" id="nvoimFrom" class="date-input"></div>
+        <div><label for="nvoimTo">종료일</label><input type="date" id="nvoimTo" class="date-input"></div>
+        <div><button class="btn-ghost" id="nvoimRangeBtn" style="width:100%;">📅 이 기간 가져오기</button></div>
+      </div>
+      <div class="status" id="nvoimRangeStatus"></div>
+
+      <details class="imp-preview" style="margin-top:14px;">
+        <summary>🔗 학생 ↔ 회원 연결 목록</summary>
+        <div id="nvoimMap"></div>
+      </details>
+    </div>
+
+    <!-- ============ 수업 피드백 리포트 ============ -->
+    <div class="card" id="reportCard">
+      <h2>📊 수업 피드백 리포트</h2>
+      <div class="card-desc">
+        회원들의 수업 피드백(문장·단어)을 정리해서 엑셀로 내려받아요. 시트는 <b>요약 · 문장 · 단어</b> 3개예요. 회원을 고르면 그 회원 리포트(회원이 받는 것과 같은 형식)로 받아요.<br>
+        매달 1일 오전에 <b>지난달 리포트가 자동으로 만들어져 보관</b>돼요. 나중에 회차를 지워도 보관된 리포트는 그대로 남아요.
+      </div>
+
+      <div class="field" style="max-width:360px;">
+        <label for="reportMember">누구 리포트?</label>
+        <select class="full" id="reportMember"><option value="">👥 전체 회원</option></select>
+      </div>
+
+      <h3 class="sub-h">🗓️ 월별 리포트</h3>
+      <div id="reportMonths"><div class="empty">불러오는 중...</div></div>
+      <div class="imp-grid imp-grid3" style="align-items:end; margin-top:10px;">
+        <div><label for="reportMonthInput">다른 달 리포트 만들기</label><input type="month" id="reportMonthInput" class="date-input" placeholder="예: 2026-09" pattern="\d{4}-\d{2}"></div>
+        <div><button class="btn-ghost" id="reportMonthBtn" style="width:100%;">📦 이 달 리포트 만들어 보관</button></div>
+        <div></div>
+      </div>
+      <div class="status" id="reportMonthStatus"></div>
+
+      <h3 class="sub-h">📅 기간 정해서 내려받기</h3>
+      <div class="imp-grid imp-grid3" style="align-items:end;">
+        <div><label for="reportFrom">시작일</label><input type="date" id="reportFrom" class="date-input"></div>
+        <div><label for="reportTo">종료일</label><input type="date" id="reportTo" class="date-input"></div>
+        <div><button class="btn-primary" id="reportRangeBtn" style="width:100%;">⬇️ 정리해서 엑셀 받기</button></div>
+      </div>
+      <div class="status" id="reportRangeStatus"></div>
+    </div>
+
+    <!-- ============ 회원 관리 ============ -->
+    <div class="card">
+      <h2>👤 회원 관리</h2>
+      <div class="card-desc">회원 아이디와 초기 비밀번호를 등록해주세요. 회원은 이 아이디/비밀번호로 <code>member.html</code>에 로그인합니다.</div>
+      <div class="row">
+        <div class="field" style="flex:1; min-width:160px; margin-bottom:0;">
+          <label for="newUsername">아이디</label>
+          <input type="text" id="newUsername" placeholder="예: minji01" autocomplete="off">
+        </div>
+        <div class="field" style="flex:1; min-width:160px; margin-bottom:0;">
+          <label for="newPassword">비밀번호 (4자 이상)</label>
+          <input type="text" id="newPassword" placeholder="예: 1234" autocomplete="off">
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn-primary" id="addMemberBtn">➕ 회원 등록</button>
+      </div>
+      <div class="status" id="memberStatus"></div>
+
+      <table id="memberTable">
+        <thead><tr><th>아이디</th><th>등록일</th><th style="text-align:right;">작업</th></tr></thead>
+        <tbody id="memberTableBody"></tbody>
+      </table>
+      <div class="empty" id="memberEmpty">아직 등록된 회원이 없어요.</div>
+    </div>
+
+    <!-- ============ 회원별 쉐도잉 콘텐츠 ============ -->
+    <div class="card">
+      <h2>📚 회원별 쉐도잉 콘텐츠</h2>
+      <div class="card-desc">회원을 선택하면 그 회원의 회차(세트) 목록이 보여요. 새 회차를 추가하거나 기존 회차를 수정/삭제할 수 있습니다.</div>
+      <div class="field">
+        <label for="memberSelect">회원 선택</label>
+        <select class="full" id="memberSelect"><option value="">-- 회원을 선택하세요 --</option></select>
+      </div>
+
+      <div id="setsArea" class="hidden">
+        <div id="setForm">
+          <input type="hidden" id="editingSetId" value="">
+          <div class="field">
+            <label for="setTitle">회차 제목 (비워두면 오늘 날짜로 자동 생성)</label>
+            <input type="text" id="setTitle" placeholder="예: 9/15 수업 피드백">
+          </div>
+
+          <label for="setSentenceArea">📋 문장 붙여넣기 (한 줄에 문장 하나, 또는 x:/o: 형식)</label>
+          <textarea id="setSentenceArea" rows="6" placeholder="I stayed at home today.
+My family, my friends, delicious food, and playing games make me excited.
+
+(또는)
+x: Yes.
+o: I stayed at home today."></textarea>
+          <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400; margin-top:10px; cursor:pointer;">
+            <input type="checkbox" id="pairModeCheckbox" checked style="margin-top:3px;">
+            <span style="font-size:0.82rem; color:var(--muted);">접두어 없이 <b>두 줄씩 짝</b>(홀수=틀린 문장, 짝수=맞는 문장)으로 되어 있어요. 이미 맞는 문장만 나열할 때는 체크를 꺼주세요.</span>
+          </label>
+
+          <label for="setWordArea" style="margin-top:14px;">🔤 단어 붙여넣기 (줄바꿈/쉼표/띄어쓰기 구분)</label>
+          <textarea id="setWordArea" rows="3" placeholder="comfortable
+vegetable, particularly"></textarea>
+
+          <div class="row">
+            <button class="btn-primary" id="saveSetBtn">💾 회차 저장</button>
+            <button class="btn-ghost hidden" id="cancelEditBtn">취소</button>
+          </div>
+          <div class="status" id="setFormStatus"></div>
+        </div>
+
+        <h2 style="margin-top:24px; font-size:0.95rem;">🗂️ 등록된 회차 목록</h2>
+        <div id="setsList"></div>
+        <div class="empty" id="setsEmpty">아직 등록된 회차가 없어요.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    ⓘ 이 페이지는 검색엔진에 노출되지 않도록 설정되어 있지만, 그래도 비밀번호는 안전하게 관리해주세요.<br>
+    ⓘ 회원 목록/콘텐츠는 Netlify Blobs에 저장되며, 별도 데이터베이스 설정이 필요 없습니다.
+  </footer>
+</div>
+
+<!-- ============ 미리보기 모달 (회원이 실제로 보게 될 연습 화면 그대로) ============ -->
+<div id="previewOverlay" class="preview-overlay hidden">
+  <div class="preview-panel">
+    <div class="preview-header">
+      <h2 id="previewTitle">👀 미리보기</h2>
+      <button class="btn-ghost btn-small" id="closePreviewBtn">✕ 닫기</button>
+    </div>
+    <div id="previewContent"></div>
+  </div>
+</div>
+
+<script src="js/shadowing-engine.js?v=20261012c"></script>
+<script src="js/feedback-report.js?v=20261012c"></script>
+<script>
+const API = {
+  adminLogin: '/api/admin-login',
+  members: '/api/admin-members',
+  sets: '/api/admin-sets',
+};
+const TOKEN_KEY = 'shadowing_admin_token';
+
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+async function apiFetch(url, opts = {}) {
+  const token = getToken();
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
+  let data = null;
+  try { data = await res.json(); } catch (e) {}
+  if (res.status === 401) {
+    clearToken();
+    showLogin();
+    throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
+  }
+  if (!res.ok) throw new Error((data && (data.message || data.error)) || ('요청 실패 (HTTP ' + res.status + ')'));
+  return data;
+}
+
+function showLogin() {
+  document.getElementById('loginCard').classList.remove('hidden');
+  document.getElementById('mainArea').classList.add('hidden');
+}
+function showMain() {
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('mainArea').classList.remove('hidden');
+  loadMembers();
+}
+
+document.getElementById('adminLoginBtn').addEventListener('click', async () => {
+  const password = document.getElementById('adminPasswordInput').value;
+  const statusEl = document.getElementById('loginStatus');
+  statusEl.textContent = '확인 중...';
+  statusEl.className = 'status';
+  try {
+    const res = await fetch(API.adminLogin, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || data.error || '로그인 실패');
+    setToken(data.token);
+    statusEl.textContent = '';
+    showMain();
+  } catch (e) {
+    statusEl.textContent = '⚠️ ' + e.message;
+    statusEl.className = 'status error';
+  }
+});
+document.getElementById('adminPasswordInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('adminLoginBtn').click();
+});
+document.getElementById('logoutBtn').addEventListener('click', () => { clearToken(); showLogin(); });
+
+/* ===================== 회원 관리 ===================== */
+
+let membersCache = [];
+
+async function loadMembers() {
+  const statusEl = document.getElementById('memberStatus');
+  try {
+    const data = await apiFetch(API.members);
+    membersCache = data.members || [];
+    renderMembers();
+    renderMemberSelect();
+    loadNvoim();
+    loadReportMonths();
+  } catch (e) {
+    statusEl.textContent = '⚠️ ' + e.message;
+    statusEl.className = 'status error';
+  }
+}
+
+function renderMembers() {
+  const tbody = document.getElementById('memberTableBody');
+  const empty = document.getElementById('memberEmpty');
+  tbody.innerHTML = '';
+  empty.style.display = membersCache.length ? 'none' : 'block';
+  document.getElementById('memberTable').style.display = membersCache.length ? 'table' : 'none';
+
+  membersCache.forEach(m => {
+    const tr = document.createElement('tr');
+    const dateStr = m.createdAt ? new Date(m.createdAt).toLocaleDateString('ko-KR') : '-';
+    tr.innerHTML = `
+      <td><b>${m.username}</b></td>
+      <td>${dateStr}</td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button class="btn-ghost btn-small reset-btn">비번 초기화</button>
+        <button class="btn-danger btn-small del-btn">삭제</button>
+      </td>
+    `;
+    tr.querySelector('.reset-btn').addEventListener('click', async () => {
+      const newPw = prompt(`"${m.username}" 회원의 새 비밀번호를 입력하세요 (4자 이상):`);
+      if (!newPw) return;
+      try {
+        await apiFetch(API.members, { method: 'POST', body: JSON.stringify({ action: 'reset-password', username: m.username, password: newPw }) });
+        alert('비밀번호가 변경됐어요.');
+      } catch (e) { alert('⚠️ ' + e.message); }
+    });
+    tr.querySelector('.del-btn').addEventListener('click', async () => {
+      if (!confirm(`"${m.username}" 회원을 삭제할까요? 등록된 쉐도잉 콘텐츠도 함께 삭제됩니다.`)) return;
+      try {
+        await apiFetch(API.members, { method: 'POST', body: JSON.stringify({ action: 'delete', username: m.username }) });
+        await loadMembers();
+      } catch (e) { alert('⚠️ ' + e.message); }
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function renderReportMemberSelect() {
+  const sel = document.getElementById('reportMember');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">👥 전체 회원</option>' + membersCache.map(m => `<option value="${m.username}">${m.username}</option>`).join('');
+  if (membersCache.some(m => m.username === current)) sel.value = current;
+}
+
+function renderMemberSelect() {
+  renderReportMemberSelect();
+  const sel = document.getElementById('memberSelect');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- 회원을 선택하세요 --</option>';
+  membersCache.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.username; opt.textContent = m.username;
+    sel.appendChild(opt);
+  });
+  if (membersCache.some(m => m.username === current)) sel.value = current;
+}
+
+document.getElementById('addMemberBtn').addEventListener('click', async () => {
+  const username = document.getElementById('newUsername').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const statusEl = document.getElementById('memberStatus');
+  if (!username || !password) { statusEl.textContent = '⚠️ 아이디와 비밀번호를 모두 입력해주세요.'; statusEl.className = 'status error'; return; }
+  try {
+    await apiFetch(API.members, { method: 'POST', body: JSON.stringify({ action: 'create', username, password }) });
+    document.getElementById('newUsername').value = '';
+    document.getElementById('newPassword').value = '';
+    statusEl.textContent = `✅ "${username}" 회원을 등록했어요.`;
+    statusEl.className = 'status success';
+    await loadMembers();
+  } catch (e) {
+    statusEl.textContent = '⚠️ ' + e.message;
+    statusEl.className = 'status error';
+  }
+});
+
+/* ===================== 회원별 콘텐츠(회차) 관리 ===================== */
+
+const memberSelect = document.getElementById('memberSelect');
+const setsArea = document.getElementById('setsArea');
+
+memberSelect.addEventListener('change', () => {
+  resetSetForm();
+  if (memberSelect.value) { setsArea.classList.remove('hidden'); loadSets(); }
+  else { setsArea.classList.add('hidden'); }
+});
+
+function resetSetForm() {
+  document.getElementById('editingSetId').value = '';
+  document.getElementById('setTitle').value = '';
+  document.getElementById('setSentenceArea').value = '';
+  document.getElementById('setWordArea').value = '';
+  document.getElementById('pairModeCheckbox').checked = true;
+  document.getElementById('cancelEditBtn').classList.add('hidden');
+  document.getElementById('saveSetBtn').textContent = '💾 회차 저장';
+  document.getElementById('setFormStatus').textContent = '';
+}
+
+document.getElementById('cancelEditBtn').addEventListener('click', resetSetForm);
+
+async function loadSets() {
+  const username = memberSelect.value;
+  const listEl = document.getElementById('setsList');
+  const emptyEl = document.getElementById('setsEmpty');
+  listEl.innerHTML = '<div class="empty">불러오는 중...</div>';
+  try {
+    const data = await apiFetch(`${API.sets}?username=${encodeURIComponent(username)}`);
+    const sets = data.sets || [];
+    listEl.innerHTML = '';
+    emptyEl.style.display = sets.length ? 'none' : 'block';
+    sets.forEach(s => {
+      const dateStr = s.createdAt ? new Date(s.createdAt).toLocaleString('ko-KR') : '-';
+      const el = document.createElement('div');
+      el.className = 'set-item';
+      el.innerHTML = `
+        <div>
+          <div class="title">${s.title}</div>
+          <div class="meta">${dateStr} · 문장 ${s.sentenceCount}개 · 단어 ${s.wordCount}개</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-ghost btn-small preview-set-btn">👀 미리보기</button>
+          <button class="btn-ghost btn-small edit-set-btn">✏️ 수정</button>
+          <button class="btn-danger btn-small del-set-btn">삭제</button>
+        </div>
+      `;
+      el.querySelector('.preview-set-btn').addEventListener('click', () => openPreview(username, s.id, s.title));
+      el.querySelector('.edit-set-btn').addEventListener('click', () => editSet(username, s.id));
+      el.querySelector('.del-set-btn').addEventListener('click', async () => {
+        if (!confirm(`"${s.title}" 회차를 삭제할까요?`)) return;
+        try {
+          await apiFetch(API.sets, { method: 'POST', body: JSON.stringify({ action: 'delete', username, id: s.id }) });
+          await loadSets();
+        } catch (e) { alert('⚠️ ' + e.message); }
+      });
+      listEl.appendChild(el);
+    });
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty">⚠️ ${e.message}</div>`;
+  }
+}
+
+/* ===================== 미리보기 (회원 화면 그대로 보기) ===================== */
+
+const previewOverlay = document.getElementById('previewOverlay');
+const previewContent = document.getElementById('previewContent');
+const previewTitle = document.getElementById('previewTitle');
+
+async function openPreview(username, id, title) {
+  previewTitle.textContent = `👀 미리보기 — ${title || ''}`;
+  previewContent.innerHTML = '<div class="empty">불러오는 중...</div>';
+  previewOverlay.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  try {
+    const data = await apiFetch(`${API.sets}?username=${encodeURIComponent(username)}&id=${encodeURIComponent(id)}`);
+    // member.html이 회원에게 보여주는 화면과 완전히 똑같은 렌더러를 사용합니다.
+    ShadowingEngine.renderPracticeSet(previewContent, data.set);
+  } catch (e) {
+    previewContent.innerHTML = `<div class="empty">⚠️ ${e.message}</div>`;
+  }
+}
+
+function closePreview() {
+  previewOverlay.classList.add('hidden');
+  document.body.style.overflow = '';
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  previewContent.innerHTML = '';
+}
+
+document.getElementById('closePreviewBtn').addEventListener('click', closePreview);
+previewOverlay.addEventListener('click', (e) => { if (e.target === previewOverlay) closePreview(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !previewOverlay.classList.contains('hidden')) closePreview(); });
+
+async function editSet(username, id) {
+  try {
+    const data = await apiFetch(`${API.sets}?username=${encodeURIComponent(username)}&id=${encodeURIComponent(id)}`);
+    const set = data.set;
+    document.getElementById('editingSetId').value = id;
+    document.getElementById('setTitle').value = set.title || '';
+    // 편집하기 쉽게 x:/o:/w: 형식의 텍스트로 다시 합쳐서 보여줍니다.
+    const lines = [];
+    (set.sentences || []).forEach(s => {
+      // 예전에 [x]/[o] 접두어가 안 지워진 채 저장된 데이터가 있어도 여기서 한 번 더 정리합니다.
+      const x = ShadowingEngine.stripLeadingLabel(s.x);
+      const o = ShadowingEngine.stripLeadingLabel(s.o);
+      if (x) lines.push('x: ' + x);
+      lines.push('o: ' + o);
+    });
+    document.getElementById('setSentenceArea').value = lines.join('\n');
+    document.getElementById('pairModeCheckbox').checked = false; // 이미 x:/o: 형식으로 채워주므로 짝모드는 꺼둠
+    document.getElementById('setWordArea').value = (set.words || []).map(w => ShadowingEngine.stripLeadingLabel(w)).join('\n');
+    document.getElementById('cancelEditBtn').classList.remove('hidden');
+    document.getElementById('saveSetBtn').textContent = '💾 수정 내용 저장';
+    document.getElementById('setForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    alert('⚠️ ' + e.message);
+  }
+}
+
+document.getElementById('saveSetBtn').addEventListener('click', async () => {
+  const username = memberSelect.value;
+  const statusEl = document.getElementById('setFormStatus');
+  if (!username) { statusEl.textContent = '⚠️ 먼저 회원을 선택해주세요.'; statusEl.className = 'status error'; return; }
+
+  const sentenceText = document.getElementById('setSentenceArea').value;
+  const wordText = document.getElementById('setWordArea').value;
+  const pairMode = document.getElementById('pairModeCheckbox').checked;
+  const { newSentences, newWords: wordsFromSentenceBox } = ShadowingEngine.parseFeedbackBlock(sentenceText, pairMode);
+  const wordsFromWordBox = ShadowingEngine.parseWordsBlock(wordText);
+  const words = wordsFromSentenceBox.concat(wordsFromWordBox);
+
+  if (!newSentences.length && !words.length) {
+    statusEl.textContent = '⚠️ 문장이나 단어를 하나 이상 입력해주세요.';
+    statusEl.className = 'status error';
+    return;
+  }
+
+  const title = document.getElementById('setTitle').value;
+  const editingId = document.getElementById('editingSetId').value;
+
+  try {
+    if (editingId) {
+      await apiFetch(API.sets, { method: 'POST', body: JSON.stringify({ action: 'update', username, id: editingId, title, sentences: newSentences, words }) });
+      statusEl.textContent = '✅ 수정했어요.';
+    } else {
+      await apiFetch(API.sets, { method: 'POST', body: JSON.stringify({ action: 'create', username, title, sentences: newSentences, words }) });
+      statusEl.textContent = '✅ 새 회차를 등록했어요.';
+    }
+    statusEl.className = 'status success';
+    resetSetForm();
+    await loadSets();
+  } catch (e) {
+    statusEl.textContent = '⚠️ ' + e.message;
+    statusEl.className = 'status error';
+  }
+});
+
+/* ===================== 엔보임 피드백 자동 가져오기 ===================== */
+// 서버(netlify/functions/nvoim-sync.mjs)가 1시간마다 실행합니다. 이 화면은 계정 관리 / 회원 연결 / 수동 실행용.
+const NVOIM_API = '/api/admin-nvoim';
+function escH(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function fmtTime(iso) { return iso ? new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'; }
+
+let nvoimData = { accounts: [], pending: [], map: {}, lastRun: null };
+
+async function loadNvoim() {
+  try {
+    nvoimData = await apiFetch(NVOIM_API);
+    renderNvoim();
+  } catch (e) {
+    document.getElementById('nvoimAccountStatus').textContent = '⚠️ ' + e.message;
+    document.getElementById('nvoimAccountStatus').className = 'status error';
+  }
+}
+
+function renderNvoim() {
+  // 계정 목록
+  const accEl = document.getElementById('nvoimAccounts');
+  accEl.innerHTML = nvoimData.accounts.length ? '' : '<div class="empty">아직 등록된 엔보임 계정이 없어요.</div>';
+  nvoimData.accounts.forEach(a => {
+    const last = a.last;
+    const state = !last ? '<span class="imp-state">아직 실행 전</span>'
+      : last.error ? `<span class="imp-state err">⚠️ ${fmtTime(last.at)} · ${escH(last.error)}</span>`
+      : `<span class="imp-state ok">✅ ${fmtTime(last.at)} · 저장 ${last.saved} · 대기 ${last.pending}</span>` +
+        (last.rowErrors ? `<span class="imp-state warn">⚠️ ${last.rowErrors}명 다음 실행 때 재시도 (${escH(last.rowError)})</span>` : '');
+    const el = document.createElement('div');
+    el.className = 'set-item';
+    el.innerHTML = `<div><div class="title">${escH(a.label)}</div><div class="meta">아이디 ${escH(a.userId)}</div></div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">${state}<button class="btn-danger btn-small">삭제</button></div>`;
+    el.querySelector('button').addEventListener('click', async () => {
+      if (!confirm(`엔보임 계정 "${a.label}"을(를) 삭제할까요? (이미 저장된 회차는 그대로 남아요)`)) return;
+      try { await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'delete-account', id: a.id }) }); await loadNvoim(); }
+      catch (e) { alert('⚠️ ' + e.message); }
+    });
+    accEl.appendChild(el);
+  });
+
+  // 회원 선택 필요
+  const pendEl = document.getElementById('nvoimPending');
+  document.getElementById('nvoimPendingCount').textContent = nvoimData.pending.length;
+  pendEl.innerHTML = nvoimData.pending.length ? '' : '<div class="empty">없어요 👍</div>';
+  const memberOptions = membersCache.map(m => `<option value="${escH(m.username)}">${escH(m.username)}</option>`).join('');
+  nvoimData.pending.forEach(p => {
+    const preview = String(p.sentenceCorrection || '').trim().split('\n').filter(Boolean).slice(0, 4).join('\n');
+    const row = document.createElement('div');
+    row.className = 'imp-row';
+    row.innerHTML = `
+      <div class="imp-head">
+        <span class="imp-name">${escH(p.name)}</span>
+        <span class="imp-id">엔보임 ${escH(p.nvoimId)} · ${escH(p.date)} · ${escH(p.account || '')}</span>
+        <span class="imp-state"></span>
+      </div>
+      <div class="imp-grid">
+        <div><select class="full imp-member"><option value="">-- 버클리 회원 선택 --</option>${memberOptions}</select></div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-primary btn-small imp-save">💾 저장</button>
+          <button class="btn-ghost btn-small imp-skip" title="회원이 아닌 학생이면 저장하지 않고 넘겨요">넘기기</button>
+        </div>
+      </div>
+      <details class="imp-preview"><summary>피드백 보기</summary><pre style="white-space:pre-wrap; font:inherit; margin:6px 0 0;">${escH(preview)}${preview.split('\n').length >= 4 ? '\n…' : ''}\n\n발음교정: ${escH(String(p.mispronouncedWord || '').trim().replace(/\s*\n\s*/g, ', ') || '없음')}</pre></details>`;
+    const state = row.querySelector('.imp-state');
+    row.querySelector('.imp-save').addEventListener('click', async () => {
+      const username = row.querySelector('.imp-member').value;
+      if (!username) { state.textContent = '회원을 골라주세요'; state.className = 'imp-state err'; return; }
+      state.textContent = '저장 중...'; state.className = 'imp-state';
+      try {
+        const r = await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'assign', key: p.key, username }) });
+        state.textContent = `✅ 저장 ${r.saved}건`; state.className = 'imp-state ok';
+        setTimeout(loadNvoim, 600);
+        if (memberSelect.value === username) loadSets();
+      } catch (e) { state.textContent = '⚠️ ' + e.message; state.className = 'imp-state err'; }
+    });
+    row.querySelector('.imp-skip').addEventListener('click', async () => {
+      if (!confirm(`${p.name} 학생의 ${p.date} 피드백을 저장하지 않고 넘길까요?`)) return;
+      try { await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'dismiss', key: p.key }) }); await loadNvoim(); }
+      catch (e) { alert('⚠️ ' + e.message); }
+    });
+    pendEl.appendChild(row);
+  });
+
+  // 마지막 실행
+  const lr = nvoimData.lastRun;
+  document.getElementById('nvoimLastRun').textContent = lr ? `마지막 실행: ${fmtTime(lr.at)}` : '';
+
+  // 연결 목록
+  const mapEl = document.getElementById('nvoimMap');
+  const entries = Object.entries(nvoimData.map || {});
+  mapEl.innerHTML = entries.length ? '' : '<div class="empty">아직 따로 연결한 학생이 없어요. (엔보임 아이디와 회원 아이디가 같으면 연결 없이 자동 저장)</div>';
+  entries.sort().forEach(([nid, uname]) => {
+    const el = document.createElement('div');
+    el.className = 'set-item';
+    el.innerHTML = `<div class="meta">엔보임 <b>${escH(nid)}</b> → 회원 <b>${escH(uname)}</b></div><button class="btn-ghost btn-small">연결 해제</button>`;
+    el.querySelector('button').addEventListener('click', async () => {
+      try { await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'unmap', nvoimId: nid }) }); await loadNvoim(); }
+      catch (e) { alert('⚠️ ' + e.message); }
+    });
+    mapEl.appendChild(el);
+  });
+}
+
+document.getElementById('nvoimAddBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('nvoimAccountStatus');
+  const label = document.getElementById('nvoimLabel').value.trim();
+  const userId = document.getElementById('nvoimUserId').value.trim();
+  const password = document.getElementById('nvoimPassword').value;
+  if (!userId || !password) { statusEl.textContent = '⚠️ 엔보임 아이디와 비밀번호를 입력해주세요.'; statusEl.className = 'status error'; return; }
+  statusEl.textContent = '엔보임에 로그인 확인 중...'; statusEl.className = 'status';
+  try {
+    await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'add-account', label, userId, password }) });
+    document.getElementById('nvoimLabel').value = '';
+    document.getElementById('nvoimUserId').value = '';
+    document.getElementById('nvoimPassword').value = '';
+    statusEl.textContent = '✅ 로그인 확인 후 저장했어요. 이제 1시간마다 자동으로 가져와요.'; statusEl.className = 'status success';
+    await loadNvoim();
+  } catch (e) { statusEl.textContent = '⚠️ ' + e.message; statusEl.className = 'status error'; }
+});
+
+document.getElementById('nvoimRunBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('nvoimRunBtn');
+  const statusEl = document.getElementById('nvoimRunStatus');
+  btn.disabled = true;
+  statusEl.className = 'status';
+  let total = { saved: 0, pending: 0 }, last = null;
+  try {
+    // 서버 함수 한 번에 약 8초까지만 처리하므로, 다 끝날 때까지 이어서 호출합니다.
+    for (let round = 1; round <= 8; round++) {
+      statusEl.textContent = `엔보임에서 가져오는 중...${round > 1 ? ` (${round}번째)` : ''}`;
+      const { summary } = await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'run' }) });
+      total.saved += summary.saved; total.pending += summary.pending; last = summary;
+      if (summary.finished) break;
+    }
+    statusEl.className = 'status ' + (last.errors.length ? 'error' : 'success');
+    statusEl.textContent = `✅ 새로 저장 ${total.saved}건 · 회원 선택 필요 ${total.pending}건` +
+      (last.waiting ? ` · 피드백 작성 전 ${last.waiting}명` : '') +
+      (last.errors.length ? `\n⚠️ ${last.errors.join('\n⚠️ ')}` : '');
+  } catch (e) {
+    statusEl.textContent = '⚠️ ' + e.message; statusEl.className = 'status error';
+  }
+  btn.disabled = false;
+  await loadNvoim();
+  if (memberSelect.value) loadSets();
+});
+
+
+// 날짜 범위 가져오기: 날짜마다 서버를 호출(한 번에 8초 제한이라 안 끝나면 같은 날짜를 이어서 호출)
+(function initRange() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const ymd = d => d.toISOString().slice(0, 10);
+  const yesterday = new Date(kst.getTime() - 86400000);
+  const weekAgo = new Date(kst.getTime() - 7 * 86400000);
+  document.getElementById('nvoimTo').value = ymd(yesterday);
+  document.getElementById('nvoimFrom').value = ymd(weekAgo);
+  document.getElementById('nvoimTo').max = ymd(kst);
+  document.getElementById('nvoimFrom').max = ymd(kst);
+})();
+
+document.getElementById('nvoimRangeBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('nvoimRangeBtn');
+  const runBtn = document.getElementById('nvoimRunBtn');
+  const statusEl = document.getElementById('nvoimRangeStatus');
+  const from = document.getElementById('nvoimFrom').value;
+  const to = document.getElementById('nvoimTo').value;
+  if (!from || !to || from > to) { statusEl.textContent = '⚠️ 시작일과 종료일을 확인해주세요.'; statusEl.className = 'status error'; return; }
+  const dates = [];
+  for (let d = new Date(from + 'T00:00:00Z'); d <= new Date(to + 'T00:00:00Z'); d = new Date(d.getTime() + 86400000)) dates.push(d.toISOString().slice(0, 10));
+  if (dates.length > 92) { statusEl.textContent = '⚠️ 한 번에 최대 3개월(92일)까지 가져올 수 있어요.'; statusEl.className = 'status error'; return; }
+
+  btn.disabled = true; runBtn.disabled = true;
+  statusEl.className = 'status';
+  const total = { saved: 0, pending: 0 };
+  const errors = [];
+  try {
+    for (let i = 0; i < dates.length; i++) {
+      for (let round = 1; round <= 6; round++) {
+        statusEl.textContent = `가져오는 중... ${dates[i]} (${i + 1}/${dates.length}일) · 지금까지 저장 ${total.saved}건`;
+        const { summary } = await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'run', date: dates[i] }) });
+        total.saved += summary.saved; total.pending += summary.pending;
+        summary.errors.forEach(e => errors.push(`${dates[i]} ${e}`));
+        if (summary.finished) break;
+      }
+    }
+    statusEl.className = 'status ' + (errors.length ? 'error' : 'success');
+    statusEl.textContent = `✅ ${from} ~ ${to} (${dates.length}일) 완료 · 새로 저장 ${total.saved}건 · 회원 선택 필요 ${total.pending}건` +
+      (errors.length ? `\n⚠️ ${errors.slice(0, 5).join('\n⚠️ ')}${errors.length > 5 ? `\n…외 ${errors.length - 5}건` : ''}` : '');
+  } catch (e) {
+    statusEl.textContent = '⚠️ ' + e.message + ` (지금까지 저장 ${total.saved}건 — 다시 누르면 이어서 가져와요)`; statusEl.className = 'status error';
+  }
+  btn.disabled = false; runBtn.disabled = false;
+  await loadNvoim();
+  if (memberSelect.value) loadSets();
+});
+
+
+/* ===================== 수업 피드백 리포트 (엑셀) ===================== */
+const REPORT_API = '/api/admin-report';
+function selectedReportMember() { return document.getElementById('reportMember').value; }
+
+// 전체 리포트에서 한 회원 것만 골라내기
+function pickMember(report, username) {
+  const lessons = (report.lessons || []).filter(l => l.username === username);
+  return { ...report, username, name: (lessons.find(l => l.name) || {}).name || '', lessons };
+}
+
+async function loadReportMonths() {
+  const el = document.getElementById('reportMonths');
+  try {
+    const { months } = await apiFetch(`${REPORT_API}?list=1`);
+    el.innerHTML = months.length ? '' : '<div class="empty">아직 보관된 월별 리포트가 없어요. 매달 1일에 자동으로 생기고, 아래에서 직접 만들 수도 있어요.</div>';
+    months.forEach((m, i) => {
+      const [y, mo] = m.month.split('-');
+      const row = document.createElement('div');
+      row.className = 'set-item';
+      row.innerHTML = `<div><div class="title">${y}년 ${Number(mo)}월 ${i === 0 ? '<span class="pill">최신</span>' : ''}</div>
+        <div class="meta">수업 ${m.lessons}회 · 학생 ${m.students}명 · ${fmtTime(m.generatedAt)} 정리</div></div>
+        <div style="display:flex; gap:6px;"><button class="btn-primary btn-small dl">⬇️ 엑셀 받기</button><button class="btn-ghost btn-small redo" title="지금 회차 기준으로 다시 정리">다시 만들기</button></div>`;
+      row.querySelector('.dl').addEventListener('click', async (ev) => {
+        const b = ev.currentTarget; b.disabled = true;
+        try {
+          const { report } = await apiFetch(`${REPORT_API}?month=${m.month}`);
+          const who = selectedReportMember();
+          if (who) {
+            const r = pickMember(report, who);
+            if (!r.lessons.length) { alert(`${who} 회원은 ${m.month}에 수업 기록이 없어요.`); b.disabled = false; return; }
+            await FeedbackReport.download(r, { mode: 'member' });
+          } else {
+            await FeedbackReport.download(report, { mode: 'all' });
+          }
+        }
+        catch (e) { alert('⚠️ ' + e.message); }
+        b.disabled = false;
+      });
+      row.querySelector('.redo').addEventListener('click', () => makeMonthSnapshot(m.month));
+      el.appendChild(row);
+    });
+  } catch (e) {
+    el.innerHTML = `<div class="empty">⚠️ ${escH(e.message)}</div>`;
+  }
+}
+
+async function makeMonthSnapshot(month) {
+  const statusEl = document.getElementById('reportMonthStatus');
+  statusEl.className = 'status'; statusEl.textContent = `${month} 리포트 정리 중...`;
+  try {
+    const { month: info } = await apiFetch(REPORT_API, { method: 'POST', body: JSON.stringify({ action: 'snapshot', month }) });
+    statusEl.className = 'status success';
+    statusEl.textContent = `✅ ${month} 리포트를 보관했어요 (수업 ${info.lessons}회 · 학생 ${info.students}명).`;
+    await loadReportMonths();
+  } catch (e) { statusEl.className = 'status error'; statusEl.textContent = '⚠️ ' + e.message; }
+}
+
+document.getElementById('reportMonthBtn').addEventListener('click', () => {
+  // Firefox·Safari는 달력 대신 글자 칸으로 보여서 "2026-9", "2026.09" 같은 입력도 받아줍니다.
+  const raw = document.getElementById('reportMonthInput').value.trim();
+  const mm = /^(\d{4})\D?(\d{1,2})$/.exec(raw);
+  const month = mm && Number(mm[2]) >= 1 && Number(mm[2]) <= 12 ? `${mm[1]}-${String(mm[2]).padStart(2, '0')}` : '';
+  if (!month) { const st = document.getElementById('reportMonthStatus'); st.className = 'status error'; st.textContent = '⚠️ 달을 "2026-09" 형식으로 골라주세요.'; return; }
+  makeMonthSnapshot(month);
+});
+
+document.getElementById('reportRangeBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('reportRangeBtn');
+  const statusEl = document.getElementById('reportRangeStatus');
+  const from = document.getElementById('reportFrom').value;
+  const to = document.getElementById('reportTo').value;
+  if (!from || !to || from > to) { statusEl.className = 'status error'; statusEl.textContent = '⚠️ 시작일과 종료일을 확인해주세요.'; return; }
+  btn.disabled = true; statusEl.className = 'status'; statusEl.textContent = '정리 중...';
+  try {
+    const who = selectedReportMember();
+    const { report } = await apiFetch(`${REPORT_API}?from=${from}&to=${to}` + (who ? `&username=${encodeURIComponent(who)}` : ''));
+    const r = await FeedbackReport.download(report, { mode: who ? 'member' : 'all' });
+    statusEl.className = 'status success';
+    statusEl.textContent = `✅ 내려받았어요 — 수업 ${r.lessons}회 · 학생 ${r.students}명 · 문장 ${r.sentences}개 · 단어 ${r.words}개`;
+  } catch (e) { statusEl.className = 'status error'; statusEl.textContent = '⚠️ ' + e.message; }
+  btn.disabled = false;
+});
+
+(function initReportDates() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const first = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), 1));
+  const prevMonth = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() - 1, 1));
+  document.getElementById('reportFrom').value = first.toISOString().slice(0, 10);
+  document.getElementById('reportTo').value = kst.toISOString().slice(0, 10);
+  document.getElementById('reportMonthInput').value = prevMonth.toISOString().slice(0, 7);
+})();
+
+/* ===================== 시작 ===================== */
+if (getToken()) showMain(); else showLogin();
+</script>
+</body>
+</html>
