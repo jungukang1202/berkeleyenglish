@@ -149,7 +149,7 @@
   let __lastTtsEnd = 0;     // 마지막으로 원어민 음성이 끝난 시각(첫 단어 잘림 방지용)          // stopVoice()가 불릴 때마다 증가 → 진행 중이던 재생이 "중단됨"을 알 수 있게
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
-  const ENGINE_VERSION = '2026-10-12g'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-10-13a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -612,7 +612,13 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   const __isTouchDevice = (navigator.maxTouchPoints || 0) > 0;
   function __sttRememberedServer() { try { return localStorage.getItem(__STT_MEMO_KEY) === '1'; } catch (e) { return false; } }
   function __sttRememberServer() { try { localStorage.setItem(__STT_MEMO_KEY, '1'); } catch (e) {} }
+  // 🎙️ 마이크 선택: 헤드셋처럼 '기본 마이크'가 아닌 마이크를 쓰려면 여기서 고른 마이크로 직접 녹음해요.
+  // (Chrome 내장 음성 인식은 마이크를 고를 수 없어서, 마이크를 고르면 서버 받아쓰기 방식으로 바뀝니다)
+  const __MIC_KEY = 'shadowing_mic_device';
+  function __micDevice() { try { return localStorage.getItem(__MIC_KEY) || ''; } catch (e) { return ''; } }
+  function __setMicDevice(id) { try { if (id) localStorage.setItem(__MIC_KEY, id); else localStorage.removeItem(__MIC_KEY); } catch (e) {} }
   let __sttMode = !canServerSTT ? 'browser'
+    : __micDevice() ? 'server'
     : !SpeechRecognitionCtor ? 'server'
     : /[?&]stt=server\b/.test(location.search) ? 'server'
     : /[?&]stt=browser\b/.test(location.search) ? 'browser'
@@ -641,6 +647,89 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       return true;
     }
     return false;
+  }
+
+  const MIC_HELP_HTML = '🎙️ <b>마이크에 목소리가 들어오지 않아서 연습을 멈췄어요.</b><br>'
+    + '① 위쪽 <b>"🎙️ 마이크 선택"</b>에서 헤드셋(이어폰) 마이크를 고르고 <b>🎤 소리 테스트</b>로 막대가 움직이는지 확인해 주세요.<br>'
+    + '② 헤드셋 마이크 음소거 스위치가 꺼져 있는지 확인해 주세요.<br>'
+    + '③ 그래도 안 되면 "🎙️ 마이크 사용" 체크를 끄고 듣기만으로 연습할 수 있어요.';
+
+  // 연습 화면 맨 위의 "🎙️ 마이크 선택" 카드 (마이크 고르기 + 소리 테스트)
+  function buildMicPicker() {
+    if (!canServerSTT || !navigator.mediaDevices.enumerateDevices) return null;
+    const box = document.createElement('div');
+    box.className = 'mic-picker';
+    box.innerHTML = `
+      <style>
+        .mic-picker{background:var(--panel,#fff); border:1px solid var(--border,#EAE1C8); border-radius:12px; padding:10px 12px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:0.85rem;}
+        .mic-picker.mic-picker-alert{border:2px solid #C4453A; background:#FFF4F2;}
+        .mic-picker select{flex:1 1 220px; min-width:0; background:var(--input-bg,#FBF9F2); border:1px solid var(--border,#EAE1C8); border-radius:8px; padding:6px 8px; font-family:inherit; font-size:0.85rem; color:var(--text,#1B2A4E);}
+        .mic-picker .mic-level{flex:1 1 120px; height:10px; background:#EEE7D4; border-radius:5px; overflow:hidden; min-width:80px;}
+        .mic-picker .mic-level i{display:block; height:100%; width:0; background:#1E8E5A; transition:width .08s;}
+        .mic-picker .mic-msg{flex-basis:100%; font-size:0.78rem; color:var(--muted,#7C7566);}
+      </style>
+      <b style="color:var(--text,#1B2A4E)">🎙️ 마이크 선택</b>
+      <select class="mic-select"><option value="">기본 마이크 (컴퓨터 설정)</option></select>
+      <button type="button" class="btn-ghost btn-small mic-test">🎤 소리 테스트</button>
+      <div class="mic-level"><i></i></div>
+      <div class="mic-msg">헤드셋을 쓰는데 "목소리가 들리지 않았어요"가 계속 나오면, 여기서 헤드셋 마이크를 고르고 소리 테스트를 해 보세요.</div>`;
+    const sel = box.querySelector('.mic-select'), bar = box.querySelector('.mic-level i'), msg = box.querySelector('.mic-msg'), testBtn = box.querySelector('.mic-test');
+    async function fill(askPermission) {
+      try {
+        let devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+        if (askPermission && devs.length && !devs.some(d => d.label)) {
+          const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop());
+          devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+        }
+        const cur = __micDevice();
+        sel.innerHTML = '<option value="">기본 마이크 (컴퓨터 설정)</option>' + devs.filter(d => d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+          .map((d, i) => `<option value="${escapeHTML(d.deviceId)}">${escapeHTML(d.label || '마이크 ' + (i + 1))}</option>`).join('');
+        sel.value = devs.some(d => d.deviceId === cur) ? cur : '';
+      } catch (e) {}
+    }
+    fill(false);
+    sel.addEventListener('focus', () => fill(true), { once: true });
+    sel.addEventListener('mousedown', () => fill(true), { once: true });
+    sel.addEventListener('change', () => {
+      __setMicDevice(sel.value);
+      box.classList.remove('mic-picker-alert');
+      if (sel.value) { __sttMode = 'server'; msg.textContent = '✅ 이 마이크로 녹음해서 받아써요. 이 컴퓨터에서는 다음에도 이 마이크를 써요.'; }
+      else { msg.textContent = '기본 마이크를 써요.'; }
+    });
+    if (navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', () => fill(false));
+    let testing = false;
+    testBtn.addEventListener('click', async () => {
+      if (testing) return; testing = true;
+      let stream = null, ctx = null, timer = null, peak = 0;
+      try {
+        const dev = sel.value;
+        stream = await navigator.mediaDevices.getUserMedia({ audio: dev ? { deviceId: { exact: dev } } : true });
+        await fill(false);
+        const AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC(); const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
+        const data = new Float32Array(an.fftSize);
+        msg.textContent = '🎤 5초 동안 "Hello, hello" 하고 말해 보세요. 초록 막대가 움직이면 마이크가 잘 되는 거예요.';
+        timer = setInterval(() => {
+          an.getFloatTimeDomainData(data);
+          let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+          const rms = Math.sqrt(sum / data.length); if (rms > peak) peak = rms;
+          bar.style.width = Math.min(100, rms * 600) + '%';
+        }, 80);
+        await new Promise(r => setTimeout(r, 5000));
+        msg.textContent = peak >= 0.02 ? '✅ 소리가 잘 들어와요! 이 마이크로 연습하면 돼요.'
+          : peak >= 0.004 ? '⚠️ 소리가 아주 작게 들어와요. 마이크를 입 가까이 대거나 다른 마이크를 골라 보세요.'
+          : '❌ 소리가 전혀 안 들어와요. 다른 마이크를 고르거나 헤드셋 음소거를 풀어 주세요.';
+        if (peak >= 0.02) box.classList.remove('mic-picker-alert');
+      } catch (e) {
+        msg.textContent = (e && e.name === 'NotAllowedError') ? '⚠️ 마이크 권한이 막혀 있어요. 주소창의 🔒을 눌러 마이크를 "허용"으로 바꿔 주세요.' : '⚠️ 이 마이크를 열 수 없어요. 다른 마이크를 골라 보세요.';
+      } finally {
+        clearInterval(timer); bar.style.width = '0';
+        try { ctx && ctx.close(); } catch (e) {}
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        testing = false;
+      }
+    });
+    return box;
   }
 
   function stopServerSTT() { if (__sttActive) __sttActive.abort(); }
@@ -717,7 +806,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   // 예전엔 문장 길이로 정한 시간(예: 6초)을 다 채워 녹음해서 다 말한 뒤에도 기다려야 했어요.
   // 마이크 소리 크기를 0.1초마다 재서, 말을 시작한 뒤 1초 동안 조용하면 바로 녹음을 끝냅니다.
   // (소리 크기를 못 재는 기기면 아무 일도 안 하고, 예전처럼 정해진 시간까지 녹음해요)
-  function __watchSilence(stream, onSilence) {
+  function __watchSilence(stream, onSilence, meter) {
     let ctx = null, timer = null, stopped = false;
     const stop = () => { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch (e) {} };
     try {
@@ -737,6 +826,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         an.getFloatTimeDomainData(data);
         let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
         const rms = Math.sqrt(sum / data.length);
+        if (meter) { meter.measured = true; if (rms > meter.peak) meter.peak = rms; }
         const elapsed = Date.now() - t0;
         if (elapsed < 400) { noise += rms; noiseN++; return; }           // 처음 0.4초: 주변 소음 크기 재기
         const floor = noiseN ? noise / noiseN : 0;
@@ -771,7 +861,14 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       if (aborted) return settle({ ok: false, error: 'aborted' });
       try {
         // 에코 제거를 끄면 태블릿이 '통화 모드'로 바뀌지 않아 다음 원어민 음성도 정상적으로 나와요.
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+        const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: true };
+        const dev = __micDevice();
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: dev ? Object.assign({ deviceId: { exact: dev } }, base) : base }); }
+        catch (e1) {
+          if (!dev || (e1 && (e1.name === 'NotAllowedError' || e1.name === 'SecurityError'))) throw e1;
+          __setMicDevice(''); // 고른 마이크가 빠졌으면(헤드셋 뽑힘 등) 기본 마이크로
+          stream = await navigator.mediaDevices.getUserMedia({ audio: base });
+        }
       } catch (e) {
         const name = e && e.name;
         return settle({ ok: false, error: (name === 'NotAllowedError' || name === 'SecurityError') ? 'not-allowed' : 'audio-capture' });
@@ -791,13 +888,16 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         const blob = new Blob(chunks, { type });
         const dbg = STT_DEBUG ? `[진단] 녹음 ${(blob.size/1024).toFixed(1)}KB, ${type}` : '';
         if (!blob.size) return settle({ ok: false, error: 'no-speech', debug: dbg });
+        // 마이크에 소리가 거의 전혀 안 들어왔으면(헤드셋 마이크가 선택 안 됨·음소거) 서버에 보내지 않고 바로 알려요.
+        if (meter.measured && meter.peak < 0.004) return settle({ ok: false, error: 'mic-silent', debug: dbg });
         settle(await __serverTranscribe(blob, type, targetText, dbg));
       };
 
       const words = targetText.trim().split(/\s+/).filter(Boolean).length;
       const seconds = Math.min(25, 3 + words * 0.65);
       recorder.start();
-      const stopWatch = __watchSilence(stream, () => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} });
+      const meter = { peak: 0, measured: false };
+      const stopWatch = __watchSilence(stream, () => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} }, meter);
       recorder.addEventListener('stop', stopWatch);
       if (onReady) onReady();
       timer = setTimeout(() => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) { settle({ ok: false, error: 'no-speech' }); } }, seconds * 1000);
@@ -808,6 +908,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   function __sttFailTextBase(i, result) {
     if (result.switchedToServer) return `📱 이 기기에서는 브라우저 음성 인식이 소리를 받지 못하고 있어요(이어폰 마이크 등). 다음 차례부터 사이트가 직접 녹음해서 받아쓰는 방식으로 바꿨어요.`;
     if (result.error === 'server-stt-failed') return `⚠️ ${i}번째 시도: 서버 받아쓰기에 실패했어요${result.code ? ` (오류 ${result.code})` : ''}. 인터넷 연결을 확인해 주세요. 계속 진행합니다.`;
+    if (result.error === 'mic-silent') return `🎙️ ${i}번째 시도: 마이크에 소리가 전혀 들어오지 않았어요. 위쪽 "🎙️ 마이크 선택"에서 헤드셋 마이크를 골라 보세요.`;
     if (result.error === 'no-speech') return `⚠️ ${i}번째 시도에서 목소리가 들리지 않았어요. "지금 말씀하세요!"가 뜬 뒤 또렷하게 말해 주세요. 계속 진행합니다.`;
     return `⚠️ ${i}번째 시도에서 소리를 인식하지 못했어요 (${result.error}). 계속 진행합니다.`;
   }
@@ -1006,6 +1107,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       compareEl.innerHTML = '';
 
       if (useMic) await warmupMic();
+      let silentStreak = 0, failStreak = 0;
 
       for (let i = 1; i <= count; i++) {
         if (runState.stopped) break;
@@ -1035,6 +1137,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
             scoreBadge.textContent = `일치도 ${score}%`;
             scoreBadge.className = 'score-badge ' + (score >= 85 ? 'good' : score >= 60 ? 'mid' : 'bad');
             reportAttempt({ mode: 'mic', ok: true, heard: result.heard, score, rep: i, of: count });
+            silentStreak = 0; failStreak = 0;
           } else {
             reportAttempt({ mode: 'mic', ok: false, error: result.error || result.code || 'fail', rep: i, of: count });
             const permHTML = micPermissionErrorHTML(result.error);
@@ -1044,6 +1147,15 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
               break; // 권한 문제는 반복해도 소용없으니 멈춥니다 (마이크 사용 체크를 끄면 계속 진행 가능)
             }
             heardEl.textContent = sttFailText(i, result);
+            if (result.error === 'mic-silent') silentStreak++; else silentStreak = 0;
+            if (result.error === 'no-speech' || result.error === 'mic-silent') failStreak++; else failStreak = 0;
+            // 마이크에 소리가 계속 안 들어오면 20번을 헛돌지 않고 멈춰서 마이크를 바꾸도록 안내해요.
+            if (silentStreak >= 2 || failStreak >= 4) {
+              heardEl.innerHTML = MIC_HELP_HTML;
+              const picker = document.querySelector('.mic-picker');
+              if (picker) { picker.classList.add('mic-picker-alert'); picker.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+              break;
+            }
           }
         }
 
@@ -1554,6 +1666,11 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     container.innerHTML = '';
     const sentences = (set && set.sentences) || [];
     const words = (set && set.words) || [];
+
+    if ((sentences.length || words.length) && hasSTT) {
+      const picker = buildMicPicker();
+      if (picker) container.appendChild(picker);
+    }
 
     if (sentences.length) {
       const card = document.createElement('div');
