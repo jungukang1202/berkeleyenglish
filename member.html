@@ -127,6 +127,15 @@
       <button class="btn-ghost btn-small" id="logoutBtn">로그아웃</button>
     </div>
 
+    <div class="card">
+      <h2>🗂️ 회차 선택</h2>
+      <div class="card-desc">선생님이 등록해준 수업 회차 중 연습할 회차를 골라주세요. (최신 회차가 먼저 보여요)</div>
+      <select class="full" id="setSelect"></select>
+      <div class="status" id="setStatus"></div>
+    </div>
+
+    <div id="contentArea"></div>
+
     <div class="card" id="reportCard">
       <h2>📊 나의 학습 리포트</h2>
       <div class="card-desc">수업 횟수 · 출결 · 쉐도잉 평균 일치도 · 공부한 문장과 단어를 그래프로 정리해 드려요. 매달 1일에 지난달 리포트가 자동으로 만들어져요.</div>
@@ -150,16 +159,6 @@
       <div class="status" id="reportStatus"></div>
       <div id="reportView" style="margin-top:12px;"></div>
     </div>
-    </div>
-
-    <div class="card">
-      <h2>🗂️ 회차 선택</h2>
-      <div class="card-desc">선생님이 등록해준 수업 회차 중 연습할 회차를 골라주세요. (최신 회차가 먼저 보여요)</div>
-      <select class="full" id="setSelect"></select>
-      <div class="status" id="setStatus"></div>
-    </div>
-
-    <div id="contentArea"></div>
   </div>
 
   <footer>
@@ -251,7 +250,7 @@ async function loadSets() {
       return;
     }
     sets.forEach(s => {
-      const dateStr = s.createdAt ? new Date(s.createdAt).toLocaleDateString('ko-KR') : '';
+      const dateStr = s.lessonDate ? s.lessonDate.replace(/-/g, '. ') + '.' : (s.createdAt ? new Date(s.createdAt).toLocaleDateString('ko-KR') : ''); // 수업 날짜
       const opt = document.createElement('option');
       opt.value = s.id;
       opt.textContent = `${s.title} (${dateStr}) · 문장 ${s.sentenceCount} · 단어 ${s.wordCount}`;

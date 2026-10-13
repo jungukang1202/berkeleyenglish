@@ -124,6 +124,28 @@ export async function deleteSet(username, id) {
   await store.delete(`${uname}/${id}`);
 }
 
+// 회차의 수업 날짜(YYYY-MM-DD, 한국 시간): 엔보임에서 가져온 회차는 수업일, 직접 붙여넣은 회차는 등록일
+export function lessonDateOfSet(r) {
+  const src = (r && r.source) || {};
+  if (src.date && /^\d{4}-\d{2}-\d{2}$/.test(src.date)) return src.date;
+  const m = /\/(\d{4}-\d{2}-\d{2})\//.exec(src.key || '');
+  if (m) return m[1];
+  if (!r || !r.createdAt) return '';
+  const created = new Date(new Date(r.createdAt).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  // 손으로 붙여넣은 회차: 제목 앞의 "4/2", "04/02", "4.2" 같은 날짜를 수업일로 봅니다(연도는 등록한 해, 등록일보다 뒤면 작년).
+  const t = /^\s*(\d{1,2})\s*[\/.\-]\s*(\d{1,2})(?!\d)/.exec(r.title || '');
+  if (t) {
+    const mo = Number(t[1]), d = Number(t[2]);
+    if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+      let y = Number(created.slice(0, 4));
+      let ymd = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (ymd > created) ymd = `${y - 1}-${ymd.slice(5)}`;
+      return ymd;
+    }
+  }
+  return created;
+}
+
 export async function listSets(username) {
   const uname = normUsername(username);
   const store = setsStore();
@@ -139,8 +161,10 @@ export async function listSets(username) {
       createdAt: r.createdAt || null,
       sentenceCount: Array.isArray(r.sentences) ? r.sentences.length : 0,
       wordCount: Array.isArray(r.words) ? r.words.length : 0,
+      lessonDate: lessonDateOfSet(r),
     }));
-  out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // 최근 수업이 위로: 수업 날짜(엔보임에서 가져온 회차는 실제 수업일) → 같은 날이면 나중에 등록한 것이 위
+  out.sort((a, b) => (a.lessonDate < b.lessonDate ? 1 : a.lessonDate > b.lessonDate ? -1 : new Date(b.createdAt) - new Date(a.createdAt)));
   return out;
 }
 

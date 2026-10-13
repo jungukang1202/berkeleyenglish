@@ -355,7 +355,7 @@ async function mapLimit(items, limit, fn) {
 }
 
 // deadlineMs까지 가능한 만큼 처리. 못 끝낸 건 다음 실행 때 이어서(이미 처리한 수업은 건너뜀).
-export async function syncAll({ deadlineMs, dates } = {}) {
+export async function syncAll({ deadlineMs, dates, source } = {}) {
   const deadline = deadlineMs || Date.now() + 20000;
   const store = nvoimStore();
   const accounts = await getAccounts();
@@ -415,8 +415,27 @@ export async function syncAll({ deadlineMs, dates } = {}) {
     summary.saved += last.saved; summary.pending += last.pending; summary.waiting += last.waiting;
     await updateAccountLast(account.id, last);
   }
-  await store.setJSON('last-run', { at: new Date().toISOString(), ...summary });
+  const runInfo = { at: new Date().toISOString(), source: source || 'manual', ...summary };
+  await store.setJSON('last-run', runInfo);
+  if (source === 'auto') {
+    // 자동 실행 기록(최근 48번) — 관리자 화면에서 자동 가져오기가 제대로 돌고 있는지 확인용
+    const log = (await store.get('auto-log', { type: 'json' })) || [];
+    log.push({ at: runInfo.at, saved: summary.saved, pending: summary.pending, waiting: summary.waiting, errors: summary.errors.slice(0, 3), finished: summary.finished, dates: runDates });
+    await store.setJSON('auto-log', log.slice(-48));
+  }
   return summary;
+}
+
+export async function getAutoLog() {
+  return (await nvoimStore().get('auto-log', { type: 'json' })) || [];
+}
+
+// 자동 실행이 도중에 오류로 멈췄을 때도 기록을 남깁니다.
+export async function recordAutoFailure(message) {
+  const store = nvoimStore();
+  const log = (await store.get('auto-log', { type: 'json' })) || [];
+  log.push({ at: new Date().toISOString(), saved: 0, pending: 0, waiting: 0, errors: [String(message || '알 수 없는 오류').slice(0, 200)], finished: false, crashed: true });
+  await store.setJSON('auto-log', log.slice(-48));
 }
 
 export async function getLastRun() {

@@ -55,6 +55,9 @@
   .set-item{background:var(--input-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
   .set-item .meta{font-size:0.78rem; color:var(--muted);}
   .set-item .title{font-weight:700; color:var(--text); font-size:0.95rem;}
+  /* 회차 목록: 제목·날짜는 윗줄, 버튼은 항상 아랫줄로 통일 */
+  .set-item.set-stack{flex-direction:column; align-items:stretch; gap:8px;}
+  .set-item.set-stack .set-btns{display:flex; gap:6px; flex-wrap:wrap;}
   footer{color:var(--muted); font-size:0.78rem; text-align:center; margin-top:28px;}
   .top-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
   code{background:var(--input-bg); border:1px solid var(--border); padding:1px 6px; border-radius:5px; font-size:0.85em; color:var(--text);}
@@ -177,7 +180,7 @@
     <div class="card" id="nvoimCard">
       <h2>📥 엔보임 피드백 자동 가져오기</h2>
       <div class="card-desc">
-        등록한 엔보임 계정으로 <b>1시간마다 자동으로</b> 로그인해서 그날 수업 피드백(문장교정·발음교정)을 가져와 회원에게 저장해요.
+        등록한 엔보임 계정으로 <b>30분마다(정각·30분) 자동으로</b> 로그인해서 어제·오늘 수업 피드백(문장교정·발음교정)을 가져와 회원에게 저장해요.
         엔보임 아이디와 같은 버클리 회원이 있거나, 한 번 연결해 둔 학생은 자동으로 저장돼요.
       </div>
 
@@ -210,6 +213,7 @@
         <span class="sub" id="nvoimLastRun" style="margin:0;"></span>
       </div>
       <div class="status" id="nvoimRunStatus"></div>
+      <div id="nvoimAutoLog" style="margin-top:10px;"></div>
 
       <h3 class="sub-h">📅 지난 날짜 한 번에 가져오기</h3>
       <div class="card-desc" style="margin-bottom:6px;">기간을 고르면 그 기간의 엔보임 피드백을 날짜별로 모두 가져와요. 이미 저장된 수업은 건너뛰어요.</div>
@@ -544,13 +548,13 @@ async function loadSets() {
     sets.forEach(s => {
       const dateStr = s.createdAt ? new Date(s.createdAt).toLocaleString('ko-KR') : '-';
       const el = document.createElement('div');
-      el.className = 'set-item';
+      el.className = 'set-item set-stack';
       el.innerHTML = `
         <div>
           <div class="title">${s.title}</div>
-          <div class="meta">${dateStr} · 문장 ${s.sentenceCount}개 · 단어 ${s.wordCount}개</div>
+          <div class="meta">${s.lessonDate ? `📅 수업일 ${Number(s.lessonDate.slice(5, 7))}/${Number(s.lessonDate.slice(8))}(${'일월화수목금토'[new Date(s.lessonDate + 'T00:00:00Z').getUTCDay()]}) · ` : ''}등록 ${dateStr} · 문장 ${s.sentenceCount}개 · 단어 ${s.wordCount}개</div>
         </div>
-        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <div class="set-btns">
           <button class="btn-ghost btn-small preview-set-btn">👀 미리보기</button>
           <button class="btn-ghost btn-small practice-set-btn">${practiceButtonLabel(practiceSummary[s.id])}</button>
           <button class="btn-ghost btn-small edit-set-btn">✏️ 수정</button>
@@ -826,6 +830,29 @@ document.getElementById('saveSetBtn').addEventListener('click', async () => {
 });
 
 /* ===================== 엔보임 피드백 자동 가져오기 ===================== */
+
+// 자동 실행 기록: 30분마다 돌았는지, 몇 개 저장했는지, 오류가 있었는지 보여줘요.
+function renderAutoLog(log) {
+  const el = document.getElementById('nvoimAutoLog');
+  if (!el) return;
+  const now = Date.now();
+  const last = log[log.length - 1];
+  const nextSlot = new Date(Math.ceil((now + 1000) / 1800000) * 1800000);
+  const nextText = nextSlot.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  let head;
+  if (!last) {
+    head = `<div class="status error" style="margin:0;">⚠️ 아직 자동 실행 기록이 없어요. 배포한 뒤 다음 정각/30분(${nextText})이 지나면 여기에 기록이 생겨요. 1시간이 지나도 안 생기면 Netlify 화면의 Functions → <b>nvoim-sync</b>를 확인해주세요.</div>`;
+  } else {
+    const ago = Math.round((now - new Date(last.at).getTime()) / 60000);
+    const late = ago > 75;
+    head = `<div class="status ${late ? 'error' : 'success'}" style="margin:0;">${late ? '⚠️' : '✅'} 마지막 자동 실행: ${fmtTime(last.at)} (${ago < 1 ? '방금' : ago + '분 전'}) · 다음 자동 실행: ${nextText}${late ? ' — 자동 실행이 1시간 넘게 멈춰 있어요. Netlify 화면의 Functions → nvoim-sync를 확인해주세요.' : ''}</div>`;
+  }
+  const rows = log.slice(-10).reverse().map(r => {
+    const err = (r.errors || []).length;
+    return `<tr><td style="white-space:nowrap">${fmtTime(r.at)}</td><td>${r.crashed ? '<span style="color:var(--bad)">실행 오류</span>' : `저장 ${r.saved} · 회원 선택 필요 ${r.pending} · 피드백 작성 전 ${r.waiting}${r.finished === false ? ' · 다음 실행에 이어서' : ''}`}</td><td style="color:var(--bad)">${err ? escH(r.errors.join(' / ')) : ''}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + (rows ? `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:0.82rem; color:var(--muted);">자동 실행 기록 보기 (최근 10번)</summary><table style="margin-top:6px; font-size:0.8rem;"><thead><tr><th>시각</th><th>결과</th><th>오류</th></tr></thead><tbody>${rows}</tbody></table></details>` : '');
+}
 // 서버(netlify/functions/nvoim-sync.mjs)가 1시간마다 실행합니다. 이 화면은 계정 관리 / 회원 연결 / 수동 실행용.
 const NVOIM_API = '/api/admin-nvoim';
 function escH(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -914,7 +941,8 @@ function renderNvoim() {
 
   // 마지막 실행
   const lr = nvoimData.lastRun;
-  document.getElementById('nvoimLastRun').textContent = lr ? `마지막 실행: ${fmtTime(lr.at)}` : '';
+  document.getElementById('nvoimLastRun').textContent = lr ? `마지막 실행: ${fmtTime(lr.at)}${lr.source === 'auto' ? ' (자동)' : ''}` : '';
+  renderAutoLog(nvoimData.autoLog || []);
 
   // 연결 목록
   const mapEl = document.getElementById('nvoimMap');
@@ -982,7 +1010,7 @@ document.getElementById('nvoimAddBtn').addEventListener('click', async () => {
     document.getElementById('nvoimLabel').value = '';
     document.getElementById('nvoimUserId').value = '';
     document.getElementById('nvoimPassword').value = '';
-    statusEl.textContent = '✅ 로그인 확인 후 저장했어요. 이제 1시간마다 자동으로 가져와요.'; statusEl.className = 'status success';
+    statusEl.textContent = '✅ 로그인 확인 후 저장했어요. 이제 30분마다 자동으로 가져와요.'; statusEl.className = 'status success';
     await loadNvoim();
   } catch (e) { statusEl.textContent = '⚠️ ' + e.message; statusEl.className = 'status error'; }
 });

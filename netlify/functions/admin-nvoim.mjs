@@ -10,7 +10,7 @@
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import {
   getAccounts, publicAccount, addAccount, deleteAccount, getMemberMap, setMemberMapping,
-  listPending, assignPending, dismissPending, dismissPendingMany, syncAll, getLastRun,
+  listPending, assignPending, dismissPending, dismissPendingMany, syncAll, getLastRun, getAutoLog,
 } from './_lib/nvoim.mjs';
 
 export default async (req) => {
@@ -18,8 +18,8 @@ export default async (req) => {
   if (!auth) return jsonResponse({ error: 'unauthorized' }, 401);
 
   if (req.method === 'GET') {
-    const [accounts, pending, map, lastRun] = await Promise.all([getAccounts(), listPending(), getMemberMap(), getLastRun()]);
-    return jsonResponse({ accounts: accounts.map(publicAccount), pending, map, lastRun });
+    const [accounts, pending, map, lastRun, autoLog] = await Promise.all([getAccounts(), listPending(), getMemberMap(), getLastRun(), getAutoLog()]);
+    return jsonResponse({ accounts: accounts.map(publicAccount), pending, map, lastRun, autoLog });
   }
 
   if (req.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);

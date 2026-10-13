@@ -1,7 +1,7 @@
 // 수업 피드백 리포트 — 기간별로 모든 회원의 회차(문장/단어)를 모아 정리합니다.
 // 매달 1일에는 지난달 리포트를 Netlify Blobs에 따로 보관해서(스냅샷) 나중에 회차가 지워져도 내려받을 수 있습니다.
 import { getStore } from '@netlify/blobs';
-import { listAllSets, listSetsFull } from './store.mjs';
+import { listAllSets, listSetsFull, lessonDateOfSet } from './store.mjs';
 
 function reportStore() {
   return getStore({ name: 'feedback-reports', consistency: 'strong' });
@@ -14,11 +14,7 @@ function kstYmd(iso) {
 
 // 회차의 수업 날짜: 엔보임에서 가져온 회차는 수업 날짜, 직접 붙여넣은 회차는 등록한 날짜(한국 시간)
 export function lessonDateOf(set) {
-  const src = set.source || {};
-  if (src.date && /^\d{4}-\d{2}-\d{2}$/.test(src.date)) return src.date;
-  const m = /\/(\d{4}-\d{2}-\d{2})\//.exec(src.key || '');
-  if (m) return m[1];
-  return kstYmd(set.createdAt);
+  return lessonDateOfSet(set);
 }
 
 function clean(s) {
