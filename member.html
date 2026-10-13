@@ -128,13 +128,28 @@
     </div>
 
     <div class="card" id="reportCard">
-      <h2>📊 월별 수업 리포트</h2>
-      <div class="card-desc">한 달 동안 받은 수업 피드백(고친 문장·발음 단어)을 엑셀 파일로 정리해서 내려받아요.</div>
-      <div class="row" style="margin-top:0;">
+      <h2>📊 나의 학습 리포트</h2>
+      <div class="card-desc">수업 횟수 · 출결 · 쉐도잉 평균 일치도 · 공부한 문장과 단어를 그래프로 정리해 드려요. 매달 1일에 지난달 리포트가 자동으로 만들어져요.</div>
+      <div id="reportArrived" class="hidden" style="background:#FFFBEF; border:1px solid #F0E2B4; border-radius:12px; padding:10px 12px; margin-bottom:12px; font-size:0.9rem; color:var(--text); display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+        <span id="reportArrivedText">📬 지난달 학습 리포트가 도착했어요!</span>
+        <button class="btn-primary btn-small" id="reportArrivedBtn">보기</button>
+      </div>
+      <div class="row" style="margin-top:0; gap:6px;">
+        <button class="btn-small report-tab btn-primary" data-mode="month">🗓️ 월별</button>
+        <button class="btn-small report-tab btn-ghost" data-mode="range">📅 기간 정하기</button>
+      </div>
+      <div class="row report-mode" data-mode="month" style="margin-top:10px;">
         <select class="full" id="reportMonthSelect" style="flex:1; min-width:200px;"><option value="">불러오는 중...</option></select>
-        <button class="btn-primary" id="reportDownloadBtn">⬇️ 리포트 받기</button>
+        <button class="btn-primary" id="reportViewBtn">리포트 보기</button>
+      </div>
+      <div class="row report-mode hidden" data-mode="range" style="margin-top:10px; align-items:flex-end;">
+        <label style="flex:1; min-width:140px; margin:0;">시작일<input type="date" id="reportFrom" class="full" style="margin-top:4px;"></label>
+        <label style="flex:1; min-width:140px; margin:0;">종료일<input type="date" id="reportTo" class="full" style="margin-top:4px;"></label>
+        <button class="btn-primary" id="reportRangeBtn">리포트 만들기</button>
       </div>
       <div class="status" id="reportStatus"></div>
+      <div id="reportView" style="margin-top:12px;"></div>
+    </div>
     </div>
 
     <div class="card">
@@ -155,10 +170,10 @@
   </footer>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261012d"></script>
-<script src="js/feedback-report.js?v=20261012d"></script>
+<script src="js/shadowing-engine.js?v=20261012g"></script>
+<script src="js/learning-report.js?v=20261012g"></script>
 <script>
-const API = { login: '/api/member-login', sets: '/api/member-sets', report: '/api/member-report' };
+const API = { login: '/api/member-login', sets: '/api/member-sets', report: '/api/member-insight', practice: '/api/member-practice' };
 const TOKEN_KEY = 'shadowing_member_token';
 const USERNAME_KEY = 'shadowing_member_username';
 
@@ -215,7 +230,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 [document.getElementById('usernameInput'), document.getElementById('passwordInput')].forEach(el => {
   el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginBtn').click(); });
 });
-document.getElementById('logoutBtn').addEventListener('click', () => { clearSession(); showLogin(); });
+document.getElementById('logoutBtn').addEventListener('click', async () => { try { await flushPractice(); } catch (e) {} clearSession(); showLogin(); });
 
 /* ===================== 회차 목록/내용 ===================== */
 
@@ -267,61 +282,158 @@ async function loadSetContent(id) {
 function renderSet(set) {
   // 카드 렌더링(문장/단어/요약)은 admin.html의 미리보기와 완전히 같은 화면을 쓰도록
   // js/shadowing-engine.js의 renderPracticeSet()으로 공용화했습니다.
-  ShadowingEngine.renderPracticeSet(contentArea, set);
+  // 연습 반복 한 번마다 기록을 모아 두었다가 서버로 보내요(관리자 페이지 "📊 연습 기록"에서 확인).
+  ShadowingEngine.renderPracticeSet(contentArea, set, { onAttempt: rec => queuePractice(set.id, rec) });
 }
 
-/* ===================== 월별 수업 리포트 ===================== */
+/* ===================== 연습 기록 보내기 ===================== */
+// 반복할 때마다 바로 보내지 않고 몇 초 모아서 한 번에 보냅니다. 화면을 닫거나 다른 앱으로 넘어가도 남은 기록을 보내요.
+let practiceQueue = [];
+let practiceTimer = null;
+let practiceSending = false;
+
+function queuePractice(setId, rec) {
+  if (!setId) return;
+  practiceQueue.push(Object.assign({ setId }, rec));
+  if (practiceQueue.length >= 20) { flushPractice(); return; }
+  clearTimeout(practiceTimer);
+  practiceTimer = setTimeout(flushPractice, 5000);
+}
+
+async function flushPractice(keepalive) {
+  clearTimeout(practiceTimer);
+  if (!practiceQueue.length || !getToken()) return;
+  if (practiceSending && !keepalive) { practiceTimer = setTimeout(flushPractice, 3000); return; }
+  const batch = practiceQueue; practiceQueue = [];
+  const bySet = {};
+  batch.forEach(r => { (bySet[r.setId] = bySet[r.setId] || []).push(r); });
+  practiceSending = true;
+  try {
+    for (const setId of Object.keys(bySet)) {
+      const attempts = bySet[setId].map(r => { const c = Object.assign({}, r); delete c.setId; return c; });
+      try {
+        const res = await fetch(API.practice, {
+          method: 'POST', keepalive: !!keepalive,
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ setId, attempts }),
+        });
+        // 서버 문제(5xx)나 연결 문제면 다음에 다시 보내도록 되돌려 둡니다.
+        if (res.status >= 500) practiceQueue = bySet[setId].concat(practiceQueue).slice(-500);
+      } catch (e) {
+        practiceQueue = bySet[setId].concat(practiceQueue).slice(-500);
+      }
+    }
+  } finally {
+    practiceSending = false;
+    if (practiceQueue.length && !keepalive) { clearTimeout(practiceTimer); practiceTimer = setTimeout(flushPractice, 15000); }
+  }
+}
+window.addEventListener('pagehide', () => flushPractice(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushPractice(true); });
+
+/* ===================== 나의 학습 리포트 ===================== */
 
 const reportMonthSelect = document.getElementById('reportMonthSelect');
+const reportView = document.getElementById('reportView');
+const kstToday = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+const prevMonthOf = m => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
+const SEEN_KEY = 'learning_report_seen';
+let arrivedMonth = '';
+
+function setReportStatus(text, cls) { const el = document.getElementById('reportStatus'); el.textContent = text || ''; el.className = 'status' + (cls ? ' ' + cls : ''); }
+
+async function showReport(query) {
+  setReportStatus('리포트 정리 중...');
+  reportView.innerHTML = '';
+  try {
+    const { report } = await apiFetch(`${API.report}?${query}`);
+    LearningReport.renderStudent(reportView, report);
+    setReportStatus('');
+    // 자동으로 만들어진(보관된) 달 리포트를 열어 보면 '도착' 알림을 닫아요.
+    if (report.saved && report.month) {
+      let seen = ''; try { seen = localStorage.getItem(SEEN_KEY) || ''; } catch (e) {}
+      if (report.month > seen) { try { localStorage.setItem(SEEN_KEY, report.month); } catch (e) {} }
+      if (report.month === arrivedMonth) document.getElementById('reportArrived').classList.add('hidden');
+    }
+  } catch (e) { setReportStatus('⚠️ ' + e.message, 'error'); }
+}
 
 async function loadReportMonths() {
-  const statusEl = document.getElementById('reportStatus');
-  const btn = document.getElementById('reportDownloadBtn');
   try {
     const { months } = await apiFetch(`${API.report}?months=1`);
-    const kst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7);
-    reportMonthSelect.innerHTML = '';
-    if (!months.length) {
-      reportMonthSelect.innerHTML = '<option value="">아직 수업 기록이 없어요</option>';
-      btn.disabled = true;
-      return;
-    }
-    months.forEach(m => {
+    const today = kstToday(), cur = today.slice(0, 7), prev = prevMonthOf(cur);
+    reportMonthSelect.innerHTML = months.map(m => {
       const [y, mo] = m.month.split('-');
-      const opt = document.createElement('option');
-      opt.value = m.month;
-      opt.textContent = `${y}년 ${Number(mo)}월${m.month === kst ? ' (진행 중)' : ''} · 수업 ${m.lessons}회 · 문장 ${m.sentences} · 단어 ${m.words}`;
-      reportMonthSelect.appendChild(opt);
-    });
-    // 지난달이 있으면 기본으로 선택(매달 초에 지난달 리포트를 받기 쉽게)
-    const prev = new Date(Date.UTC(Number(kst.slice(0, 4)), Number(kst.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
-    if (months.some(m => m.month === prev)) reportMonthSelect.value = prev;
-    btn.disabled = false;
-    statusEl.textContent = '';
+      return `<option value="${m.month}">${y}년 ${Number(mo)}월${m.month === cur ? ' (진행 중)' : ''}${m.saved ? ' · 📬 리포트 도착' : ''}</option>`;
+    }).join('');
+    // 매달 초(1~7일)에는 지난달, 그 뒤로는 이번 달을 기본으로 보여줘요.
+    const hasPrev = months.some(m => m.month === prev);
+    reportMonthSelect.value = Number(today.slice(8)) <= 7 && hasPrev ? prev : cur;
+    // 지난달 리포트가 자동으로 만들어졌는데 아직 안 봤으면 알려줘요.
+    const prevSaved = months.find(m => m.month === prev && m.saved);
+    let seen = ''; try { seen = localStorage.getItem(SEEN_KEY) || ''; } catch (e) {}
+    if (prevSaved && seen < prev) {
+      arrivedMonth = prev;
+      document.getElementById('reportArrivedText').textContent = `📬 ${Number(prev.slice(5))}월 학습 리포트가 도착했어요!`;
+      document.getElementById('reportArrived').classList.remove('hidden');
+      document.getElementById('reportArrivedBtn').onclick = () => { reportMonthSelect.value = prev; showReport(`month=${prev}`); };
+    }
+    showReport(`month=${reportMonthSelect.value}`);
   } catch (e) {
     reportMonthSelect.innerHTML = '<option value="">불러오지 못했어요</option>';
-    statusEl.textContent = '⚠️ ' + e.message; statusEl.className = 'status error';
+    setReportStatus('⚠️ ' + e.message, 'error');
   }
 }
 
-document.getElementById('reportDownloadBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('reportDownloadBtn');
-  const statusEl = document.getElementById('reportStatus');
-  const month = reportMonthSelect.value;
-  if (!month) return;
-  btn.disabled = true; statusEl.className = 'status'; statusEl.textContent = '리포트 만드는 중...';
-  try {
-    const { report } = await apiFetch(`${API.report}?month=${encodeURIComponent(month)}`);
-    const r = await FeedbackReport.download(report, { mode: 'member' });
-    statusEl.textContent = `✅ 내려받았어요 — 수업 ${r.lessons}회 · 문장 ${r.sentences}개 · 단어 ${r.words}개`;
-  } catch (e) {
-    statusEl.textContent = '⚠️ ' + e.message; statusEl.className = 'status error';
-  }
-  btn.disabled = false;
+document.getElementById('reportViewBtn').addEventListener('click', () => { if (reportMonthSelect.value) showReport(`month=${reportMonthSelect.value}`); });
+reportMonthSelect.addEventListener('change', () => { if (reportMonthSelect.value) showReport(`month=${reportMonthSelect.value}`); });
+document.getElementById('reportRangeBtn').addEventListener('click', () => {
+  const from = document.getElementById('reportFrom').value, to = document.getElementById('reportTo').value;
+  if (!from || !to || from > to) { setReportStatus('⚠️ 시작일과 종료일을 확인해주세요.', 'error'); return; }
+  showReport(`from=${from}&to=${to}`);
 });
+document.querySelectorAll('.report-tab').forEach(tab => tab.addEventListener('click', () => {
+  const mode = tab.dataset.mode;
+  document.querySelectorAll('.report-tab').forEach(t => { t.classList.toggle('btn-primary', t === tab); t.classList.toggle('btn-ghost', t !== tab); });
+  document.querySelectorAll('.report-mode').forEach(el => el.classList.toggle('hidden', el.dataset.mode !== mode));
+}));
+(function initReportDates() {
+  const today = kstToday();
+  document.getElementById('reportTo').value = today;
+  document.getElementById('reportFrom').value = new Date(Date.parse(today + 'T00:00:00Z') - 29 * 86400000).toISOString().slice(0, 10);
+})();
 
 /* ===================== 시작 ===================== */
 try { document.getElementById('engineVersion').textContent = '버전 ' + ShadowingEngine.VERSION; } catch (e) {}
+// ── 자동 업데이트 ──
+// 태블릿처럼 탭을 계속 열어 두면 배포해도 옛 코드가 남아요. 5분마다, 그리고 화면으로 돌아올 때마다
+// /version.json을 확인해서 새 버전이면 알아서 새로고침합니다(연습 중이면 끝난 뒤에).
+// ※ 배포할 때 js/shadowing-engine.js(또는 shadowing.html)의 ENGINE_VERSION과 version.json을 같은 값으로 올려 주세요.
+(function autoUpdate() {
+  const CUR = ShadowingEngine.VERSION;
+  const KEY = 'site_reloaded_for_version';
+  let waiting = null;
+  function practicing() { try { return ShadowingEngine.isPracticing(); } catch (e) { return false; } }
+  function reloadTo(v) {
+    try { if (sessionStorage.getItem(KEY) === v) return; sessionStorage.setItem(KEY, v); } catch (e) {}
+    location.reload();
+  }
+  async function check() {
+    try {
+      const r = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const v = String((await r.json()).version || '');
+      if (!v || v === CUR) return;
+      if (practicing()) { waiting = v; return; }
+      reloadTo(v);
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  setInterval(() => { if (waiting && !practicing()) reloadTo(waiting); else check(); }, 5 * 60 * 1000);
+  setInterval(() => { if (waiting && !practicing()) reloadTo(waiting); }, 3000);
+  check();
+})();
+
 (function checkSecureContext(){
   if (!ShadowingEngine.isSecureContextForMic()) document.getElementById('secureWarning').style.display = 'block';
 })();

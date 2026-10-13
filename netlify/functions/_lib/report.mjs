@@ -28,7 +28,7 @@ function clean(s) {
     .trim();
 }
 
-function toLesson(set) {
+export function toLesson(set) {
   const src = set.source || {};
   return {
     date: lessonDateOf(set),

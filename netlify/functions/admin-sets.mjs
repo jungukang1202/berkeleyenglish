@@ -6,6 +6,7 @@
 // POST /api/admin-sets  { action:'delete', username, id }
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { listSets, getSet, createSet, updateSet, deleteSet } from './_lib/store.mjs';
+import { clearPractice } from './_lib/practice.mjs';
 
 export default async (req) => {
   const auth = requireAuth(req, 'admin');
@@ -46,6 +47,7 @@ export default async (req) => {
       if (action === 'delete') {
         if (!body.id) return jsonResponse({ error: 'id_required' }, 400);
         await deleteSet(username, body.id);
+        try { await clearPractice(username, body.id); } catch (e) {} // 그 회차 연습 기록도 정리
         return jsonResponse({ ok: true });
       }
       return jsonResponse({ error: 'unknown_action' }, 400);

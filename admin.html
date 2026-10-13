@@ -94,6 +94,36 @@
   .preview-header{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; position:sticky; top:0; background:var(--bg); padding:4px 0 10px; border-bottom:1px solid var(--border);}
   .preview-header h2{margin:0; font-size:1.05rem; color:var(--text); font-weight:800;}
 
+  /* ============ 연습 기록 ============ */
+  .practice-btn-count{font-weight:800; color:var(--good);}
+  .practice-btn-none{color:var(--muted);}
+  .ps-tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:14px;}
+  .ps-tile{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px 12px;}
+  .ps-tile .n{font-size:1.35rem; font-weight:800; color:var(--text); line-height:1.2;}
+  .ps-tile .l{font-size:0.75rem; color:var(--muted); font-weight:700;}
+  .ps-section{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:14px;}
+  .ps-section h3{margin:0 0 4px; font-size:0.95rem; color:var(--text); font-weight:800;}
+  .ps-section .card-desc{color:var(--muted); font-size:0.8rem; margin-bottom:10px;}
+  .ps-item{border:1px solid var(--border); border-radius:10px; margin-top:8px; background:var(--input-bg);}
+  .ps-item > summary{list-style:none; cursor:pointer; padding:10px 12px; display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;}
+  .ps-item > summary::-webkit-details-marker{display:none;}
+  .ps-item .ps-text{flex:1 1 260px; color:var(--text); font-weight:700; font-size:0.9rem; line-height:1.4;}
+  .ps-item .ps-text .ps-kind{display:inline-block; font-size:0.7rem; font-weight:800; color:var(--muted); background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:1px 6px; margin-right:6px; vertical-align:1px;}
+  .ps-item .ps-nums{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .ps-chip{font-size:0.75rem; font-weight:800; border-radius:999px; padding:3px 9px; background:var(--bg); border:1px solid var(--border); color:var(--body-text); white-space:nowrap;}
+  .ps-chip.good{background:#E4F5EC; color:var(--good); border-color:#BFE6D0;}
+  .ps-chip.mid{background:#FBF1DC; color:var(--warn); border-color:#F0DDAE;}
+  .ps-chip.bad{background:#FBEAE8; color:var(--bad); border-color:#F0C6C1;}
+  .ps-chip.none{color:var(--bad);}
+  .ps-attempts{padding:0 12px 12px; overflow-x:auto;}
+  .ps-table{width:100%; border-collapse:collapse; font-size:0.8rem;}
+  .ps-table th{text-align:left; color:var(--muted); font-weight:800; border-bottom:1px solid var(--border); padding:6px 6px; white-space:nowrap;}
+  .ps-table td{border-bottom:1px solid var(--border); padding:6px 6px; vertical-align:top; color:var(--body-text);}
+  .ps-table td.nowrap{white-space:nowrap;}
+  .ps-bar{height:6px; border-radius:3px; background:var(--border); overflow:hidden; min-width:60px;}
+  .ps-bar > i{display:block; height:100%; background:var(--good);}
+  .ps-days{display:flex; flex-wrap:wrap; gap:6px;}
+
   /* ============ 엔보임 피드백 가져오기 ============ */
   .imp-row{background:var(--input-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px;}
   .imp-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
@@ -165,6 +195,14 @@
 
       <h3 class="sub-h">⚠️ 회원 선택 필요 <span class="pill" id="nvoimPendingCount">0</span></h3>
       <div class="card-desc" style="margin-bottom:6px;">버클리 회원과 아직 연결되지 않은 학생이에요. 회원을 고르면 저장되고, 다음부터는 자동으로 저장돼요. (회원이 없으면 위 회원 관리에서 먼저 등록)</div>
+      <div id="nvoimBulkBar" class="row" style="margin:4px 0 2px; align-items:center; display:none;">
+        <label style="display:flex; align-items:center; gap:6px; margin:0; font-weight:700; color:var(--text); cursor:pointer;">
+          <input type="checkbox" id="nvoimSelectAll" style="width:auto;"> 전체 선택
+        </label>
+        <button class="btn-ghost btn-small" id="nvoimDismissSelBtn" disabled>🗑 선택 항목 넘기기 (<span id="nvoimSelCount">0</span>)</button>
+        <button class="btn-danger btn-small" id="nvoimDismissAllBtn">🗑 전체 넘기기</button>
+        <span class="status" id="nvoimBulkStatus" style="margin:0;"></span>
+      </div>
       <div id="nvoimPending"></div>
 
       <div class="row" style="margin-top:16px; align-items:center;">
@@ -190,33 +228,29 @@
 
     <!-- ============ 수업 피드백 리포트 ============ -->
     <div class="card" id="reportCard">
-      <h2>📊 수업 피드백 리포트</h2>
+      <h2>📊 학습 리포트</h2>
       <div class="card-desc">
-        회원들의 수업 피드백(문장·단어)을 정리해서 엑셀로 내려받아요. 시트는 <b>요약 · 문장 · 단어</b> 3개예요. 회원을 고르면 그 회원 리포트(회원이 받는 것과 같은 형식)로 받아요.<br>
-        매달 1일 오전에 <b>지난달 리포트가 자동으로 만들어져 보관</b>돼요. 나중에 회차를 지워도 보관된 리포트는 그대로 남아요.
+        수업 피드백과 쉐도잉 연습 기록을 모아 <b>수업 횟수 · 출결 · 쉐도잉 평균 · 공부한 문장/단어</b>를 그래프로 분석해요. "전체 회원"은 회원별 요약 표, 회원을 고르면 그 회원의 자세한 리포트(회원이 보는 것과 같은 화면)예요.<br>
+        매달 1일 오전에 <b>지난달 리포트가 회원마다 자동으로 만들어져 보관</b>돼요. 회원 화면에도 "📬 리포트 도착" 알림이 떠요.
       </div>
-
-      <div class="field" style="max-width:360px;">
-        <label for="reportMember">누구 리포트?</label>
-        <select class="full" id="reportMember"><option value="">👥 전체 회원</option></select>
-      </div>
-
-      <h3 class="sub-h">🗓️ 월별 리포트</h3>
-      <div id="reportMonths"><div class="empty">불러오는 중...</div></div>
-      <div class="imp-grid imp-grid3" style="align-items:end; margin-top:10px;">
-        <div><label for="reportMonthInput">다른 달 리포트 만들기</label><input type="month" id="reportMonthInput" class="date-input" placeholder="예: 2026-09" pattern="\d{4}-\d{2}"></div>
-        <div><button class="btn-ghost" id="reportMonthBtn" style="width:100%;">📦 이 달 리포트 만들어 보관</button></div>
+      <div class="imp-grid imp-grid3" style="align-items:end;">
+        <div><label for="reportMember">누구 리포트?</label><select class="full" id="reportMember"><option value="">👥 전체 회원</option></select></div>
+        <div><label>보기 방식</label>
+          <div style="display:flex; gap:6px;"><button class="btn-primary btn-small report-tab" data-mode="month" style="flex:1;">🗓️ 월별</button><button class="btn-ghost btn-small report-tab" data-mode="range" style="flex:1;">📅 기간 정하기</button></div></div>
         <div></div>
       </div>
-      <div class="status" id="reportMonthStatus"></div>
-
-      <h3 class="sub-h">📅 기간 정해서 내려받기</h3>
-      <div class="imp-grid imp-grid3" style="align-items:end;">
+      <div class="imp-grid imp-grid3 report-mode" data-mode="month" style="align-items:end; margin-top:10px;">
+        <div><label for="reportMonthSelect">달 선택</label><select class="full" id="reportMonthSelect"><option value="">불러오는 중...</option></select></div>
+        <div><button class="btn-primary" id="reportViewBtn" style="width:100%;">리포트 보기</button></div>
+        <div><button class="btn-ghost" id="reportSaveBtn" style="width:100%;" title="그 달 리포트를 지금 기록 기준으로 다시 만들어 보관해요">📦 이 달 리포트 다시 만들어 보관</button></div>
+      </div>
+      <div class="imp-grid imp-grid3 report-mode hidden" data-mode="range" style="align-items:end; margin-top:10px;">
         <div><label for="reportFrom">시작일</label><input type="date" id="reportFrom" class="date-input"></div>
         <div><label for="reportTo">종료일</label><input type="date" id="reportTo" class="date-input"></div>
-        <div><button class="btn-primary" id="reportRangeBtn" style="width:100%;">⬇️ 정리해서 엑셀 받기</button></div>
+        <div><button class="btn-primary" id="reportRangeBtn" style="width:100%;">리포트 만들기</button></div>
       </div>
-      <div class="status" id="reportRangeStatus"></div>
+      <div class="status" id="reportStatus"></div>
+      <div id="reportView" style="margin-top:12px;"></div>
     </div>
 
     <!-- ============ 회원 관리 ============ -->
@@ -309,13 +343,14 @@ vegetable, particularly"></textarea>
   </div>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261012d"></script>
-<script src="js/feedback-report.js?v=20261012d"></script>
+<script src="js/shadowing-engine.js?v=20261012g"></script>
+<script src="js/learning-report.js?v=20261012g"></script>
 <script>
 const API = {
   adminLogin: '/api/admin-login',
   members: '/api/admin-members',
   sets: '/api/admin-sets',
+  practice: '/api/admin-practice',
 };
 const TOKEN_KEY = 'shadowing_admin_token';
 
@@ -498,8 +533,12 @@ async function loadSets() {
   const emptyEl = document.getElementById('setsEmpty');
   listEl.innerHTML = '<div class="empty">불러오는 중...</div>';
   try {
-    const data = await apiFetch(`${API.sets}?username=${encodeURIComponent(username)}`);
+    const [data, practice] = await Promise.all([
+      apiFetch(`${API.sets}?username=${encodeURIComponent(username)}`),
+      apiFetch(`${API.practice}?username=${encodeURIComponent(username)}`).catch(() => ({ summary: {} })),
+    ]);
     const sets = data.sets || [];
+    const practiceSummary = (practice && practice.summary) || {};
     listEl.innerHTML = '';
     emptyEl.style.display = sets.length ? 'none' : 'block';
     sets.forEach(s => {
@@ -511,13 +550,15 @@ async function loadSets() {
           <div class="title">${s.title}</div>
           <div class="meta">${dateStr} · 문장 ${s.sentenceCount}개 · 단어 ${s.wordCount}개</div>
         </div>
-        <div style="display:flex; gap:6px;">
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn-ghost btn-small preview-set-btn">👀 미리보기</button>
+          <button class="btn-ghost btn-small practice-set-btn">${practiceButtonLabel(practiceSummary[s.id])}</button>
           <button class="btn-ghost btn-small edit-set-btn">✏️ 수정</button>
           <button class="btn-danger btn-small del-set-btn">삭제</button>
         </div>
       `;
       el.querySelector('.preview-set-btn').addEventListener('click', () => openPreview(username, s.id, s.title));
+      el.querySelector('.practice-set-btn').addEventListener('click', () => openPracticeStats(username, s.id, s.title));
       el.querySelector('.edit-set-btn').addEventListener('click', () => editSet(username, s.id));
       el.querySelector('.del-set-btn').addEventListener('click', async () => {
         if (!confirm(`"${s.title}" 회차를 삭제할까요?`)) return;
@@ -558,6 +599,162 @@ function closePreview() {
   document.body.style.overflow = '';
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   previewContent.innerHTML = '';
+}
+
+/* ===================== 📊 연습 기록 (회원이 몇 번 따라 했는지 · 일치도) ===================== */
+
+function practiceButtonLabel(sum) {
+  if (!sum || !(sum.spoke || sum.listen || sum.failed)) return '📊 연습 기록 <span class="practice-btn-none">· 아직 없음</span>';
+  const parts = [];
+  if (sum.spoke) parts.push(`따라 말하기 ${sum.spoke}회 · 평균 ${Math.round(sum.scoreSum / sum.spoke)}%`);
+  else if (sum.failed) parts.push(`따라 말하기 인식 실패 ${sum.failed}회`);
+  if (sum.listen) parts.push(`듣기 ${sum.listen}회`);
+  return `📊 연습 기록 <span class="practice-btn-count">· ${parts.join(' · ')}</span>`;
+}
+
+function fmtTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function scoreClass(n) { return n >= 85 ? 'good' : n >= 60 ? 'mid' : 'bad'; }
+const STT_ERROR_TEXT = {
+  'no-speech': '말소리가 안 들림', 'not-allowed': '마이크 권한 거부', 'service-not-allowed': '마이크 권한 거부',
+  'audio-capture': '마이크 없음', 'network': '네트워크 문제', 'server-stt-failed': '받아쓰기 실패', 'start-failed': '마이크 시작 실패',
+  'aborted': '중단됨',
+};
+
+// 기록들을 문장/단어(대상 텍스트)별로 묶어 횟수와 일치도를 계산합니다.
+function summarizeAttempts(attempts) {
+  const s = { listen: 0, spoke: 0, failed: 0, scoreSum: 0, best: 0, first: null, last: null, sessions: new Set(), days: {} };
+  attempts.forEach(a => {
+    if (a.mode === 'listen') s.listen++;
+    else if (a.ok) { s.spoke++; s.scoreSum += a.score || 0; s.best = Math.max(s.best, a.score || 0); }
+    else s.failed++;
+    if (!s.first || a.at < s.first) s.first = a.at;
+    if (!s.last || a.at > s.last) s.last = a.at;
+    if (a.session) s.sessions.add(a.session + '|' + a.type + '|' + a.idx);
+    const day = new Date(a.at).toLocaleDateString('ko-KR');
+    s.days[day] = (s.days[day] || 0) + 1;
+  });
+  s.avg = s.spoke ? Math.round(s.scoreSum / s.spoke) : null;
+  return s;
+}
+
+function attemptRowsHTML(list) {
+  const esc = ShadowingEngine.escapeHTML;
+  return `<table class="ps-table"><thead><tr><th>일시</th><th>반복</th><th>방식</th><th>일치도</th><th>인식된 발음</th></tr></thead><tbody>${
+    list.slice().reverse().map(a => {
+      let kind, score = '', heard = '';
+      if (a.mode === 'listen') { kind = '👂 듣기만'; heard = '<span style="color:var(--muted)">마이크 끄고 듣기만 했어요</span>'; }
+      else if (a.ok) {
+        kind = '🗣️ 따라 말하기';
+        score = `<span class="ps-chip ${scoreClass(a.score)}">${a.score}%</span>`;
+        heard = `${esc(a.heard || '')}<div class="word-compare" style="margin-top:4px;">${ShadowingEngine.compareWords(a.target, a.heard || '').html}</div>`;
+      } else { kind = '⚠️ 인식 실패'; heard = `<span style="color:var(--bad)">${esc(STT_ERROR_TEXT[a.error] || a.error || '')}</span>`; }
+      return `<tr><td class="nowrap">${fmtTime(a.at)}</td><td class="nowrap">${a.rep && a.of ? `${a.rep}/${a.of}` : '-'}</td><td class="nowrap">${kind}</td><td>${score}</td><td>${heard}</td></tr>`;
+    }).join('')
+  }</tbody></table>`;
+}
+
+function renderPracticeStats(container, set, attempts) {
+  const esc = ShadowingEngine.escapeHTML;
+  const strip = ShadowingEngine.stripLeadingLabel;
+  const total = summarizeAttempts(attempts);
+
+  // 회차의 문장/단어 순서대로 줄을 만들고(아직 연습 안 한 것도 보이게), 기록은 문장 내용으로 맞춰 붙입니다.
+  const rows = [];
+  const keyOf = (type, text) => `${type === 'word' ? 'word' : 'sentence'}|${String(text || '').trim().toLowerCase()}`;
+  const byKey = new Map();
+  ((set && set.sentences) || []).forEach((it, i) => { const t = strip(it.o); const r = { kind: '문장', label: `${i + 1}`, text: t, list: [] }; rows.push(r); byKey.set(keyOf('sentence', t), r); });
+  ((set && set.words) || []).forEach((w, i) => { const t = strip(w); const r = { kind: '단어', label: `${i + 1}`, text: t, list: [] }; rows.push(r); byKey.set(keyOf('word', t), r); });
+  const variantRows = new Map();
+  attempts.forEach(a => {
+    if (a.type === 'variant') {
+      let r = variantRows.get(a.target);
+      if (!r) { r = { kind: '비슷한 표현', label: '', text: a.target, list: [], parentIdx: a.idx }; variantRows.set(a.target, r); }
+      r.list.push(a); return;
+    }
+    let r = byKey.get(keyOf(a.type, a.target));
+    if (!r) { r = { kind: a.type === 'word' ? '단어(삭제됨/수정됨)' : '문장(삭제됨/수정됨)', label: '', text: a.target, list: [] }; byKey.set(keyOf(a.type, a.target), r); rows.push(r); }
+    r.list.push(a);
+  });
+  // 비슷한 표현은 원래 문장 바로 아래에 붙입니다.
+  const sentenceCount = ((set && set.sentences) || []).length;
+  [...variantRows.values()].sort((a, b) => b.parentIdx - a.parentIdx).forEach(v => {
+    const at = v.parentIdx >= 0 && v.parentIdx < sentenceCount ? v.parentIdx + 1 : rows.length;
+    rows.splice(at, 0, v);
+  });
+  const mainRows = rows.filter(r => r.kind === '문장' || r.kind === '단어');
+  const practiced = mainRows.filter(r => r.list.length).length;
+
+  const tiles = [
+    ['🗣️ 따라 말한 횟수', `${total.spoke}회`],
+    ['📈 평균 일치도', total.avg == null ? '-' : `${total.avg}%`],
+    ['🏆 최고 일치도', total.spoke ? `${total.best}%` : '-'],
+    ['👂 듣기만 한 횟수', `${total.listen}회`],
+    ['⚠️ 인식 실패', `${total.failed}회`],
+    ['✅ 연습한 문장·단어', `${practiced} / ${mainRows.length}`],
+    ['🕘 마지막 연습', total.last ? fmtTime(total.last) : '-'],
+    ['📅 연습한 날', `${Object.keys(total.days).length}일`],
+  ];
+
+  let html = `<div class="ps-tiles">${tiles.map(([l, n]) => `<div class="ps-tile"><div class="l">${l}</div><div class="n" style="${n.length > 9 ? 'font-size:0.95rem;' : ''}">${n}</div></div>`).join('')}</div>`;
+
+  if (!attempts.length) {
+    html += `<div class="ps-section"><div class="empty">아직 이 회차를 연습한 기록이 없어요.<br><span style="font-size:0.8rem;">회원이 회원 페이지에서 "▶ 연습 시작"을 누르면 반복할 때마다 여기에 기록돼요.</span></div></div>`;
+  }
+
+  html += `<div class="ps-section"><h3>문장·단어별 기록</h3><div class="card-desc">줄을 누르면 한 번 한 번의 기록(인식된 발음 · 일치도)을 볼 수 있어요. 일치도 = 원어민 문장 단어 중 맞게 말한 단어 비율. <span style="color:var(--good)">초록</span> 맞은 단어 · <span style="color:var(--bad)">빨강 줄</span> 빠뜨린 단어 · <span style="color:var(--warn)">주황</span> 더 말한 단어</div>`;
+  rows.forEach(r => {
+    const st = summarizeAttempts(r.list);
+    const sessions = st.sessions.size;
+    const chips = r.list.length ? [
+      `<span class="ps-chip ${st.spoke ? 'good' : ''}">🗣️ ${st.spoke}회</span>`,
+      st.avg != null ? `<span class="ps-chip ${scoreClass(st.avg)}">평균 ${st.avg}%</span>` : '',
+      st.spoke ? `<span class="ps-chip">최고 ${st.best}%</span>` : '',
+      st.spoke ? (() => { const lastOk = r.list.filter(a => a.mode === 'mic' && a.ok).pop(); return `<span class="ps-chip ${scoreClass(lastOk.score)}">최근 ${lastOk.score}%</span>`; })() : '',
+      st.listen ? `<span class="ps-chip">👂 ${st.listen}회</span>` : '',
+      st.failed ? `<span class="ps-chip bad">실패 ${st.failed}</span>` : '',
+      sessions ? `<span class="ps-chip">연습 ${sessions}번</span>` : '',
+      `<span class="ps-chip">${fmtTime(st.last)}</span>`,
+    ].join('') : `<span class="ps-chip none">아직 안 함</span>`;
+    const indent = r.kind === '비슷한 표현' ? 'margin-left:22px;' : '';
+    html += `<details class="ps-item" style="${indent}"><summary>
+      <div class="ps-text"><span class="ps-kind">${r.kind}${r.label ? ' ' + r.label : ''}</span>${esc(r.text)}</div>
+      <div class="ps-nums">${chips}</div>
+    </summary>${r.list.length ? `<div class="ps-attempts">${attemptRowsHTML(r.list)}</div>` : ''}</details>`;
+  });
+  html += `</div>`;
+
+  if (attempts.length) {
+    const days = Object.entries(total.days);
+    html += `<div class="ps-section"><h3>날짜별 반복 횟수</h3><div class="ps-days">${days.map(([d, n]) => `<span class="ps-chip">${d} · ${n}회</span>`).join('')}</div></div>`;
+    html += `<div class="ps-section"><h3>최근 기록 (최신 50개)</h3><div class="ps-attempts" style="padding:0;">${attemptRowsHTML(attempts.slice(-50).map(a => Object.assign({}, a)))}</div></div>`;
+    html += `<div class="row" style="justify-content:flex-end;"><button class="btn-danger btn-small" id="clearPracticeBtn">이 회차 연습 기록 초기화</button></div>`;
+  }
+  container.innerHTML = html;
+}
+
+async function openPracticeStats(username, id, title) {
+  previewTitle.textContent = `📊 연습 기록 — ${username} · ${title || ''}`;
+  previewContent.innerHTML = '<div class="empty">불러오는 중...</div>';
+  previewOverlay.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  try {
+    const data = await apiFetch(`${API.practice}?username=${encodeURIComponent(username)}&id=${encodeURIComponent(id)}`);
+    renderPracticeStats(previewContent, data.set, data.attempts || []);
+    const clearBtn = document.getElementById('clearPracticeBtn');
+    if (clearBtn) clearBtn.addEventListener('click', async () => {
+      if (!confirm(`"${title}" 회차의 연습 기록을 모두 지울까요? 되돌릴 수 없어요.`)) return;
+      try {
+        await apiFetch(API.practice, { method: 'POST', body: JSON.stringify({ action: 'clear', username, id }) });
+        closePreview(); loadSets();
+      } catch (e) { alert('⚠️ ' + e.message); }
+    });
+  } catch (e) {
+    previewContent.innerHTML = `<div class="empty">⚠️ ${e.message}</div>`;
+  }
 }
 
 document.getElementById('closePreviewBtn').addEventListener('click', closePreview);
@@ -671,6 +868,9 @@ function renderNvoim() {
   // 회원 선택 필요
   const pendEl = document.getElementById('nvoimPending');
   document.getElementById('nvoimPendingCount').textContent = nvoimData.pending.length;
+  document.getElementById('nvoimBulkBar').style.display = nvoimData.pending.length ? 'flex' : 'none';
+  document.getElementById('nvoimSelectAll').checked = false;
+  updateNvoimSel();
   pendEl.innerHTML = nvoimData.pending.length ? '' : '<div class="empty">없어요 👍</div>';
   const memberOptions = membersCache.map(m => `<option value="${escH(m.username)}">${escH(m.username)}</option>`).join('');
   nvoimData.pending.forEach(p => {
@@ -679,6 +879,7 @@ function renderNvoim() {
     row.className = 'imp-row';
     row.innerHTML = `
       <div class="imp-head">
+        <input type="checkbox" class="imp-sel" data-key="${escH(p.key)}" style="width:auto;">
         <span class="imp-name">${escH(p.name)}</span>
         <span class="imp-id">엔보임 ${escH(p.nvoimId)} · ${escH(p.date)} · ${escH(p.account || '')}</span>
         <span class="imp-state"></span>
@@ -730,6 +931,44 @@ function renderNvoim() {
     mapEl.appendChild(el);
   });
 }
+
+
+/* ---- '회원 선택 필요' 여러 개 한꺼번에 넘기기 ---- */
+function nvoimSelectedKeys() { return [...document.querySelectorAll('#nvoimPending .imp-sel:checked')].map(c => c.dataset.key); }
+function updateNvoimSel() {
+  const n = nvoimSelectedKeys().length;
+  document.getElementById('nvoimSelCount').textContent = n;
+  document.getElementById('nvoimDismissSelBtn').disabled = !n;
+}
+document.getElementById('nvoimPending').addEventListener('change', (e) => { if (e.target.classList.contains('imp-sel')) updateNvoimSel(); });
+document.getElementById('nvoimSelectAll').addEventListener('change', (e) => {
+  document.querySelectorAll('#nvoimPending .imp-sel').forEach(c => { c.checked = e.target.checked; });
+  updateNvoimSel();
+});
+async function nvoimDismissMany(payload, label) {
+  const st = document.getElementById('nvoimBulkStatus');
+  const btns = [document.getElementById('nvoimDismissSelBtn'), document.getElementById('nvoimDismissAllBtn')];
+  btns.forEach(b => b.disabled = true);
+  st.className = 'status'; st.textContent = '넘기는 중...';
+  try {
+    const r = await apiFetch(NVOIM_API, { method: 'POST', body: JSON.stringify({ action: 'dismiss-many', ...payload }) });
+    st.className = 'status success'; st.textContent = `✅ ${r.count}개를 넘겼어요.`;
+    await loadNvoim();
+  } catch (e) { st.className = 'status error'; st.textContent = '⚠️ ' + e.message; }
+  btns.forEach(b => b.disabled = false); updateNvoimSel();
+}
+document.getElementById('nvoimDismissSelBtn').addEventListener('click', () => {
+  const keys = nvoimSelectedKeys();
+  if (!keys.length) return;
+  if (!confirm(`선택한 ${keys.length}개를 저장하지 않고 넘길까요?\n넘긴 피드백은 다시 가져오지 않아요.`)) return;
+  nvoimDismissMany({ keys });
+});
+document.getElementById('nvoimDismissAllBtn').addEventListener('click', () => {
+  const n = (nvoimData.pending || []).length;
+  if (!n) return;
+  if (!confirm(`'회원 선택 필요' ${n}개를 모두 저장하지 않고 넘길까요?\n넘긴 피드백은 다시 가져오지 않아요.`)) return;
+  nvoimDismissMany({ all: true });
+});
 
 document.getElementById('nvoimAddBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('nvoimAccountStatus');
@@ -824,96 +1063,74 @@ document.getElementById('nvoimRangeBtn').addEventListener('click', async () => {
 });
 
 
-/* ===================== 수업 피드백 리포트 (엑셀) ===================== */
-const REPORT_API = '/api/admin-report';
+/* ===================== 학습 리포트 (분석) ===================== */
+const INSIGHT_API = '/api/admin-insight';
+const reportView = document.getElementById('reportView');
+const reportMonthSelect = document.getElementById('reportMonthSelect');
+let reportMode = 'month';
 function selectedReportMember() { return document.getElementById('reportMember').value; }
+function setReportStatus(text, cls) { const el = document.getElementById('reportStatus'); el.textContent = text || ''; el.className = 'status' + (cls ? ' ' + cls : ''); }
+const kstToday = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
-// 전체 리포트에서 한 회원 것만 골라내기
-function pickMember(report, username) {
-  const lessons = (report.lessons || []).filter(l => l.username === username);
-  return { ...report, username, name: (lessons.find(l => l.name) || {}).name || '', lessons };
-}
-
-async function loadReportMonths() {
-  const el = document.getElementById('reportMonths');
-  try {
-    const { months } = await apiFetch(`${REPORT_API}?list=1`);
-    el.innerHTML = months.length ? '' : '<div class="empty">아직 보관된 월별 리포트가 없어요. 매달 1일에 자동으로 생기고, 아래에서 직접 만들 수도 있어요.</div>';
-    months.forEach((m, i) => {
-      const [y, mo] = m.month.split('-');
-      const row = document.createElement('div');
-      row.className = 'set-item';
-      row.innerHTML = `<div><div class="title">${y}년 ${Number(mo)}월 ${i === 0 ? '<span class="pill">최신</span>' : ''}</div>
-        <div class="meta">수업 ${m.lessons}회 · 학생 ${m.students}명 · ${fmtTime(m.generatedAt)} 정리</div></div>
-        <div style="display:flex; gap:6px;"><button class="btn-primary btn-small dl">⬇️ 엑셀 받기</button><button class="btn-ghost btn-small redo" title="지금 회차 기준으로 다시 정리">다시 만들기</button></div>`;
-      row.querySelector('.dl').addEventListener('click', async (ev) => {
-        const b = ev.currentTarget; b.disabled = true;
-        try {
-          const { report } = await apiFetch(`${REPORT_API}?month=${m.month}`);
-          const who = selectedReportMember();
-          if (who) {
-            const r = pickMember(report, who);
-            if (!r.lessons.length) { alert(`${who} 회원은 ${m.month}에 수업 기록이 없어요.`); b.disabled = false; return; }
-            await FeedbackReport.download(r, { mode: 'member' });
-          } else {
-            await FeedbackReport.download(report, { mode: 'all' });
-          }
-        }
-        catch (e) { alert('⚠️ ' + e.message); }
-        b.disabled = false;
-      });
-      row.querySelector('.redo').addEventListener('click', () => makeMonthSnapshot(m.month));
-      el.appendChild(row);
-    });
-  } catch (e) {
-    el.innerHTML = `<div class="empty">⚠️ ${escH(e.message)}</div>`;
+async function showReport() {
+  const who = selectedReportMember();
+  let q;
+  if (reportMode === 'month') { if (!reportMonthSelect.value) return; q = `month=${reportMonthSelect.value}`; }
+  else {
+    const from = document.getElementById('reportFrom').value, to = document.getElementById('reportTo').value;
+    if (!from || !to || from > to) { setReportStatus('⚠️ 시작일과 종료일을 확인해주세요.', 'error'); return; }
+    q = `from=${from}&to=${to}`;
   }
+  setReportStatus('리포트 정리 중...'); reportView.innerHTML = '';
+  try {
+    const { report } = await apiFetch(`${INSIGHT_API}?${q}${who ? `&username=${encodeURIComponent(who)}` : ''}`);
+    if (who) LearningReport.renderStudent(reportView, report);
+    else LearningReport.renderOverview(reportView, report, { onPick: (u) => { document.getElementById('reportMember').value = u; loadReportMonths(true); document.getElementById('reportCard').scrollIntoView({ behavior: 'smooth' }); } });
+    setReportStatus('');
+  } catch (e) { setReportStatus('⚠️ ' + e.message, 'error'); }
 }
 
-async function makeMonthSnapshot(month) {
-  const statusEl = document.getElementById('reportMonthStatus');
-  statusEl.className = 'status'; statusEl.textContent = `${month} 리포트 정리 중...`;
+// keep: true면 지금 고른 달을 유지
+async function loadReportMonths(keep) {
+  const who = selectedReportMember();
+  const prevValue = reportMonthSelect.value;
   try {
-    const { month: info } = await apiFetch(REPORT_API, { method: 'POST', body: JSON.stringify({ action: 'snapshot', month }) });
-    statusEl.className = 'status success';
-    statusEl.textContent = `✅ ${month} 리포트를 보관했어요 (수업 ${info.lessons}회 · 학생 ${info.students}명).`;
-    await loadReportMonths();
-  } catch (e) { statusEl.className = 'status error'; statusEl.textContent = '⚠️ ' + e.message; }
+    const { months } = await apiFetch(`${INSIGHT_API}?months=1${who ? `&username=${encodeURIComponent(who)}` : ''}`);
+    const cur = kstToday().slice(0, 7);
+    reportMonthSelect.innerHTML = months.map(m => `<option value="${m.month}">${fmtMonthKo(m.month)}${m.month === cur ? ' (진행 중)' : ''}${m.saved ? ' · 📦 보관됨' : ''}</option>`).join('');
+    const prev = new Date(Date.UTC(Number(cur.slice(0, 4)), Number(cur.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
+    if (keep && months.some(m => m.month === prevValue)) reportMonthSelect.value = prevValue;
+    else reportMonthSelect.value = Number(kstToday().slice(8)) <= 7 && months.some(m => m.month === prev) ? prev : cur;
+    showReport();
+  } catch (e) { setReportStatus('⚠️ ' + e.message, 'error'); }
 }
+function fmtMonthKo(m) { const [y, mo] = m.split('-'); return `${y}년 ${Number(mo)}월`; }
 
-document.getElementById('reportMonthBtn').addEventListener('click', () => {
-  // Firefox·Safari는 달력 대신 글자 칸으로 보여서 "2026-9", "2026.09" 같은 입력도 받아줍니다.
-  const raw = document.getElementById('reportMonthInput').value.trim();
-  const mm = /^(\d{4})\D?(\d{1,2})$/.exec(raw);
-  const month = mm && Number(mm[2]) >= 1 && Number(mm[2]) <= 12 ? `${mm[1]}-${String(mm[2]).padStart(2, '0')}` : '';
-  if (!month) { const st = document.getElementById('reportMonthStatus'); st.className = 'status error'; st.textContent = '⚠️ 달을 "2026-09" 형식으로 골라주세요.'; return; }
-  makeMonthSnapshot(month);
-});
-
-document.getElementById('reportRangeBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('reportRangeBtn');
-  const statusEl = document.getElementById('reportRangeStatus');
-  const from = document.getElementById('reportFrom').value;
-  const to = document.getElementById('reportTo').value;
-  if (!from || !to || from > to) { statusEl.className = 'status error'; statusEl.textContent = '⚠️ 시작일과 종료일을 확인해주세요.'; return; }
-  btn.disabled = true; statusEl.className = 'status'; statusEl.textContent = '정리 중...';
+document.getElementById('reportMember').addEventListener('change', () => loadReportMonths(true));
+reportMonthSelect.addEventListener('change', showReport);
+document.getElementById('reportViewBtn').addEventListener('click', showReport);
+document.getElementById('reportRangeBtn').addEventListener('click', showReport);
+document.getElementById('reportSaveBtn').addEventListener('click', async () => {
+  const month = reportMonthSelect.value;
+  if (!month) return;
+  if (month >= kstToday().slice(0, 7)) { setReportStatus('⚠️ 이번 달은 아직 진행 중이라 보관하지 않아요. 다음 달 1일에 자동으로 보관돼요.', 'error'); return; }
+  setReportStatus(`${fmtMonthKo(month)} 리포트를 회원마다 만드는 중...`);
   try {
-    const who = selectedReportMember();
-    const { report } = await apiFetch(`${REPORT_API}?from=${from}&to=${to}` + (who ? `&username=${encodeURIComponent(who)}` : ''));
-    const r = await FeedbackReport.download(report, { mode: who ? 'member' : 'all' });
-    statusEl.className = 'status success';
-    statusEl.textContent = `✅ 내려받았어요 — 수업 ${r.lessons}회 · 학생 ${r.students}명 · 문장 ${r.sentences}개 · 단어 ${r.words}개`;
-  } catch (e) { statusEl.className = 'status error'; statusEl.textContent = '⚠️ ' + e.message; }
-  btn.disabled = false;
+    const { result } = await apiFetch(INSIGHT_API, { method: 'POST', body: JSON.stringify({ action: 'save-month', month }) });
+    setReportStatus(`✅ ${fmtMonthKo(month)} 리포트를 보관했어요 (회원 ${result.students}명).`, 'success');
+    await loadReportMonths(true);
+  } catch (e) { setReportStatus('⚠️ ' + e.message, 'error'); }
 });
-
+document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEventListener('click', () => {
+  reportMode = tab.dataset.mode;
+  document.querySelectorAll('#reportCard .report-tab').forEach(t => { t.classList.toggle('btn-primary', t === tab); t.classList.toggle('btn-ghost', t !== tab); });
+  document.querySelectorAll('#reportCard .report-mode').forEach(el => el.classList.toggle('hidden', el.dataset.mode !== reportMode));
+  if (reportMode === 'month') showReport();
+}));
 (function initReportDates() {
-  const kst = new Date(Date.now() + 9 * 3600 * 1000);
-  const first = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), 1));
-  const prevMonth = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() - 1, 1));
-  document.getElementById('reportFrom').value = first.toISOString().slice(0, 10);
-  document.getElementById('reportTo').value = kst.toISOString().slice(0, 10);
-  document.getElementById('reportMonthInput').value = prevMonth.toISOString().slice(0, 7);
+  const today = kstToday();
+  document.getElementById('reportTo').value = today;
+  document.getElementById('reportFrom').value = new Date(Date.parse(today + 'T00:00:00Z') - 29 * 86400000).toISOString().slice(0, 10);
 })();
 
 /* ===================== 시작 ===================== */

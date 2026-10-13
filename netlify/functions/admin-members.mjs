@@ -5,6 +5,7 @@
 // POST /api/admin-members  { action: 'delete', username }
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { listMembers, createMember, resetMemberPassword, deleteMember } from './_lib/store.mjs';
+import { clearMemberPractice } from './_lib/practice.mjs';
 
 const ERROR_MESSAGES = {
   username_required: '아이디를 입력해주세요.',
@@ -38,6 +39,7 @@ export default async (req) => {
       }
       if (action === 'delete') {
         await deleteMember(body.username);
+        try { await clearMemberPractice(body.username); } catch (e) {} // 연습 기록도 정리
         return jsonResponse({ ok: true });
       }
       return jsonResponse({ error: 'unknown_action' }, 400);

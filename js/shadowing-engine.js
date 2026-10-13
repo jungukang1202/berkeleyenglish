@@ -149,7 +149,7 @@
   let __lastTtsEnd = 0;     // 마지막으로 원어민 음성이 끝난 시각(첫 단어 잘림 방지용)          // stopVoice()가 불릴 때마다 증가 → 진행 중이던 재생이 "중단됨"을 알 수 있게
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
-  const ENGINE_VERSION = '2026-10-12d'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-10-12g'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -860,7 +860,9 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     return { score, html };
   }
 
-  function buildShadowingControls(targetText) {
+  // onAttempt(기록): 반복 한 번이 끝날 때마다 호출(회원 화면에서 연습 기록을 서버에 보내는 데 사용).
+  //   { mode:'listen' } 마이크 없이 듣기만 / { mode:'mic', ok:true, heard, score } 따라 말하기 성공 / { mode:'mic', ok:false, error }
+  function buildShadowingControls(targetText, onAttempt) {
     const wrap = document.createElement('div');
     wrap.innerHTML = `
       <div class="controls">
@@ -871,7 +873,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           <option value="0.6">천천히</option>
         </select>
         <span class="repeat-field" style="display:flex; align-items:center; gap:4px;">
-          <input type="number" class="repeat-input" min="1" max="30" value="10" style="width:52px; background:var(--input-bg); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:6px 8px; font-size:0.82rem; font-family:inherit;">
+          <input type="number" class="repeat-input" min="1" max="30" value="20" style="width:52px; background:var(--input-bg); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:6px 8px; font-size:0.82rem; font-family:inherit;">
           <span style="font-size:0.78rem; color:var(--muted);">회 반복</span>
         </span>
         <label class="mic-toggle-label" style="display:flex; align-items:center; gap:4px; font-size:0.78rem; color:var(--muted); cursor:${hasSTT ? 'pointer' : 'not-allowed'};" title="${hasSTT ? '마이크가 안 되거나 오류가 계속 나면 체크를 꺼서 듣기만 연습하세요.' : '이 브라우저는 마이크 녹음을 지원하지 않아요. 최신 Chrome·Edge·Safari로 열어주세요.'}">
@@ -895,6 +897,11 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
     let runState = { stopped: true, activeRecognition: null };
     let shadowingCount = 0;
+    let practiceSession = '';
+    function reportAttempt(rec) {
+      if (typeof onAttempt !== 'function') return;
+      try { onAttempt(Object.assign({ target: targetText, at: new Date().toISOString(), session: practiceSession }, rec)); } catch (e) {}
+    }
 
     function speakOnce(rate) {
       return speakText(targetText, rate);
@@ -993,6 +1000,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       const rate = parseFloat(rateSelect.value);
 
       runState = { stopped: false, activeRecognition: null };
+      practiceSession = Date.now().toString(36);
       heardEl.style.display = 'none';
       scoreBadge.style.display = 'none';
       compareEl.innerHTML = '';
@@ -1005,6 +1013,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         __dingPending = true; // 반복할 때마다 원어민 음성 앞에 '띵동'
         await speakOnce(parseFloat(rateSelect.value) || rate); // 반복마다 지금 선택된 속도로(반복 중에 바꿔도 바로 반영)
         if (runState.stopped) break;
+        if (!useMic) reportAttempt({ mode: 'listen', rep: i, of: count });
 
         if (useMic) {
           practiceBtn.textContent = `⏹ 정지 · 마이크 준비 중 (${i}/${count})`;
@@ -1025,7 +1034,9 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
             scoreBadge.style.display = 'inline-flex';
             scoreBadge.textContent = `일치도 ${score}%`;
             scoreBadge.className = 'score-badge ' + (score >= 85 ? 'good' : score >= 60 ? 'mid' : 'bad');
+            reportAttempt({ mode: 'mic', ok: true, heard: result.heard, score, rep: i, of: count });
           } else {
+            reportAttempt({ mode: 'mic', ok: false, error: result.error || result.code || 'fail', rep: i, of: count });
             const permHTML = micPermissionErrorHTML(result.error);
             heardEl.style.display = 'block';
             if (permHTML) {
@@ -1462,7 +1473,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     return null;
   }
 
-  function buildVariantBlock(sentenceText) {
+  function buildVariantBlock(sentenceText, onAttempt) {
     const dictVariants = generateSimilarExpressions(sentenceText);
     const cached = getCachedAIVariants(sentenceText);
     const initialVariants = cached || dictVariants;
@@ -1489,7 +1500,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         vLine.className = 'o-line';
         vLine.textContent = `➜ ${vText}`;
         vEl.appendChild(vLine);
-        vEl.appendChild(buildShadowingControls(vText));
+        vEl.appendChild(buildShadowingControls(vText, onAttempt));
         body.appendChild(vEl);
       });
     }
@@ -1535,7 +1546,11 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   /* ===================== 연습 화면 전체 렌더링 (문장 카드 + 단어 카드 + 요약) =====================
      member.html(회원 연습 화면)과 admin.html(관리자 미리보기)이 똑같은 화면을 그릴 수 있도록
      공용화했습니다. container 안의 내용을 지우고 다시 그립니다. */
-  function renderPracticeSet(container, set) {
+  // options.onAttempt(기록): 연습 반복 한 번마다 { type:'sentence'|'word'|'variant', idx, target, mode, ... } 로 호출됩니다.
+  // (관리자 미리보기에서는 넘기지 않으므로 기록되지 않아요.)
+  function renderPracticeSet(container, set, options) {
+    const log = options && typeof options.onAttempt === 'function' ? options.onAttempt : null;
+    const tag = (type, idx) => (log ? (rec => log(Object.assign({}, rec, { type, idx }))) : undefined);
     container.innerHTML = '';
     const sentences = (set && set.sentences) || [];
     const words = (set && set.words) || [];
@@ -1546,7 +1561,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       card.innerHTML = `<h2>① 문장 쉐도잉</h2><div class="card-desc">각 문장을 듣고, 마이크로 따라 말해보세요.</div>`;
       const list = document.createElement('div');
       list.className = 'list';
-      sentences.forEach(item => {
+      sentences.forEach((item, idx) => {
         const x = stripLeadingLabel(item.x);
         const o = stripLeadingLabel(item.o);
         const explanation = x ? explainDifference(x, o) : '';
@@ -1563,8 +1578,8 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           </div>
         `;
         loadTranslationInto(el.querySelector('.kr-meaning .kr-text'), o);
-        el.appendChild(buildShadowingControls(o));
-        const variantBlock = buildVariantBlock(o);
+        el.appendChild(buildShadowingControls(o, tag('sentence', idx)));
+        const variantBlock = buildVariantBlock(o, tag('variant', idx));
         if (variantBlock) el.appendChild(variantBlock);
         list.appendChild(el);
       });
@@ -1578,7 +1593,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       card.innerHTML = `<h2>② 단어 발음 연습</h2><div class="card-desc">단어를 듣고, 마이크로 따라 말해보세요.</div>`;
       const list = document.createElement('div');
       list.className = 'list';
-      words.forEach(rawWord => {
+      words.forEach((rawWord, idx) => {
         const w = stripLeadingLabel(rawWord);
         const el = document.createElement('div');
         el.className = 'item';
@@ -1591,7 +1606,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           </div>
         `;
         loadTranslationInto(el.querySelector('.kr-meaning .kr-text'), w);
-        el.appendChild(buildShadowingControls(w));
+        el.appendChild(buildShadowingControls(w, tag('word', idx)));
         list.appendChild(el);
       });
       card.appendChild(list);
@@ -1636,6 +1651,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
   global.ShadowingEngine = {
     VERSION: ENGINE_VERSION,
+    isPracticing: () => !!__activeShadowStop, // 연습(반복 재생) 중인지 — 자동 업데이트가 연습 중엔 새로고침하지 않게
     escapeHTML,
     translateText,
     loadTranslationInto,

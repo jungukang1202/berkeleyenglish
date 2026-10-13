@@ -5,11 +5,12 @@
 // POST /api/admin-nvoim { action:'run', date? }          → 지금 바로 가져오기 / 특정 날짜 가져오기(finished:false면 다시 호출)
 // POST /api/admin-nvoim { action:'assign', key, username } → "회원 선택 필요" 항목 저장 + 연결 기억
 // POST /api/admin-nvoim { action:'dismiss', key }        → 저장하지 않고 넘기기
+// POST /api/admin-nvoim { action:'dismiss-many', keys?, all? } → 여러 개/전체 넘기기
 // POST /api/admin-nvoim { action:'unmap', nvoimId }      → 학생↔회원 연결 해제
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import {
   getAccounts, publicAccount, addAccount, deleteAccount, getMemberMap, setMemberMapping,
-  listPending, assignPending, dismissPending, syncAll, getLastRun,
+  listPending, assignPending, dismissPending, dismissPendingMany, syncAll, getLastRun,
 } from './_lib/nvoim.mjs';
 
 export default async (req) => {
@@ -51,6 +52,12 @@ export default async (req) => {
         if (!body.key) return jsonResponse({ error: 'key_required' }, 400);
         await dismissPending(body.key);
         return jsonResponse({ ok: true });
+      case 'dismiss-many': {
+        // body.keys 배열이 있으면 그 항목들만, body.all === true 면 전체
+        if (!body.all && !Array.isArray(body.keys)) return jsonResponse({ error: 'keys_required' }, 400);
+        const count = await dismissPendingMany(body.all ? undefined : body.keys.map(String));
+        return jsonResponse({ ok: true, count });
+      }
       case 'unmap':
         return jsonResponse({ map: await setMemberMapping(body.nvoimId, '') });
       default:

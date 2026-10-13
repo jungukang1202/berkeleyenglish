@@ -330,6 +330,20 @@ export async function dismissPending(key) {
   await store.delete('pending/' + key);
 }
 
+// 여러 개를 한꺼번에 넘기기. keys를 안 주면 '회원 선택 필요' 전체를 넘깁니다.
+export async function dismissPendingMany(keys) {
+  const store = nvoimStore();
+  if (!Array.isArray(keys)) keys = (await listPending()).map(p => p.key);
+  const at = new Date().toISOString();
+  for (let i = 0; i < keys.length; i += 20) {
+    await Promise.all(keys.slice(i, i + 20).map(async key => {
+      await store.setJSON('done/' + key, { username: null, skipped: true, at });
+      await store.delete('pending/' + key);
+    }));
+  }
+  return keys.length;
+}
+
 /* ===================== 동기화(1시간마다 / 지금 실행) ===================== */
 
 async function mapLimit(items, limit, fn) {

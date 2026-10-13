@@ -13,3 +13,29 @@
   for = "/js/*"
   [headers.values]
     Cache-Control = "no-cache"
+
+# .html 없이 들어오는 주소(/member 등)와 버전 확인 파일도 항상 최신으로
+[[headers]]
+  for = "/member"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/admin"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/shadowing"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-store"
