@@ -890,7 +890,7 @@ function renderNvoim() {
   nvoimData.accounts.forEach(a => {
     const last = a.last;
     const state = !last ? '<span class="imp-state">아직 실행 전</span>'
-      : last.error ? `<span class="imp-state err">⚠️ ${fmtTime(last.at)} · ${escH(last.error)}</span>`
+      : last.error ? `<span class="imp-state err">⚠️ ${fmtTime(last.at)} · ${escH(last.error)}${/ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|시간 초과|fetch failed/.test(last.error) ? ' <span style="font-weight:600;color:var(--muted)">(엔보임 접속이 잠깐 안 된 일시 오류예요. 30분 뒤 자동으로 다시 가져와요)</span>' : ''}</span>`
       : `<span class="imp-state ok">✅ ${fmtTime(last.at)} · 저장 ${last.saved} · 대기 ${last.pending}</span>` +
         (last.rowErrors ? `<span class="imp-state warn">⚠️ ${last.rowErrors}명 다음 실행 때 재시도 (${escH(last.rowError)})</span>` : '');
     const el = document.createElement('div');

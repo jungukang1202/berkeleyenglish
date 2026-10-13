@@ -127,15 +127,21 @@ class NvoimSession {
     }
   }
 
-  // 네트워크 오류(연결 끊김 등)는 최대 3번까지 다시 시도합니다.
+  // 네트워크 오류(연결 끊김 등)는 다시 시도합니다.
+  // 서버가 잠깐 엔보임 주소를 못 찾는 오류(ENOTFOUND·EAI_AGAIN, DNS 일시 장애)는 몇 초씩 이어질 때가 있어서
+  // 최대 5번, 1·2·3·4초 간격(약 10초)으로 기다리며 다시 시도합니다. 그 밖의 오류는 예전처럼 3번.
   async request(path, { method = 'GET', form, step = '' } = {}) {
     let lastErr;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; ; attempt++) {
       try {
         return await this._requestOnce(path, { method, form });
       } catch (e) {
         lastErr = e;
-        if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 700));
+        const code = (e && e.cause && e.cause.code) || '';
+        const dns = code === 'ENOTFOUND' || code === 'EAI_AGAIN';
+        const max = dns ? 5 : 3;
+        if (attempt >= max) break;
+        await new Promise(r => setTimeout(r, dns ? attempt * 1000 : attempt * 700));
       }
     }
     const c = lastErr && lastErr.cause;
