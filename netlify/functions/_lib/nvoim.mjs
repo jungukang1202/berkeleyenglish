@@ -380,7 +380,11 @@ export async function syncAll({ deadlineMs, dates, source } = {}) {
             store.get('done/' + key, { type: 'json' }),
             store.get('pending/' + key, { type: 'json' }),
           ]);
-          if (done || pend) return;
+          const idLower = row.F_STDT_ID.toLowerCase();
+          const username = (map[idLower] && members.has(map[idLower])) ? map[idLower] : (members.has(idLower) ? idLower : '');
+          if (pend) return;
+          // 이미 저장된 수업은 건너뜀. 단, 예전에 "넘기기"로 건너뛴 수업은 그 뒤에 회원이 생겼으면 다시 가져와요.
+          if (done && !(done.skipped && username)) return;
           const fb = await session.getFeedback(row);
           if (!fb.sentenceCorrection.trim() && !fb.mispronouncedWord.trim()) { last.waiting++; return; } // 아직 피드백 작성 전
           const item = {
@@ -390,8 +394,6 @@ export async function syncAll({ deadlineMs, dates, source } = {}) {
             sentenceCorrection: fb.sentenceCorrection, mispronouncedWord: fb.mispronouncedWord,
             fetchedAt: new Date().toISOString(),
           };
-          const idLower = row.F_STDT_ID.toLowerCase();
-          const username = (map[idLower] && members.has(map[idLower])) ? map[idLower] : (members.has(idLower) ? idLower : '');
           if (username) {
             const setId = await saveLessonAsSet(username, item);
             await store.setJSON('done/' + key, { username, setId, at: item.fetchedAt });
