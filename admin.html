@@ -56,8 +56,13 @@
   .set-item .meta{font-size:0.78rem; color:var(--muted);}
   .set-item .title{font-weight:700; color:var(--text); font-size:0.95rem;}
   /* 회차 목록: 제목·날짜는 윗줄, 버튼은 항상 아랫줄로 통일 */
-  .set-item.set-stack{flex-direction:column; align-items:stretch; gap:8px;}
-  .set-item.set-stack .set-btns{display:flex; gap:6px; flex-wrap:wrap;}
+  .set-item.set-stack{flex-wrap:nowrap;}
+  .set-item.set-stack > div:first-child{flex:1; min-width:0;}
+  .set-item.set-stack .title, .set-item.set-stack .meta{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .set-item.set-stack .set-btns{display:flex; gap:6px; flex-wrap:nowrap; flex-shrink:0;}
+  .set-item.set-stack .set-btns button{white-space:nowrap;}
+  /* 휴대폰처럼 좁은 화면에서만 버튼을 아랫줄로 */
+  @media (max-width:720px){ .set-item.set-stack{flex-wrap:wrap;} .set-item.set-stack .set-btns{flex-wrap:wrap;} }
   footer{color:var(--muted); font-size:0.78rem; text-align:center; margin-top:28px;}
   .top-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
   code{background:var(--input-bg); border:1px solid var(--border); padding:1px 6px; border-radius:5px; font-size:0.85em; color:var(--text);}
@@ -100,6 +105,10 @@
   /* ============ 연습 기록 ============ */
   .practice-btn-count{font-weight:800; color:var(--good);}
   .practice-btn-none{color:var(--muted);}
+  /* 연습 기록이 생긴 회차: 노란색으로 눈에 띄게 */
+  .practice-set-btn.has-practice{background:#FFE58A; border-color:#D4A514; color:#1B2A4E; box-shadow:0 1px 0 rgba(201,162,39,0.35);}
+  .practice-set-btn.has-practice:hover{background:#FFDB5C;}
+  .practice-set-btn.has-practice .practice-btn-count{color:#1B2A4E;}
   .ps-tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:14px;}
   .ps-tile{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px 12px;}
   .ps-tile .n{font-size:1.35rem; font-weight:800; color:var(--text); line-height:1.2;}
@@ -546,17 +555,17 @@ async function loadSets() {
     listEl.innerHTML = '';
     emptyEl.style.display = sets.length ? 'none' : 'block';
     sets.forEach(s => {
-      const dateStr = s.createdAt ? new Date(s.createdAt).toLocaleString('ko-KR') : '-';
+      const dateStr = s.createdAt ? (d => `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)(new Date(s.createdAt)) : '-';
       const el = document.createElement('div');
       el.className = 'set-item set-stack';
       el.innerHTML = `
         <div>
-          <div class="title">${s.title}</div>
+          <div class="title" title="${escH(s.title)}">${s.title}</div>
           <div class="meta">${s.lessonDate ? `📅 수업일 ${Number(s.lessonDate.slice(5, 7))}/${Number(s.lessonDate.slice(8))}(${'일월화수목금토'[new Date(s.lessonDate + 'T00:00:00Z').getUTCDay()]}) · ` : ''}등록 ${dateStr} · 문장 ${s.sentenceCount}개 · 단어 ${s.wordCount}개</div>
         </div>
         <div class="set-btns">
           <button class="btn-ghost btn-small preview-set-btn">👀 미리보기</button>
-          <button class="btn-ghost btn-small practice-set-btn">${practiceButtonLabel(practiceSummary[s.id])}</button>
+          <button class="btn-ghost btn-small practice-set-btn${hasPractice(practiceSummary[s.id]) ? ' has-practice' : ''}" title="${practiceButtonTitle(practiceSummary[s.id])}">${practiceButtonLabel(practiceSummary[s.id])}</button>
           <button class="btn-ghost btn-small edit-set-btn">✏️ 수정</button>
           <button class="btn-danger btn-small del-set-btn">삭제</button>
         </div>
@@ -607,13 +616,17 @@ function closePreview() {
 
 /* ===================== 📊 연습 기록 (회원이 몇 번 따라 했는지 · 일치도) ===================== */
 
+function hasPractice(sum) { return !!(sum && (sum.spoke || sum.listen || sum.failed)); }
+function practiceButtonTitle(sum) {
+  if (!sum) return '아직 연습 기록이 없어요';
+  return `따라 말하기 ${sum.spoke}회${sum.spoke ? ` · 평균 ${Math.round(sum.scoreSum / sum.spoke)}% · 최고 ${sum.best}%` : ''} · 듣기만 ${sum.listen}회 · 인식 실패 ${sum.failed}회`;
+}
 function practiceButtonLabel(sum) {
   if (!sum || !(sum.spoke || sum.listen || sum.failed)) return '📊 연습 기록 <span class="practice-btn-none">· 아직 없음</span>';
-  const parts = [];
-  if (sum.spoke) parts.push(`따라 말하기 ${sum.spoke}회 · 평균 ${Math.round(sum.scoreSum / sum.spoke)}%`);
-  else if (sum.failed) parts.push(`따라 말하기 인식 실패 ${sum.failed}회`);
-  if (sum.listen) parts.push(`듣기 ${sum.listen}회`);
-  return `📊 연습 기록 <span class="practice-btn-count">· ${parts.join(' · ')}</span>`;
+  // 한 줄에 들어가게 짧게: 따라 말하기 횟수 · 평균 (자세한 건 버튼을 누르면 나와요)
+  if (sum.spoke) return `📊 연습 기록 <span class="practice-btn-count">· ${sum.spoke}회 · 평균 ${Math.round(sum.scoreSum / sum.spoke)}%</span>`;
+  if (sum.failed) return `📊 연습 기록 <span class="practice-btn-count" style="color:var(--bad)">· 인식 실패 ${sum.failed}회</span>`;
+  return `📊 연습 기록 <span class="practice-btn-count">· 듣기 ${sum.listen}회</span>`;
 }
 
 function fmtTime(iso) {
