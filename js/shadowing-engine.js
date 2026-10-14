@@ -149,7 +149,7 @@
   let __lastTtsEnd = 0;     // 마지막으로 원어민 음성이 끝난 시각(첫 단어 잘림 방지용)          // stopVoice()가 불릴 때마다 증가 → 진행 중이던 재생이 "중단됨"을 알 수 있게
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
-  const ENGINE_VERSION = '2026-10-13a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-10-14a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -470,6 +470,26 @@
     }
     return out;
   }
+  // ── "삐" 말할 차례 신호 ──
+  // 원어민 음성이 끝나고 마이크가 켜지기 직전에 짧게 '삐' — "지금 말씀하세요!"와 함께 따라 말할 차례를 알려줘요.
+  // (마이크를 켜기 '전에' 냅니다. 마이크가 켜진 뒤엔 태블릿이 통화 모드로 바뀌어 소리가 묻히고, 인식에도 섞일 수 있어요)
+  function __beepSamples(sr) {
+    const d = 0.18, n = Math.round(sr * d), out = new Float32Array(n), f = 1046.5; // 높은 도
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      const env = Math.min(1, t / 0.006) * Math.min(1, (d - t) / 0.03); // 딱딱 끊기지 않게 부드럽게 켜고 끄기
+      out[i] = 0.32 * env * Math.sin(2 * Math.PI * f * t);
+    }
+    return out;
+  }
+  let __beepUrl = null;
+  function playBeep() {
+    try {
+      if (!__beepUrl) __beepUrl = URL.createObjectURL(__wavBlob(__beepSamples(24000), 24000));
+      return __playAudioOnce(__beepUrl, 1).then(() => {}, () => {});
+    } catch (e) { return Promise.resolve(); }
+  }
+
   let __dingAudioUrl = null, __dingAudio = null;
   // PC(기기 음성 엔진)용: 띵동을 따로 재생하고 끝나면 resolve
   function __playDingStandalone() {
@@ -857,7 +877,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
       // 마이크를 켜기 '전에' 삐 소리를 냅니다. 안드로이드는 마이크가 켜지는 순간 소리 출력이 통화 모드로 바뀌어
       // 그 뒤에 내는 삐 소리는 묻혀서 들리지 않아요.
-      if (typeof playBeep === 'function') { playBeep(); await new Promise(r => setTimeout(r, 280)); }
+      await playBeep(); await new Promise(r => setTimeout(r, 80));
       if (aborted) return settle({ ok: false, error: 'aborted' });
       try {
         // 에코 제거를 끄면 태블릿이 '통화 모드'로 바뀌지 않아 다음 원어민 음성도 정상적으로 나와요.
@@ -1052,8 +1072,9 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
     // 따라 말하기 한 번: 평소엔 브라우저 내장 음성 인식, 이 기기에서 그게 안 되면 서버 받아쓰기.
     function runOneRecognition(onReady) {
-      if (__sttMode === 'server') return recordAndTranscribe(targetText, onReady);
-      return runBrowserRecognition(onReady).then(result => {
+      if (__sttMode === 'server') return recordAndTranscribe(targetText, onReady); // 녹음 직전에 '삐'
+      // 브라우저 음성 인식도 마이크를 켜기 직전에 '삐' (말할 차례 신호)
+      return playBeep().then(() => (runState.stopped ? { ok: false, error: 'aborted' } : runBrowserRecognition(onReady))).then(result => {
         if (noteBrowserSTTResult(result)) result.switchedToServer = true;
         return result;
       });
