@@ -389,8 +389,14 @@ export async function syncAll({ deadlineMs, dates, source } = {}) {
           const idLower = row.F_STDT_ID.toLowerCase();
           const username = (map[idLower] && members.has(map[idLower])) ? map[idLower] : (members.has(idLower) ? idLower : '');
           if (pend) return;
-          // 이미 저장된 수업은 건너뜀. 단, 예전에 "넘기기"로 건너뛴 수업은 그 뒤에 회원이 생겼으면 다시 가져와요.
-          if (done && !(done.skipped && username)) return;
+          // 이미 저장된 수업은 건너뜀. 단, 이럴 땐 다시 가져와요:
+          //  - 예전에 "넘기기"로 건너뛴 수업인데 그 뒤에 회원이 생긴 경우
+          //  - 저장했던 회차를 관리자가 삭제한 경우(삭제 후 다시 가져오기)
+          if (done) {
+            if (done.skipped) { if (!username) return; }
+            else if (done.username && done.setId) { if (await getSet(done.username, done.setId)) return; }
+            else return;
+          }
           const fb = await session.getFeedback(row);
           if (!fb.sentenceCorrection.trim() && !fb.mispronouncedWord.trim()) { last.waiting++; return; } // 아직 피드백 작성 전
           const item = {
