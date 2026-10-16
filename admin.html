@@ -62,7 +62,11 @@
   .set-item.set-stack .set-btns{display:flex; gap:6px; flex-wrap:nowrap; flex-shrink:0;}
   .set-item.set-stack .set-btns button{white-space:nowrap;}
   /* 휴대폰처럼 좁은 화면에서만 버튼을 아랫줄로 */
-  @media (max-width:720px){ .set-item.set-stack{flex-wrap:wrap;} .set-item.set-stack .set-btns{flex-wrap:wrap;} }
+  @media (max-width:720px){
+    .set-item.set-stack{flex-wrap:wrap;}
+    .set-item.set-stack > div:first-child{flex:1 1 100%;}   /* 제목·날짜는 윗줄 전체 폭 (버튼에 밀려 0으로 눌리지 않게) */
+    .set-item.set-stack .set-btns{flex:1 1 100%; flex-wrap:wrap; flex-shrink:1; min-width:0;}   /* 버튼은 아랫줄, 넘치면 다음 줄로 */
+  }
   footer{color:var(--muted); font-size:0.78rem; text-align:center; margin-top:28px;}
   .top-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
   code{background:var(--input-bg); border:1px solid var(--border); padding:1px 6px; border-radius:5px; font-size:0.85em; color:var(--text);}
