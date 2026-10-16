@@ -169,8 +169,8 @@
   </footer>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261014a"></script>
-<script src="js/learning-report.js?v=20261014a"></script>
+<script src="js/shadowing-engine.js?v=20261016a"></script>
+<script src="js/learning-report.js?v=20261016a"></script>
 <script>
 const API = { login: '/api/member-login', sets: '/api/member-sets', report: '/api/member-insight', practice: '/api/member-practice' };
 const TOKEN_KEY = 'shadowing_member_token';
@@ -249,14 +249,16 @@ async function loadSets() {
       contentArea.innerHTML = '';
       return;
     }
+    setsById = {};
     sets.forEach(s => {
-      const dateStr = s.lessonDate ? s.lessonDate.replace(/-/g, '. ') + '.' : (s.createdAt ? new Date(s.createdAt).toLocaleDateString('ko-KR') : ''); // 수업 날짜
+      setsById[s.id] = s;
       const opt = document.createElement('option');
       opt.value = s.id;
-      opt.textContent = `${s.title} (${dateStr}) · 문장 ${s.sentenceCount} · 단어 ${s.wordCount}`;
+      opt.textContent = setOptionLabel(s);
       setSelect.appendChild(opt);
     });
     statusEl.textContent = '';
+    updateSetStudyStatus();
     loadSetContent(setSelect.value);
   } catch (e) {
     statusEl.textContent = '⚠️ ' + e.message;
@@ -264,7 +266,49 @@ async function loadSets() {
   }
 }
 
-setSelect.addEventListener('change', () => loadSetContent(setSelect.value));
+// ── 공부한 회차 표시 ──
+// 서버가 회차마다 연습 기록 요약(practice)을 붙여 보내요. 기록이 있으면 ✅, 없으면 ⬜로 보여줍니다.
+let setsById = {};
+const shortDate = iso => { const d = new Date(new Date(iso).getTime() + 9 * 3600 * 1000); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+
+function setOptionLabel(s) {
+  const dateStr = s.lessonDate ? s.lessonDate.replace(/-/g, '. ') + '.' : (s.createdAt ? new Date(s.createdAt).toLocaleDateString('ko-KR') : ''); // 수업 날짜
+  const base = `${s.title} (${dateStr}) · 문장 ${s.sentenceCount} · 단어 ${s.wordCount}`;
+  if (!s.practice) return `⬜ ${base}`;
+  return `✅ ${base} · 공부함${s.practice.last ? ' (' + shortDate(s.practice.last) + ')' : ''}`;
+}
+
+function updateSetStudyStatus() {
+  const statusEl = document.getElementById('setStatus');
+  const s = setsById[setSelect.value];
+  if (!s) return;
+  const total = Object.keys(setsById).length;
+  const done = Object.values(setsById).filter(x => x.practice).length;
+  const summary = `전체 ${total}회차 중 ${done}회차 공부했어요.`;
+  if (s.practice) {
+    const p = s.practice;
+    statusEl.innerHTML = `<b style="color:var(--good);">✅ 이 회차는 공부했어요</b> · 연습 ${p.count}번${p.best ? ` · 최고 일치도 ${p.best}%` : ''}${p.last ? ` · 마지막 ${shortDate(p.last)}` : ''}<br>${summary}`;
+  } else {
+    statusEl.innerHTML = `⬜ 아직 공부하지 않은 회차예요. · ${summary}`;
+  }
+  statusEl.className = 'status';
+}
+
+// 연습을 한 번 하면 목록에도 바로 ✅로 바꿔 보여줘요(서버 기록은 따로 모아서 보내요).
+function markSetStudied(setId, rec) {
+  const s = setsById[setId];
+  if (!s) return;
+  const p = s.practice || { count: 0, spoke: 0, best: 0, last: null };
+  p.count++;
+  if (rec && rec.mode === 'mic' && rec.ok) { p.spoke++; if (rec.score > p.best) p.best = Math.round(rec.score); }
+  p.last = (rec && rec.at) || new Date().toISOString();
+  s.practice = p;
+  const opt = Array.from(setSelect.options).find(o => o.value === setId);
+  if (opt) opt.textContent = setOptionLabel(s);
+  if (setSelect.value === setId) updateSetStudyStatus();
+}
+
+setSelect.addEventListener('change', () => { updateSetStudyStatus(); loadSetContent(setSelect.value); });
 
 async function loadSetContent(id) {
   contentArea.innerHTML = '';
@@ -282,7 +326,7 @@ function renderSet(set) {
   // 카드 렌더링(문장/단어/요약)은 admin.html의 미리보기와 완전히 같은 화면을 쓰도록
   // js/shadowing-engine.js의 renderPracticeSet()으로 공용화했습니다.
   // 연습 반복 한 번마다 기록을 모아 두었다가 서버로 보내요(관리자 페이지 "📊 연습 기록"에서 확인).
-  ShadowingEngine.renderPracticeSet(contentArea, set, { onAttempt: rec => queuePractice(set.id, rec) });
+  ShadowingEngine.renderPracticeSet(contentArea, set, { onAttempt: rec => { queuePractice(set.id, rec); markSetStudied(set.id, rec); } });
 }
 
 /* ===================== 연습 기록 보내기 ===================== */

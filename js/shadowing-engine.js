@@ -149,7 +149,7 @@
   let __lastTtsEnd = 0;     // 마지막으로 원어민 음성이 끝난 시각(첫 단어 잘림 방지용)          // stopVoice()가 불릴 때마다 증가 → 진행 중이던 재생이 "중단됨"을 알 수 있게
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
-  const ENGINE_VERSION = '2026-10-14a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-10-16a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
