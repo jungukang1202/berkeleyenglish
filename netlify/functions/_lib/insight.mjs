@@ -5,6 +5,17 @@
 import { getStore } from '@netlify/blobs';
 import { listAllSets, listSetsFull, listMembers } from './store.mjs';
 import { toLesson } from './report.mjs';
+import { getLesson } from './videos.mjs';
+
+// 영상 문장 옆에 어느 영상인지(제목) 붙이기
+async function attachVideoTitles(r) {
+  if (!r || !r.video) return r;
+  const ids = [...new Set([...r.video.top, ...r.video.lowest].map(x => x.setId))];
+  const titles = {};
+  await Promise.all(ids.map(async id => { try { const v = await getLesson(String(id).slice(6)); titles[id] = v ? v.title : ''; } catch (e) {} }));
+  [...r.video.top, ...r.video.lowest].forEach(x => { x.video = titles[x.setId] || ''; });
+  return r;
+}
 
 const DAY = 86400000;
 const MAX_DAYS = 400;
@@ -190,12 +201,33 @@ function analyzeStudent(data, from, to) {
     .sort((a, b) => b.missed - a.missed || b.rate - a.rate)
     .slice(0, 10);
 
-  // 이 기간 가장 많이 연습한 문장·단어
-  const topPracticed = [...inPeriod.entries()].map(([k, s]) => {
-    const f = finishAgg(s); const [type] = k.split('|');
-    const sample = attempts.find(a => itemKey(a.type, a.target) === k);
-    return { type, text: sample ? sample.target : k.slice(k.indexOf('|') + 1), ...f };
-  }).sort((a, b) => b.total - a.total).slice(0, 5);
+  // 이 기간 가장 많이 연습한 수업 문장·단어 (영상 쉐도잉 문장은 아래 video에서 따로)
+  const isVideo = a => String(a.setId || '').startsWith('video-');
+  const classIn = new Map(), videoIn = new Map();
+  attempts.forEach(a => {
+    if (a.type === 'variant' || a.day < from || a.day > to) return;
+    const m = isVideo(a) ? videoIn : classIn;
+    const k = itemKey(a.type, a.target);
+    if (!m.has(k)) m.set(k, { agg: newAgg(), sample: a });
+    addAgg(m.get(k).agg, a);
+  });
+  const rowsOf = m => [...m.entries()].map(([k, v]) => {
+    const f = finishAgg(v.agg); const [type] = k.split('|');
+    return { type, text: v.sample.target, setId: v.sample.setId, ...f };
+  });
+  const topPracticed = rowsOf(classIn).sort((a, b) => b.total - a.total).slice(0, 5);
+
+  // 🎬 영상 쉐도잉: 가장 많이 연습한 문장 · 일치도가 가장 낮은 문장 · 전체 평균
+  const vRows = rowsOf(videoIn);
+  const vAgg = newAgg(); attempts.forEach(a => { if (isVideo(a) && a.day >= from && a.day <= to) addAgg(vAgg, a); });
+  const vAll = finishAgg(vAgg);
+  const video = vRows.length ? {
+    top: [...vRows].sort((a, b) => b.total - a.total || (a.avg ?? 101) - (b.avg ?? 101)).slice(0, 5),
+    lowest: vRows.filter(r => r.spoke).sort((a, b) => a.avg - b.avg || b.spoke - a.spoke).slice(0, 5),
+    avg: vAll.avg, best: vAll.best, spoke: vAll.spoke, listen: vAll.listen, failed: vAll.failed,
+    sentences: vRows.length, spokenSentences: vRows.filter(r => r.spoke).length,
+    videos: new Set(vRows.map(r => r.setId)).size,
+  } : null;
 
   // 이 기간에 예전 수업 내용을 복습한 횟수
   const lessonDateById = new Map(lessons.map(l => [l.id, l.date]));
@@ -208,7 +240,7 @@ function analyzeStudent(data, from, to) {
   return {
     kind: 'student', username: data.username, name, from, to,
     prevFrom, prevTo, generatedAt: new Date().toISOString(), complete: to < todayKst(),
-    kpi, prev, days, history, weakWords, topPracticed, review, weekdays, lessons: periodLessons,
+    kpi, prev, days, history, weakWords, topPracticed, video, review, weekdays, lessons: periodLessons,
   };
 }
 
@@ -241,7 +273,7 @@ export async function studentReport(username, { month, from, to } = {}) {
   checkRange(from, to);
   const r = analyzeStudent(await loadMember(username), from, to);
   if (month) r.month = month;
-  return r;
+  return attachVideoTitles(r);
 }
 
 export async function overviewReport({ month, from, to } = {}) {
@@ -281,6 +313,7 @@ export async function saveMonthlyReports(month) {
     const r = analyzeStudent(data, from, to);
     if (!r.kpi.lessons && !r.kpi.practiceDays) continue; // 그 달에 수업도 연습도 없으면 건너뜀
     r.month = month; r.saved = true;
+    await attachVideoTitles(r);
     await store.setJSON(`monthly/${month}/${data.username}`, r);
     students.push(data.username);
   }

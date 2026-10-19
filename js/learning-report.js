@@ -327,7 +327,25 @@
 
     const top = (r.topPracticed || []).length
       ? `<table class="lr-table"><thead><tr><th>문장·단어</th><th class="num">반복</th><th class="num">평균</th><th class="num">최고</th></tr></thead><tbody>${r.topPracticed.map(t => `<tr><td style="font-weight:700; color:var(--lr-ink)">${t.type === 'word' ? '<span class="lr-chip" style="margin-right:4px">단어</span>' : ''}${esc(t.text)}</td><td class="num">${t.total}회</td><td class="num">${t.avg == null ? '-' : `<span class="lr-chip ${scoreClass(t.avg)}">${t.avg}%</span>`}</td><td class="num">${t.spoke ? t.best + '%' : '-'}</td></tr>`).join('')}</tbody></table>`
-      : '<div class="lr-empty">아직 이 기간에 연습한 문장이 없어요.</div>';
+      : '<div class="lr-empty">아직 이 기간에 연습한 수업 문장이 없어요.</div>';
+
+    // 🎬 영상 쉐도잉 문장: 많이 연습한 문장 · 일치도가 낮은 문장 · 전체 평균
+    const V = r.video;
+    const vName = t => t.video ? `<div style="font-size:0.74rem; color:var(--muted,#7C7566); font-weight:600; margin-top:2px">🎬 ${esc(t.video)}</div>` : '';
+    const vTable = (rows, lowFirst) => `<table class="lr-table"><thead><tr><th>영상 문장</th><th class="num">반복</th><th class="num">평균</th>${lowFirst ? '<th class="num">따라 말함</th>' : '<th class="num">최고</th>'}</tr></thead><tbody>${rows.map(t => `<tr><td style="font-weight:700; color:var(--lr-ink)">${esc(t.text)}${vName(t)}</td><td class="num">${t.total}회</td><td class="num">${t.avg == null ? '-' : `<span class="lr-chip ${scoreClass(t.avg)}">${t.avg}%</span>`}</td><td class="num">${lowFirst ? `🗣️ ${t.spoke}회` : (t.spoke ? t.best + '%' : '-')}</td></tr>`).join('')}</tbody></table>`;
+    const videoSec = V ? `
+      <div style="height:14px"></div>
+      <div class="lr-sec"><h3>🎬 영상 쉐도잉</h3>
+        <div class="lr-desc">이 기간 영상 ${V.videos}개에서 문장 ${V.sentences}개를 연습했어요 (따라 말하기 ${V.spoke}회 · 듣기만 ${V.listen}회)</div>
+        <div class="lr-tiles" style="margin:0">
+          <div class="lr-tile"><div class="l">📈 영상 문장 전체 평균 일치도</div><div class="n">${V.avg == null ? '-' : `<span class="lr-chip ${scoreClass(V.avg)}" style="font-size:1.05rem">${V.avg}%</span>`}</div><div class="lr-desc" style="margin:4px 0 0">따라 말한 ${V.spoke}회의 평균${V.spoke ? ` · 최고 ${V.best}%` : ''}</div></div>
+          <div class="lr-tile"><div class="l">🗣️ 따라 말한 영상 문장</div><div class="n">${V.spokenSentences} / ${V.sentences}</div><div class="lr-desc" style="margin:4px 0 0">일치도 채점을 켜고 말한 문장 수</div></div>
+        </div>
+      </div>
+      <div class="lr-grid2">
+        <div class="lr-sec"><h3>🔁 가장 많이 연습한 영상 문장</h3><div class="lr-desc">이 기간 반복 횟수 순</div><div class="lr-scroll">${vTable(V.top, false)}</div></div>
+        <div class="lr-sec"><h3>📉 일치도가 가장 낮은 영상 문장</h3><div class="lr-desc">따라 말한 문장 중 평균 일치도가 낮은 순 — 다시 연습해 보세요</div><div class="lr-scroll">${V.lowest.length ? vTable(V.lowest, true) : '<div class="lr-empty">일치도 채점을 켜고 따라 말하면 점수가 낮은 문장을 보여드려요.</div>'}</div></div>
+      </div>` : '';
 
     const lessonsHTML = r.lessons.length ? r.lessons.map(l => `
       <div class="lr-lesson">
@@ -360,9 +378,10 @@
       <div class="lr-sec"><h3>🗣️ ${dayKeys.length <= 62 ? '날짜별' : '주별'} 쉐도잉 반복 횟수</h3><div class="lr-desc">이 기간 모두 ${totalPractice}번 반복했어요 (따라 말하기 + 듣기만)</div>${barChart(dailyItems, { height: 150, unit: '번', labelMax: true })}</div>
 
       <div class="lr-grid2">
-        <div class="lr-sec"><h3>🔁 가장 많이 연습한 문장</h3><div class="lr-desc">이 기간 반복 횟수 순</div><div class="lr-scroll">${top}</div></div>
+        <div class="lr-sec"><h3>🔁 가장 많이 연습한 수업 문장</h3><div class="lr-desc">이 기간 반복 횟수 순</div><div class="lr-scroll">${top}</div></div>
         <div class="lr-sec"><h3>⚠️ 자주 놓치는 단어</h3><div class="lr-desc">따라 말할 때 빠뜨린 횟수 순 (a, the 같은 짧은 단어 제외)</div>${weak}</div>
       </div>
+      ${videoSec}
       <div style="height:14px"></div>
 
       <div class="lr-sec"><h3>📚 공부한 문장 · 단어</h3>
