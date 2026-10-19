@@ -229,7 +229,7 @@
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/yt-media.js?v=20261019d"></script>
+<script src="js/yt-media.js?v=20261019f"></script>
 <script>
 (function () {
 const $ = s => document.querySelector(s);
@@ -424,12 +424,16 @@ function playSentence(k, cb) {
   stopAt = s.e; onReach = cb || null;
   const p = v.play(); if (p) p.catch(() => toast(v.isYouTube ? '영상 화면을 한 번 눌러 재생한 뒤, 다시 ▶ 연습 시작을 눌러주세요' : '▶ 버튼을 한 번 더 눌러주세요 (브라우저 자동재생 제한)'));
 }
-function reached() { const cb = onReach; stopAt = null; onReach = null; v.pause(); if (cb) cb(); }
+// 문장 끝에서 멈춘 직후 잠깐은 영상이 조금 더 흘러가도 화면이 다음 문장으로 넘어가지 않게 잡아 둡니다.
+let holdUntil = 0;
+function reached() { const cb = onReach; stopAt = null; onReach = null; holdUntil = performance.now() + 800; v.pause(); if (cb) cb(); }
 function loop() {
   if (stopAt != null) {
     if (v.currentTime >= stopAt) reached();
     else if (list[cur]) { const s = list[cur]; setBar((v.currentTime - s.s) / (s.e - s.s)); }
-  } else if (!v.paused && list.length) {
+  } else if (!v.paused && list.length && (!running || S.mode === 'listen') && performance.now() > holdUntil) {
+    // 화면이 영상 시간을 따라가는 건 '듣기' 모드이거나, 연습 중이 아닐 때(영상을 직접 재생)뿐이에요.
+    // 쉐도잉·에코잉 중에는 반복 횟수를 다 채운 뒤에만 연습 엔진이 다음 문장으로 넘깁니다.
     const t = v.currentTime;
     const k = list.findIndex((s, j) => t >= s.s && t < (list[j + 1] ? list[j + 1].s : Infinity));
     if (k >= 0 && k !== cur) { if (running && S.mode === 'listen') markDone(list[cur]); setCurrent(k); }
@@ -496,7 +500,7 @@ function afterRep() {
   rep++;
   if (rep < S.reps) { later(step, 250); return; }
   markDone(list[cur]); rep = 0; cur++;
-  if (cur < list.length) setCurrent(cur);
+  if (cur < list.length) { setCurrent(cur); updateRep(); }
   later(step, 500);
 }
 function jump(k) {

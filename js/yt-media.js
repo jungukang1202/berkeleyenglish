@@ -76,7 +76,8 @@
       // 휴대폰은 처음 한 번은 영상을 직접 눌러야 재생되는 경우가 있어요.
       return new Promise((res, rej) => setTimeout(() => (this._state === 1 || this._state === 3 ? res() : rej(new Error('not_started'))), 1800));
     }
-    pause() { try { this.player.pauseVideo(); } catch (e) {} }
+    // YouTube는 멈춤 명령 후 0.2~0.3초 더 재생된 뒤에야 '멈춤' 상태를 알려줘요 → 명령을 보낸 즉시 멈춘 것으로 처리
+    pause() { this._state = 2; try { this.player.pauseVideo(); } catch (e) {} }
     getTitle() { try { return (this.player.getVideoData() || {}).title || ''; } catch (e) { return ''; } }
     destroy() { try { this.player.destroy(); } catch (e) {} }
   }
