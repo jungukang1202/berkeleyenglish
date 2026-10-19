@@ -64,6 +64,7 @@ function cleanText(t) {
 // json3 자막 → 단어별 시간
 export function json3ToWords(json) {
   const words = [];
+  const manualLines = [];
   for (const ev of (json && json.events) || []) {
     if (!ev.segs || ev.aAppend) continue;
     const t0 = (ev.tStartMs || 0) / 1000;
@@ -73,14 +74,15 @@ export function json3ToWords(json) {
       ev.segs.forEach(sg => {
         cleanText(sg.utf8).split(' ').filter(Boolean).forEach(w => words.push({ w, s: t0 + (sg.tOffsetMs || 0) / 1000, e: null }));
       });
-    } else { // 사람 자막: 한 줄 전체 → 글자 수 비율로 시간 나누기
-      const ws = cleanText(ev.segs.map(sg => sg.utf8).join('')).split(' ').filter(Boolean);
-      const total = ws.reduce((a, w) => a + w.length + 1, 0) || 1;
-      let t = t0;
-      ws.forEach(w => { const d = Math.max(0.05, dur * (w.length + 1) / total); words.push({ w, s: t, e: t + d }); t += d; });
+    } else { // 사람 자막: 한 줄씩 모아 두었다가 linesToWords로 (겹침 방지)
+      manualLines.push({ text: ev.segs.map(sg => sg.utf8).join(''), start: t0, dur });
+      continue;
     }
     if (words.length && words[words.length - 1].s >= t0) words[words.length - 1].brk = true; // 자막 한 줄의 끝
   }
+  if (manualLines.length && !words.length) return linesToWords(manualLines);
+  // 자동 자막 중 한 단어짜리 줄(시간 조각이 없음)도 빠뜨리지 않고 넣기
+  if (manualLines.length) linesToWords(manualLines).forEach(w => words.push({ w: w.w, s: w.s, e: null, brk: w.brk }));
   words.sort((a, b) => a.s - b.s);
   for (let i = 0; i < words.length; i++) {
     if (words[i].e != null) continue;
@@ -101,19 +103,28 @@ async function fetchTrack(track, ua) {
 
 // ---- Supadata (자막 전문 API, https://supadata.ai — 무료 키: 월 100건) ----
 const SUPA = 'https://api.supadata.ai/v1/transcript';
-function supaToWords(content) {
+// 자막 한 줄(시작·길이) 안에서 단어마다 시간을 나눠 줍니다.
+// ⚠️ YouTube 자동 자막은 한 줄이 다음 줄이 나온 뒤에도 화면에 남아 있어서 "길이"가 다음 줄과 겹쳐요.
+//    그대로 나누면 두 줄의 단어가 시간 순서로 섞이므로, 다음 줄이 시작되는 시점까지만 쓰고 단어 순서는 절대 바꾸지 않습니다.
+export function linesToWords(lines) {
+  const L = lines.filter(x => x.text).sort((a, b) => a.start - b.start);
   const words = [];
-  for (const seg of content || []) {
-    const t0 = Number(seg.offset || 0) / 1000, dur = Number(seg.duration || 0) / 1000;
-    const ws = cleanText(seg.text).split(' ').filter(Boolean);
-    if (!ws.length) continue;
+  L.forEach((ln, i) => {
+    const ws = cleanText(ln.text).split(' ').filter(Boolean);
+    if (!ws.length) return;
+    const next = L[i + 1];
+    let dur = ln.dur > 0 ? ln.dur : 2;
+    if (next && next.start > ln.start) dur = Math.min(dur, next.start - ln.start);
+    dur = Math.min(dur, 0.6 + ws.length * 0.45); // 말하는 데 걸릴 만한 시간 이상으로 늘리지 않기
     const total = ws.reduce((a, w) => a + w.length + 1, 0);
-    let t = t0;
+    let t = Math.max(ln.start, words.length ? words[words.length - 1].s + 0.02 : 0);
     ws.forEach(w => { const d = Math.max(0.05, dur * (w.length + 1) / total); words.push({ w, s: t, e: t + d * 0.95 }); t += d; });
     words[words.length - 1].brk = 1;
-  }
-  words.sort((a, b) => a.s - b.s);
+  });
   return words.map(w => ({ ...w, s: Math.round(w.s * 100) / 100, e: Math.round(w.e * 100) / 100 }));
+}
+function supaToWords(content) {
+  return linesToWords((content || []).map(seg => ({ text: seg.text, start: Number(seg.offset || 0) / 1000, dur: Number(seg.duration || 0) / 1000 })));
 }
 async function supadata(videoId, key, jobId) {
   const headers = { 'x-api-key': key };

@@ -177,6 +177,8 @@
   .ved-text textarea:hover, .ved-text textarea:focus{border-color:var(--border); background:var(--panel);}
   .ved-text .ved-ko{font-size:0.84rem; color:var(--muted);}
   .ved-btns{display:flex; flex-direction:column; gap:4px;}
+  .ved-adj{display:flex; gap:4px; align-items:center; flex-wrap:wrap; padding:4px 8px; font-size:0.78rem; color:var(--muted);}
+  .ved-adj .btn-small{padding:3px 8px;}
   .ved-part{padding:6px 12px; font-size:0.78rem; font-weight:800; color:var(--accent2); background:#FCF6E3; border-bottom:1px solid var(--border);}
   @media (max-width:560px){ .ved-row{grid-template-columns:1fr;} .ved-btns{flex-direction:row;} .ved-time{padding-top:0;} }
   .vid-grid.vid-grid-2{grid-template-columns:1fr 1fr;}
@@ -474,6 +476,7 @@ today we're going to talk about..."></textarea>
         <div class="row" style="justify-content:space-between;">
           <span class="pill" id="vedCount"></span>
           <span style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn-ghost btn-small hidden" id="vedRefetch" title="시간이 어긋난 쉐도잉을 YouTube 자막으로 새로 만들어요">🔄 자막 다시 가져오기</button>
             <button class="btn-ghost btn-small" id="vedResplit" title="중간에 끊긴 문장을 AI로 이어 붙여 다시 나눠요">✨ 문장 다시 나누기</button>
             <button class="btn-ghost btn-small" id="vedRetranslate">🌐 빈 번역 채우기</button>
           </span>
@@ -513,8 +516,8 @@ today we're going to talk about..."></textarea>
 
 <script src="js/shadowing-engine.js?v=20261014a"></script>
 <script src="js/learning-report.js?v=20261014a"></script>
-<script src="js/video-transcript.js?v=20261019c"></script>
-<script src="js/yt-media.js?v=20261019b"></script>
+<script src="js/video-transcript.js?v=20261019d"></script>
+<script src="js/yt-media.js?v=20261019d"></script>
 <script>
 const API = {
   adminLogin: '/api/admin-login',
@@ -1334,6 +1337,6 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 /* ===================== 시작 ===================== */
 if (getToken()) showMain(); else showLogin();
 </script>
-<script src="js/video-admin.js?v=20261019c"></script>
+<script src="js/video-admin.js?v=20261019d"></script>
 </body>
 </html>

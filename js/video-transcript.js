@@ -181,13 +181,14 @@
   // 문장부호가 없는 자막 → AI로 문장부호 복원. ask(text)는 서버(/api/admin-punctuate)를 불러 글을 돌려주는 함수.
   // 250단어씩 보내되 뒤에 40단어를 더 붙여 보내서, 조각 끝에서 문장이 잘못 끊기지 않게 합니다.
   async function restorePunctuation(words, ask, onProg) {
-    const STEP = 250, EXTRA = 40;
+    const STEP = 250, EXTRA = 40, LEAD = 20; // 앞뒤로 문맥을 조금 더 보내서 조각 경계에서 문장이 잘못 시작·끝나지 않게
     const out = words.map(w => Object.assign({}, w, { w: String(w.w).replace(/[.?!…]+$/, '') }));
     let okChunks = 0, total = 0, failRow = 0;
     for (let i = 0; i < out.length; i += STEP) {
       if (failRow >= 2) break; // AI가 계속 응답하지 않으면 그만두고 예전 방식(말 쉬는 곳)으로 나눔
       total++;
-      const slice = out.slice(i, Math.min(out.length, i + STEP + EXTRA));
+      const from = Math.max(0, i - LEAD);
+      const slice = out.slice(from, Math.min(out.length, i + STEP + EXTRA));
       onProg && onProg(i / out.length);
       let text = null;
       try { text = await ask(slice.map(w => w.w).join(' ')); } catch (e) { text = null; }
@@ -196,8 +197,9 @@
       const r = applyPunctuation(slice, text);
       if (r.ratio < 0.85) continue; // AI가 단어를 너무 많이 바꿨으면 이 조각은 쓰지 않음
       okChunks++;
-      const keep = i + STEP >= out.length ? r.words.length : STEP;
-      for (let k = 0; k < keep; k++) out[i + k] = r.words[k];
+      const lead = i - from;
+      const keep = i + STEP >= out.length ? r.words.length - lead : STEP;
+      for (let k = 0; k < keep; k++) out[i + k] = r.words[lead + k];
     }
     onProg && onProg(1);
     return { words: out, ok: okChunks > 0 && okChunks >= total * 0.6 };

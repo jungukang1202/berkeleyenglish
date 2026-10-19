@@ -46,7 +46,7 @@
     }
     _onState(s) {
       this._state = s;
-      if (s === 1) this._emit('playing');
+      if (s === 1) { if (this._seekTo != null) setTimeout(() => { this._playedSinceSeek = true; }, 120); this._emit('playing'); }
       else if (s === 3) this._emit('waiting');
       else if (s === 2) this._emit('pause');
       else if (s === 0) this._emit('ended');
@@ -59,12 +59,13 @@
       const real = this.player && this.player.getCurrentTime ? this.player.getCurrentTime() || 0 : 0;
       // 이동 직후에는 YouTube가 잠깐 예전 시간을 알려줘서, 실제로 옮겨질 때까지 목표 시간을 대신 돌려줍니다.
       if (this._seekTo != null) {
-        if (Math.abs(real - this._seekTo) < 0.8 || performance.now() - this._seekAt > 1500) this._seekTo = null;
+        // 실제로 옮겨졌거나(목표 근처), 이동 후 재생이 시작됐거나, 1초가 지나면 진짜 시간을 씁니다.
+        if (Math.abs(real - this._seekTo) < 0.5 || this._playedSinceSeek || performance.now() - this._seekAt > 1000) this._seekTo = null;
         else return this._seekTo;
       }
       return real;
     }
-    set currentTime(t) { this._seekTo = t; this._seekAt = performance.now(); this.player.seekTo(t, true); }
+    set currentTime(t) { this._seekTo = t; this._seekAt = performance.now(); this._playedSinceSeek = false; this.player.seekTo(t, true); }
     get duration() { return this.player && this.player.getDuration ? this.player.getDuration() : 0; }
     get paused() { return !(this._state === 1 || this._state === 3); }
     get playbackRate() { return this._rate; }
