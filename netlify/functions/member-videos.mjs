@@ -3,6 +3,7 @@
 // GET /api/member-videos?id=xxx     → { lesson:{...문장 포함}, streamUrl }
 import { requireAuth, jsonResponse, signToken } from './_lib/auth.mjs';
 import { listLessons, getLesson, summary } from './_lib/videos.mjs';
+import { progressSummary } from './_lib/video-progress.mjs';
 
 const STREAM_TTL = 60 * 60 * 12;
 
@@ -23,7 +24,9 @@ export default async (req) => {
   }
 
   const lessons = (await listLessons()).filter(canSee).map(summary);
-  return jsonResponse({ lessons, loggedIn: !!member, username: member ? member.username : null });
+  // 회원이면 영상마다 '공부한 문장 수 · 책갈피'도 함께 (목록 카드에 표시)
+  const progress = member ? await progressSummary(member.username, lessons.filter(v => !v.watchOnly).map(v => v.id)) : {};
+  return jsonResponse({ lessons, progress, loggedIn: !!member, username: member ? member.username : null });
 };
 
 export const config = { path: '/api/member-videos' };

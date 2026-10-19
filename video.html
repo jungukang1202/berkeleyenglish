@@ -157,7 +157,20 @@
   .s:hover{background:var(--input-bg);}
   .s.cur{background:var(--accent-soft); border-color:var(--accent);}
   .s .t{color:var(--muted); font:12px ui-monospace,monospace; padding-top:3px;}
-  .s.done .t::before{content:"✓ "; color:var(--good); font-weight:800;}
+  /* 공부한 문장 ✓ · 책갈피 🔖 */
+  .s.done{background:rgba(46,158,107,0.07); border-left:3px solid var(--good);}
+  .s.done .t::before{content:"✓ 공부함"; display:block; color:var(--good); font:800 10.5px/1.2 system-ui,sans-serif; margin-bottom:2px;}
+  .s.done.cur{background:var(--accent-soft);}
+  .s.bm{box-shadow:inset 0 0 0 2px #E8A33A;}
+  .s.bm .t::after{content:"🔖 책갈피"; display:block; color:#C27C0E; font:800 10.5px/1.2 system-ui,sans-serif; margin-top:3px;}
+  .s.flash{animation:bmflash 1.4s ease 2;}
+  @keyframes bmflash{0%,100%{background:inherit;} 50%{background:#FFE7B8;}}
+  .bm-bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 12px; padding:10px 14px; border-radius:12px; background:#FFF6E5; border:1px solid #F2C77A; color:#5B3B00; font-size:0.9rem;}
+  .bm-bar .txt{flex:1; min-width:200px; line-height:1.45;}
+  .bm-bar .txt i{font-style:normal; color:#3A2400; font-weight:700;}
+  .bm-bar .go{border:0; background:#F2A93B; color:#3A2400; font-weight:800; padding:8px 14px; border-radius:10px; cursor:pointer; font-size:0.9rem; white-space:nowrap;}
+  .script-head .mini{border:0; background:none; color:var(--muted); font-size:0.75rem; cursor:pointer; text-decoration:underline; margin-left:8px; padding:0;}
+  .lesson .meta .bm{color:#C27C0E; font-weight:800;}
   .s .e{font-size:0.98rem; color:var(--text); line-height:1.45;}
   .s .k{color:var(--muted); font-size:0.84rem; margin-top:2px;}
   .s .sc{font-size:0.72rem; font-weight:800; padding:1px 7px; border-radius:999px; margin-left:4px; vertical-align:1px;}
@@ -220,6 +233,11 @@
       <a href="video.html" class="btn" id="backBtn">← 목록</a>
       <h2 id="lessonTitle"></h2>
       <select class="sel" id="part" aria-label="파트 선택"></select>
+    </div>
+    <div class="bm-bar hidden" id="bmBar">
+      <span>🔖</span>
+      <span class="txt" id="bmText"></span>
+      <button class="go" id="bmGo">바로 가기 →</button>
     </div>
     <div class="watch hidden" id="watchView">
       <div class="frame" id="watchFrame"></div>
@@ -293,7 +311,7 @@
       </div>
 
       <div class="card script-card">
-        <div class="script-head"><b>스크립트</b><span id="prog"></span></div>
+        <div class="script-head"><b>스크립트</b><span><span id="prog"></span><button class="mini" id="resetDone" title="공부 표시와 책갈피를 모두 지워요">표시 지우기</button></span></div>
         <div class="list" id="list"></div>
       </div>
     </div>
@@ -381,13 +399,15 @@ async function showLibrary() {
     if (!L.length) { $('#lib').innerHTML = `<div class="empty">${d.loggedIn ? '아직 올라온 영상이 없어요.' : '공개된 영상이 없어요. 회원 로그인을 해주세요.'}</div>`; return; }
     $('#lib').innerHTML = L.map(v => {
       if (v.watchOnly) return kidsCard(v);
-      const done = (LS.get('vs:' + v.id + ':done', []) || []).length;
+      const sp = (d.progress || {})[v.id];
+      const done = Math.max((LS.get('vs:' + v.id + ':done', []) || []).length, sp ? sp.done : 0);
+      const hasBm = !!LS.get('vs:' + v.id + ':last', null) || !!(sp && sp.last != null);
       const pct = v.sentenceCount ? Math.round(done / v.sentenceCount * 100) : 0;
       return `<a class="card lesson" href="video.html?id=${encodeURIComponent(v.id)}">
         <h3>${esc(v.title)}</h3>
         ${v.description ? `<div class="desc">${esc(v.description)}</div>` : ''}
         <div class="prog"><i style="width:${pct}%"></i></div>
-        <div class="meta"><span>⏱ ${fmt((v.clipEnd || v.duration) - (v.clipStart || 0))}</span>${v.youtubeId ? '<span>▶ YouTube</span>' : ''}${v.level ? `<span class="tag lv">Lv ${esc(v.level)}</span>` : ''}<span>💬 ${v.sentenceCount}문장</span><span>${pct ? '✓ ' + pct + '% 연습함' : '새 영상'}</span>${v.visibility === 'public' ? '' : '<span class="tag">회원</span>'}</div>
+        <div class="meta"><span>⏱ ${fmt((v.clipEnd || v.duration) - (v.clipStart || 0))}</span>${v.youtubeId ? '<span>▶ YouTube</span>' : ''}${v.level ? `<span class="tag lv">Lv ${esc(v.level)}</span>` : ''}<span>💬 ${v.sentenceCount}문장</span><span>${pct ? '✓ ' + Math.min(100, pct) + '% 공부함' : '새 영상'}</span>${hasBm ? '<span class="bm">🔖 이어서 하기</span>' : ''}${v.visibility === 'public' ? '' : '<span class="tag">회원</span>'}</div>
       </a>`;
     }).join('');
   } catch (e) { $('#lib').innerHTML = `<div class="empty">⚠️ 목록을 불러오지 못했어요 (${esc(e.message)})</div>`; }
@@ -566,6 +586,8 @@ async function showPlayer(id) {
   S = Object.assign({ mode: 'shadow', reps: 2, rate: 1, wait: 1.5, text: 'show', ko: true, rec: false, grade: false, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
   if (D.mime && D.mime.startsWith('audio')) { S.view = 'audio'; $('#viewMode').parentElement.style.display = 'none'; }
   done = new Set(LS.get(KEY + 'done', []));
+  bm = LS.get(KEY + 'last', null);
+  await syncProgress();
   if (D.youtubeId) {
     const box = document.querySelector('.vbox');
     box.classList.add('yt');
@@ -587,6 +609,94 @@ async function showPlayer(id) {
   initControls();
   const startPart = Math.min(S.part || 0, parts.length - 1);
   $('#part').value = startPart; loadPart(startPart);
+  $('#bmGo').onclick = () => goBookmark();
+  $('#resetDone').onclick = resetProgress;
+  updateBm();
+  if (bm && D.sentences[bm.i]) { goBookmark(true); toast('🔖 마지막으로 공부한 문장부터 이어서 할 수 있어요'); }
+}
+
+/* ---- 공부한 문장 ✓ · 책갈피 🔖 ----
+ * 문장을 반복 횟수만큼 다 연습하면 '공부함', 가장 최근에 공부한 문장이 책갈피.
+ * 회원은 서버에도 저장돼서 다른 기기에서도 같은 표시가 보여요. */
+let bm = null;                 // { i: 문장번호, at }
+let pendDone = new Set(), pendTimer = null;
+const canSync = () => !ADMIN && !!LS.raw('shadowing_member_token');
+async function progressApi(body) {
+  const headers = { Authorization: 'Bearer ' + LS.raw('shadowing_member_token') };
+  const r = body ? await fetch('/api/member-video-progress', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, headers), body: JSON.stringify(Object.assign({ id: D.id }, body)) })
+                 : await fetch('/api/member-video-progress?id=' + encodeURIComponent(D.id), { headers });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function syncProgress() {
+  if (!canSync()) return;
+  try {
+    const srv = await Promise.race([progressApi(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))]);
+    // 다른 기기에서 '표시 지우기'를 했다면 이 기기에 남은 예전 표시도 버려요
+    if (srv.resetAt && srv.resetAt !== LS.get(KEY + 'rs', null)) { done = new Set(); bm = null; }
+    LS.set(KEY + 'rs', srv.resetAt || null);
+    const mine = [...done].filter(i => !srv.done.includes(i));
+    srv.done.forEach(i => done.add(i));
+    const newer = bm && (!srv.last || bm.at > srv.last.at);
+    if (!newer && srv.last) bm = srv.last;
+    LS.set(KEY + 'done', [...done]); LS.set(KEY + 'last', bm);
+    if (mine.length || newer) progressApi({ done: mine, last: bm }).catch(() => {}); // 이 기기에만 있던 표시 올리기
+  } catch (e) {}
+}
+function pushProgress(i) {
+  if (!canSync()) return;
+  pendDone.add(i);
+  clearTimeout(pendTimer);
+  pendTimer = setTimeout(flushProgress, 2000);
+}
+function flushProgress(keepalive) {
+  clearTimeout(pendTimer);
+  if (!pendDone.size || !canSync()) return;
+  const doneList = [...pendDone]; pendDone = new Set();
+  fetch('/api/member-video-progress', {
+    method: 'POST', keepalive: !!keepalive,
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + LS.raw('shadowing_member_token') },
+    body: JSON.stringify({ id: D.id, done: doneList, last: bm }),
+  }).then(r => { if (!r.ok && r.status >= 500) doneList.forEach(i => pendDone.add(i)); }).catch(() => doneList.forEach(i => pendDone.add(i)));
+}
+window.addEventListener('pagehide', () => { if (D && !D.watchOnly) flushProgress(true); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && D && !D.watchOnly) flushProgress(true); });
+
+// 책갈피 문장이 들어 있는 파트 (지금 파트에 있으면 그대로)
+function bmPart() {
+  if (!bm) return -1;
+  if (list.some(s => s.i === bm.i)) return Number($('#part').value) || 0;
+  const k = parts.findIndex(p => !p.full && p.items.some(s => s.i === bm.i));
+  return k >= 0 ? k : parts.findIndex(p => p.items.some(s => s.i === bm.i));
+}
+function updateBm() {
+  const s = bm && D && D.sentences[bm.i];
+  $('#bmBar').classList.toggle('hidden', !s);
+  document.querySelectorAll('.s.bm').forEach(e => e.classList.remove('bm'));
+  if (!s) return;
+  const p = parts.find(p => !p.full && p.items.includes(s)) || parts[0];
+  const short = s.en.length > 70 ? s.en.slice(0, 68) + '…' : s.en;
+  $('#bmText').innerHTML = `마지막으로 공부한 문장 · ${p && !p.full && parts.length > 1 ? 'Part ' + p.n + ' · ' : ''}${fmt(s.s)}<br><i>“${esc(short)}”</i>`;
+  const el = rowEl(list.indexOf(s)); if (el) el.classList.add('bm');
+}
+function goBookmark(quiet) {
+  if (!bm) return;
+  const p = bmPart(); if (p < 0) return;
+  if (p !== (Number($('#part').value) || 0) || !list.some(s => s.i === bm.i)) { $('#part').value = p; loadPart(p); }
+  else if (running) stop();
+  const k = list.findIndex(s => s.i === bm.i);
+  if (k < 0) return;
+  setCurrent(k, true);
+  const el = rowEl(k);
+  if (el && !quiet) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+async function resetProgress() {
+  if (!confirm('이 영상의 「공부함」 표시와 🔖 책갈피를 모두 지울까요?')) return;
+  done = new Set(); bm = null; pendDone = new Set();
+  LS.set(KEY + 'done', []); LS.set(KEY + 'last', null);
+  if (canSync()) { try { const r = await progressApi({ reset: true }); LS.set(KEY + 'rs', r.resetAt || null); } catch (e) {} }
+  buildPartsLabels(); renderList(); setCurrent(cur, false); updateBm();
+  toast('표시를 모두 지웠어요');
 }
 const saveS = () => { const { part, ...rest } = S; LS.set('vs:settings', rest); LS.set(KEY + 'pos', { part }); };
 
@@ -637,7 +747,7 @@ function scoreClass(n) { return n >= 85 ? 'b-good' : n >= 60 ? 'b-mid' : 'b-bad'
 function renderList() {
   if (!list.length) { $('#list').innerHTML = '<div class="empty">문장이 없어요.</div>'; return; }
   $('#list').innerHTML = list.map((s, k) => `
-    <div class="s${done.has(s.i) ? ' done' : ''}" data-k="${k}">
+    <div class="s${done.has(s.i) ? ' done' : ''}${bm && bm.i === s.i ? ' bm' : ''}" data-k="${k}">
       <div class="t">${fmt(s.s)}</div>
       <div><div class="e">${wordsHtml(s.en)}${scores[s.i] != null ? `<span class="sc ${scoreClass(scores[s.i])}">${scores[s.i]}점</span>` : ''}</div>${s.ko ? `<div class="k">${esc(s.ko)}</div>` : ''}</div>
       <div class="acts">
@@ -667,9 +777,11 @@ function setCurrent(k, scroll = true) {
   $('#nowScore').classList.add('hidden');
 }
 function markDone(s) {
+  if (!s) return;
   done.add(s.i); LS.set(KEY + 'done', [...done]);
+  bm = { i: s.i, at: new Date().toISOString() }; LS.set(KEY + 'last', bm);
   const el = rowEl(list.indexOf(s)); if (el) el.classList.add('done');
-  updateProg();
+  updateProg(); updateBm(); pushProgress(s.i);
 }
 
 /* ---- 재생 엔진 ---- */
