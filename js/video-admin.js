@@ -402,7 +402,7 @@
         <div class="ved-time">${VT.fmt(s.s)}<br><span>${(s.e - s.s).toFixed(1)}초</span></div>
         <div class="ved-text">
           <textarea class="ved-en" rows="1">${esc(s.en)}</textarea>
-          <textarea class="ved-ko" rows="1" placeholder="(번역)">${esc(s.ko)}</textarea>
+          <textarea class="ved-ko" rows="1" placeholder="${s._tr ? '🌐 번역 중…' : '(번역)'}">${esc(s.ko)}</textarea>
           <div class="ved-adj hidden">
             <span>시작 ${s.s.toFixed(2)}초</span>
             <button class="btn-ghost btn-small" data-sact="s-">◀ 0.25</button><button class="btn-ghost btn-small" data-sact="s+">0.25 ▶</button>
@@ -425,12 +425,21 @@
     $('vedList').querySelectorAll('textarea').forEach(autoGrow);
   }
   function autoGrow(t) { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
-  function syncFromInputs() {
+  function syncFromInputs(keepNewKo) {
     $('vedList').querySelectorAll('.ved-row').forEach(row => {
       const s = editing.sentences[+row.dataset.i]; if (!s) return;
       s.en = row.querySelector('.ved-en').value.trim();
-      s.ko = row.querySelector('.ved-ko').value.trim();
+      const ko = row.querySelector('.ved-ko').value.trim();
+      if (!(keepNewKo && !ko && s.ko)) s.ko = ko; // 방금 번역이 도착한 칸은 빈 입력칸으로 덮어쓰지 않기
     });
+  }
+  async function retranslate(items) {
+    items.forEach(x => { x.ko = ''; x._tr = 1; });
+    renderSentences();
+    await Promise.all(items.map(async x => { x.ko = (await VT.translate(x.en)) || ''; delete x._tr; }));
+    if (!editing) return;
+    syncFromInputs(true);
+    renderSentences();
   }
   $('vedList').addEventListener('input', e => { if (e.target.tagName === 'TEXTAREA') autoGrow(e.target); });
   // ✂ 나누기용: 영어 칸에서 마지막 커서 위치 기억 (버튼을 누르면 포커스가 버튼으로 옮겨가서)
@@ -473,12 +482,14 @@
       S.splice(i, 1, { s: x.s, e: t, en: a, ko: '' }, { s: t, e: x.e, en: c, ko: '' });
       lastCaret = { row: -1, pos: -1 };
       renderSentences();
-      if (x.ko) translateAll([S[i], S[i + 1]]).then(renderSentences);
+      retranslate([S[i], S[i + 1]]);
       return;
     }
     if (b.dataset.sact === 'merge' && S[i + 1]) {
-      S[i] = { s: S[i].s, e: S[i + 1].e, en: (S[i].en + ' ' + S[i + 1].en).trim(), ko: [S[i].ko, S[i + 1].ko].filter(Boolean).join(' ') };
+      S[i] = { s: S[i].s, e: S[i + 1].e, en: (S[i].en + ' ' + S[i + 1].en).trim(), ko: '' };
       S.splice(i + 1, 1);
+      retranslate([S[i]]);
+      return;
     }
     if (b.dataset.sact === 'del') S.splice(i, 1);
     renderSentences();
