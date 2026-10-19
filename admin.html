@@ -183,6 +183,10 @@
   @media (max-width:560px){ .ved-row{grid-template-columns:1fr;} .ved-btns{flex-direction:row;} .ved-time{padding-top:0;} }
   .vid-grid.vid-grid-2{grid-template-columns:1fr 1fr;}
   .vid-grid.vid-grid-lv{grid-template-columns:2fr 1fr;}
+  .ved-caption{margin-top:8px; padding:9px 12px; border-radius:10px; font-size:0.84rem; white-space:pre-line; line-height:1.55;}
+  .ved-caption.human{background:#E4F5EC; color:var(--good); border:1px solid #BFE6D0;}
+  .ved-caption.auto{background:#FCF1DA; color:#7A5300; border:1px solid #F0DDAE;}
+  .ved-caption.ai{background:#EFEAFB; color:var(--accent2); border:1px solid #D9D0F2;}
   @media (max-width:640px){ .vid-grid.vid-grid-lv{grid-template-columns:1fr;} }
   .lv-badge{display:inline-block; font-size:0.72rem; font-weight:800; padding:1px 8px; border-radius:999px; background:#1B2A4E; color:#fff; margin-right:6px; vertical-align:1px;}
   .lv-badge.none{background:var(--border); color:var(--muted);}
@@ -473,6 +477,19 @@ today we're going to talk about..."></textarea>
         <div class="card-desc" style="margin-bottom:10px;">자동 받아쓰기라 고유명사·말끝이 틀릴 수 있어요. ▶로 들어보고 고치거나, 너무 짧은 문장은 <b>⤵ 합치기</b>로 붙이세요.</div>
         <div id="vidPreviewBox"><video id="vidPreview" controls playsinline preload="metadata"></video></div>
         <div id="vedClip" class="sub" style="margin-top:6px;"></div>
+        <div id="vedCaption" class="ved-caption hidden"></div>
+        <div id="vedPasteBox" class="paste-box hidden">
+          <b>📋 YouTube 「스크립트 표시」로 다시 만들기</b>
+          <ol>
+            <li>YouTube에서 이 영상을 열고 설명란 아래 <b>「스크립트 표시」</b>를 눌러요. (오른쪽 위 ⋮에서 언어를 <b>English</b>로 — "자동 생성"이 아닌 것을 고르세요)</li>
+            <li>스크립트를 시간(<code>0:00</code>)까지 함께 드래그해 복사(Ctrl+C)하고, 아래에 붙여넣어요.</li>
+          </ol>
+          <textarea id="vedPaste" rows="6" placeholder="0:00
+Hi everyone, welcome back.
+0:04
+Today we're going to talk about..."></textarea>
+          <div class="row"><button class="btn-primary btn-small" id="vedPasteGo">📋 이 스크립트로 다시 만들기</button></div>
+        </div>
         <div class="vid-grid" style="margin-top:12px;">
           <div class="field" style="margin-bottom:0;"><label for="vedTitle">제목</label><input type="text" id="vedTitle"></div>
           <div class="field" style="margin-bottom:0;"><label for="vedParts">파트 나누기</label>
@@ -487,6 +504,7 @@ today we're going to talk about..."></textarea>
         <div class="row" style="justify-content:space-between;">
           <span class="pill" id="vedCount"></span>
           <span style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn-ghost btn-small hidden" id="vedPasteBtn" title="YouTube 「스크립트 표시」를 붙여넣어 더 정확하게 다시 만들어요">📋 스크립트 붙여넣어 다시 만들기</button>
             <button class="btn-ghost btn-small hidden" id="vedRefetch" title="시간이 어긋난 쉐도잉을 YouTube 자막으로 새로 만들어요">🔄 자막 다시 가져오기</button>
             <button class="btn-ghost btn-small" id="vedResplit" title="중간에 끊긴 문장을 AI로 이어 붙여 다시 나눠요">✨ 문장 다시 나누기</button>
             <button class="btn-ghost btn-small" id="vedRetranslate">🌐 빈 번역 채우기</button>
@@ -1374,6 +1392,6 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 /* ===================== 시작 ===================== */
 if (getToken()) showMain(); else showLogin();
 </script>
-<script src="js/video-admin.js?v=20261019h"></script>
+<script src="js/video-admin.js?v=20261019i"></script>
 </body>
 </html>

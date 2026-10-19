@@ -41,6 +41,7 @@ export function summary(v) {
     partMinutes: v.partMinutes ?? 1, createdAt: v.createdAt, updatedAt: v.updatedAt || null,
     level: v.level || '', description: v.description || '',
     youtubeId: v.youtubeId || null, clipStart: v.clipStart || 0, clipEnd: v.clipEnd || 0,
+    caption: (v.captionTrack && v.captionTrack.kind) || '', // human(사람이 만든 자막) · auto(자동 자막) · ai(AI 받아쓰기)
   };
 }
 
@@ -118,6 +119,7 @@ export async function updateLesson(id, patch) {
   if (patch.duration != null && num(patch.duration) > 0) rec.duration = num(patch.duration);
   if (patch.clipStart != null) rec.clipStart = Math.max(0, num(patch.clipStart));
   if (patch.clipEnd != null) rec.clipEnd = Math.max(0, num(patch.clipEnd));
+  if (patch.track && typeof patch.track === 'object') rec.captionTrack = { lang: clip(patch.track.lang, 20), kind: clip(patch.track.kind, 20) };
   if (patch.sentences != null) rec.sentences = cleanSentences(patch.sentences);
   if (patch.status === 'ready') {
     // 모든 조각이 올라왔는지 확인한 뒤에만 '준비됨'으로 바꿉니다.

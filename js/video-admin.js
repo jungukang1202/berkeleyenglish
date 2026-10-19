@@ -25,6 +25,25 @@
   }
   function fmtSize(b) { return b > 1e9 ? (b / 1e9).toFixed(2) + 'GB' : (b / 1e6).toFixed(1) + 'MB'; }
 
+  /* ---------------- 자막 종류 ----------------
+   *  human : 사람이 만든 자막(문장부호가 제대로 있음) → 그대로 사용
+   *  auto  : YouTube 자동 자막(문장부호 없음·이름 오인식) → AI로 문장부호를 붙여 나눔, 검토 필요
+   *  ai    : 영어 자막이 없어 AI가 음성을 받아씀
+   * Supadata는 어떤 자막인지 알려주지 않아서, 문장부호가 있는지로 판단합니다. */
+  function captionKind(track, punctuated) {
+    const k = (track && track.kind) || '';
+    if (k === 'ai') return 'ai';
+    if (k === 'manual' || k === 'human') return 'human';
+    if (k === 'auto') return 'auto';
+    return punctuated ? 'human' : 'auto';
+  }
+  const CAPTION_INFO = {
+    human: { tag: '✅ 사람 자막', note: '✅ 사람이 만든 자막(문장부호 있음)을 그대로 사용했어요.' },
+    auto: { tag: '⚠️ 자동 자막', note: '⚠️ YouTube 자동 자막이라 AI로 문장부호를 붙여 문장을 나눴어요. 이름·문장 나눔을 한 번 확인해 주세요.\n   이 영상에 사람이 만든 자막이 있다면, 편집 화면의 「📋 스크립트 붙여넣어 다시 만들기」로 더 정확하게 만들 수 있어요.' },
+    ai: { tag: '🤖 AI 받아쓰기', note: '🤖 이 영상에는 영어 자막이 없어 AI가 음성을 듣고 받아썼어요. 이름·문장을 한 번 확인해 주세요.' },
+  };
+  const captionNote = k => (CAPTION_INFO[k] ? '\n' + CAPTION_INFO[k].note : '');
+
   /* ---------------- 탭 ---------------- */
   $('srcTabs').addEventListener('click', e => {
     const b = e.target.closest('[data-src]'); if (!b || busy) return;
@@ -52,7 +71,7 @@
         <div>
           <div class="title">${v.level ? `<span class="lv-badge">Lv ${esc(v.level)}</span>` : '<span class="lv-badge none">레벨 없음</span>'}${v.youtubeId ? '🔗 ' : '📁 '}${esc(v.title)}</div>
           <div class="meta">${VT.fmt(lessonLen(v))}${v.clipStart || v.clipEnd ? ` (${VT.fmt(v.clipStart)}~${VT.fmt(v.clipEnd || v.duration)})` : ''} · 문장 ${v.sentenceCount}개 ·
-            ${v.youtubeId ? 'YouTube' : fmtSize(v.size)} · ${v.partMinutes ? v.partMinutes + '분 단위' : '나누지 않음'} ·
+            ${v.youtubeId ? 'YouTube' + (CAPTION_INFO[v.caption] ? ` (${CAPTION_INFO[v.caption].tag})` : '') : fmtSize(v.size)} · ${v.partMinutes ? v.partMinutes + '분 단위' : '나누지 않음'} ·
             ${v.status === 'ready' ? VIS_LABEL[v.visibility] : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'}
             · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>
         </div>
@@ -206,7 +225,7 @@
         setBar('vidTr', 0.3, '붙여넣은 스크립트 읽는 중…');
         const p = VT.parsePastedTranscript(pasted);
         if (!p.words.length) throw new Error('붙여넣은 내용에서 시간(0:00)과 대사를 찾지 못했어요. 「스크립트 표시」의 내용을 시간까지 함께 복사해 주세요.');
-        words = p.words; punctuated = p.punctuated; info = lastYt; track = { lang: 'en', kind: 'pasted' };
+        words = p.words; punctuated = p.punctuated; info = lastYt; track = { lang: 'en', kind: punctuated ? 'human' : 'auto' };
       } else {
         setStatus('YouTube에서 영어 자막을 가져오는 중…');
         const d = await fetchYoutubeCaptions(videoId, (f, l) => setBar('vidTr', f, l));
@@ -220,7 +239,8 @@
           return;
         }
         words = d.words; punctuated = d.punctuated; info = lastYt; track = d.track;
-        setBar('vidTr', 0.5, `${{ manual: '사람이 만든 영어 자막', auto: '자동 생성 영어 자막', supadata: '영어 자막' }[d.track.kind] || '영어 자막'} ${words.length}단어`);
+        track = { lang: (d.track && d.track.lang) || 'en', kind: captionKind(d.track, punctuated) };
+        setBar('vidTr', 0.5, `${{ human: '사람이 만든 영어 자막', auto: '자동 생성 영어 자막', ai: 'AI 받아쓰기' }[track.kind]} ${words.length}단어`);
       }
       // 구간 자르기
       const duration = info.duration || (words.length ? words[words.length - 1].e + 1 : 0);
@@ -242,7 +262,7 @@
         clipStart, clipEnd, sentences, partMinutes: Number($('vidParts').value), visibility: $('vidVisibility').value, track, level: $('vidLevel').value,
       }) })).lesson;
       setBar('vidTr', 1, `완료 — 문장 ${sentences.length}개`);
-      setStatus(`✅ 완료! "${lesson.title}" — 문장 ${sentences.length}개로 쉐도잉을 만들었어요. 아래에서 확인·수정하세요.` + trWarn(trFail), 'success');
+      setStatus(`✅ 완료! "${lesson.title}" — 문장 ${sentences.length}개로 쉐도잉을 만들었어요. 아래에서 확인·수정하세요.` + captionNote(track.kind) + trWarn(trFail), track.kind === 'human' ? 'success' : '');
       $('ytUrl').value = ''; $('ytStart').value = ''; $('ytEnd').value = ''; $('ytPaste').value = ''; $('vidTitle').value = '';
       $('ytPasteBox').classList.add('hidden');
       await loadLessons();
@@ -387,6 +407,7 @@
       id: l.id, title: l.title, visibility: l.visibility || 'draft', partMinutes: l.partMinutes ?? 1,
       description: l.description || '', level: l.level || '', duration: l.duration || 0, youtubeId: l.youtubeId || null,
       clipStart: l.clipStart || 0, clipEnd: l.clipEnd || 0,
+      caption: (l.captionTrack && l.captionTrack.kind) || l.caption || '', captionChanged: false,
       sentences: (l.sentences || []).map(s => Object.assign({}, s)),
     };
     $('vidEditor').classList.remove('hidden');
@@ -396,6 +417,9 @@
     $('vedDesc').value = editing.description;
     $('vedLevel').value = editing.level;
     $('vedRefetch').classList.toggle('hidden', !editing.youtubeId);
+    showCaptionInfo();
+    $('vedPasteBtn').classList.toggle('hidden', !editing.youtubeId);
+    $('vedPasteBox').classList.add('hidden'); $('vedPaste').value = '';
     $('vedClip').textContent = editing.youtubeId
       ? `🔗 YouTube 영상 · 사용 구간 ${VT.fmt(editing.clipStart)} ~ ${VT.fmt(editing.clipEnd || editing.duration)}`
       : '';
@@ -568,8 +592,43 @@
       if (cs) next.forEach(s => { s.s = Math.max(s.s, cs); });
       await translateAll(next, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
       editing.sentences = next;
+      editing.caption = captionKind(d.track, d.punctuated); editing.captionChanged = true; showCaptionInfo();
       renderSentences();
-      st.textContent = `✅ 문장 ${next.length}개로 새로 만들었어요. ▶로 몇 문장 들어보고 💾 저장을 눌러주세요.`; st.className = 'status success';
+      st.textContent = `✅ 문장 ${next.length}개로 새로 만들었어요. ▶로 몇 문장 들어보고 💾 저장을 눌러주세요.` + captionNote(editing.caption); st.className = 'status success';
+    } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
+    b.disabled = false;
+  });
+  function showCaptionInfo() {
+    const box = $('vedCaption');
+    const info = editing && editing.youtubeId && CAPTION_INFO[editing.caption];
+    box.classList.toggle('hidden', !info);
+    if (!info) return;
+    box.className = 'ved-caption ' + editing.caption;
+    box.textContent = info.note;
+  }
+  // 📋 YouTube 「스크립트 표시」를 붙여넣어 다시 만들기 (사람이 만든 자막이 있으면 이게 가장 정확해요)
+  $('vedPasteBtn').addEventListener('click', () => { $('vedPasteBox').classList.toggle('hidden'); $('vedPaste').focus(); });
+  $('vedPasteGo').addEventListener('click', async () => {
+    const text = $('vedPaste').value.trim();
+    const st = $('vedStatus'); st.className = 'status';
+    const p = VT.parsePastedTranscript(text);
+    if (!p.words.length) { st.textContent = '⚠️ 붙여넣은 내용에서 시간(0:00)과 대사를 찾지 못했어요. 「스크립트 표시」의 내용을 시간까지 함께 복사해 주세요.'; st.className = 'status error'; return; }
+    if (!confirm('붙여넣은 스크립트로 문장을 새로 만들까요? (지금 문장과 번역은 바뀌어요)')) return;
+    const b = $('vedPasteGo'); b.disabled = true;
+    try {
+      const cs = editing.clipStart || 0, ce = editing.clipEnd || 0;
+      const inClip = p.words.filter(w => w.s >= cs - 0.05 && (!ce || w.s < ce));
+      if (!inClip.length) throw new Error('이 영상의 사용 구간에 해당하는 대사가 없어요. 시간이 맞는 스크립트인지 확인해 주세요.');
+      let next = await smartSentences(inClip, ce || editing.duration || inClip[inClip.length - 1].e + 1, p.punctuated,
+        f => { st.textContent = `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
+      next = next.filter(x => x.s >= cs - 0.5);
+      if (cs) next.forEach(x => { x.s = Math.max(x.s, cs); });
+      const fail = await translateAll(next, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
+      editing.sentences = next;
+      editing.caption = p.punctuated ? 'human' : 'auto'; editing.captionChanged = true; showCaptionInfo();
+      $('vedPasteBox').classList.add('hidden');
+      renderSentences();
+      st.textContent = `✅ 붙여넣은 스크립트로 문장 ${next.length}개를 만들었어요. 확인 후 💾 저장을 눌러주세요.` + trWarn(fail); st.className = 'status success';
     } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
     b.disabled = false;
   });
@@ -583,6 +642,7 @@
         action: 'update', id: editing.id, title: $('vedTitle').value, description: $('vedDesc').value, level: $('vedLevel').value,
         visibility: $('vedVisibility').value, partMinutes: Number($('vedParts').value),
         sentences: editing.sentences.filter(s => s.en),
+        ...(editing.captionChanged && editing.caption ? { track: { lang: 'en', kind: editing.caption } } : {}),
       }) });
       st.textContent = '✅ 저장했어요.'; st.className = 'status success';
       loadLessons();

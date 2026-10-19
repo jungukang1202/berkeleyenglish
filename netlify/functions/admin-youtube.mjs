@@ -178,7 +178,8 @@ export default async (req) => {
       if (r.pending) return jsonResponse({ ...info, pending: true, jobId: r.jobId, message: '자막이 없는 영상이라 AI가 받아쓰는 중이에요…' }, 202);
       if (r.words.length) {
         const punct = r.words.filter(w => /[.?!]$/.test(w.w)).length / r.words.length;
-        return jsonResponse({ ...info, track: { lang: r.lang, kind: 'supadata', name: 'Supadata' }, punctuated: punct > 0.02, words: r.words });
+        // jobId로 받은 결과 = 자막이 없어 AI가 받아쓴 것
+        return jsonResponse({ ...info, track: { lang: r.lang, kind: body.jobId ? 'ai' : 'supadata', name: 'Supadata' }, punctuated: punct > 0.02, words: r.words });
       }
       attempts.push('SUPADATA:empty');
     } catch (e) {
