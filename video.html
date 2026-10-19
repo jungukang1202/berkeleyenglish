@@ -462,30 +462,51 @@ function audioCtx() {
   } catch (e) { actx = null; }
   return actx;
 }
-function tone(freq, at, dur, vol, type = 'sine') {
-  const ctx = audioCtx(); if (!ctx) return;
+// 모든 신호음은 '크게 + 찢어지지 않게' 압축기(compressor)를 거쳐 나갑니다.
+let cueOut = null;
+function cueBus() {
+  const ctx = audioCtx(); if (!ctx) return null;
+  if (!cueOut) {
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.15;
+    const master = ctx.createGain(); master.gain.value = 1.4; // 압축한 뒤 크게 키움 (최고 1.0을 넘지 않게)
+    comp.connect(master).connect(ctx.destination);
+    cueOut = comp;
+  }
+  return cueOut;
+}
+// shape: 'bell'(울리고 서서히 사라짐) / 'flat'(일정하게 울리다 뚝 끝남)
+function tone(freq, at, dur, vol, type = 'sine', shape = 'bell') {
+  const ctx = audioCtx(), out = cueBus(); if (!ctx || !out) return;
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type; o.frequency.value = freq;
-  const t = ctx.currentTime + at;
+  const t = ctx.currentTime + 0.02 + at;
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(ctx.destination);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+  if (shape === 'flat') { g.gain.setValueAtTime(vol, t + dur - 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+  else g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(out);
   o.start(t); o.stop(t + dur + 0.05);
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
-// 띵동: 높은 음 → 낮은 음 (실로폰처럼 울리고 사라짐)
+// 띵동: 초인종처럼 '미 → 도' 두 음. 휴대폰 스피커에서도 잘 들리는 높이 + 배음으로 소리를 두껍게
+function bell(f, at) {
+  tone(f, at, 0.9, 0.9, 'triangle');       // 몸통
+  tone(f * 2, at, 0.6, 0.35, 'sine');      // 맑은 울림
+  tone(f * 3, at, 0.3, 0.15, 'sine');      // 땡 하는 첫 소리
+}
 function dingDong() {
   if (!S.cue) return Promise.resolve();
-  tone(1318.5, 0, 0.55, 0.22); tone(2637, 0, 0.25, 0.04);      // 띵 (E6 + 배음)
-  tone(1046.5, 0.28, 0.7, 0.22); tone(2093, 0.28, 0.3, 0.04);  // 동 (C6 + 배음)
-  return wait(900);
+  bell(659.3, 0);     // 띵 (미)
+  bell(523.3, 0.42);  // 동 (도)
+  return wait(1150);
 }
-// 삐: 짧고 또렷한 한 번
+// 삐: 0.4초 동안 일정하게 울리는 또렷한 소리 (전화 신호음처럼)
 function beep() {
   if (!S.cue) return Promise.resolve();
-  tone(1000, 0, 0.22, 0.18, 'sine');
-  return wait(330); // 삐 소리가 끝난 뒤에 녹음을 시작해서 녹음에 섞이지 않게
+  tone(880, 0, 0.4, 0.8, 'triangle', 'flat');
+  tone(1760, 0, 0.4, 0.25, 'sine', 'flat');
+  return wait(500); // 삐 소리가 끝난 뒤에 녹음을 시작해서 녹음에 섞이지 않게
 }
 
 function updateRep() { $('#repTxt').textContent = running && S.mode !== 'listen' ? `${rep + 1}/${S.reps}회` : ''; }
