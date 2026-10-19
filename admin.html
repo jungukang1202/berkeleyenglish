@@ -753,6 +753,32 @@ async function loadSets() {
       });
       listEl.appendChild(el);
     });
+    // 🎬 영상 쉐도잉 연습 기록 ('video-영상ID') — 회차와 같은 방식으로 문장별 기록을 봅니다.
+    const videoIds = Object.keys(practiceSummary).filter(k => k.startsWith('video-') && hasPractice(practiceSummary[k]));
+    if (videoIds.length) {
+      let titles = {};
+      try { (await apiFetch('/api/admin-videos')).lessons.forEach(v => { titles['video-' + v.id] = v; }); } catch (e) {}
+      const head = document.createElement('h2');
+      head.style.cssText = 'margin-top:18px; font-size:0.9rem;';
+      head.textContent = '🎬 영상 쉐도잉 연습';
+      listEl.appendChild(head);
+      videoIds.sort((a, b) => ((practiceSummary[b].last || '') > (practiceSummary[a].last || '') ? 1 : -1)).forEach(id => {
+        const v = titles[id];
+        const name = v ? v.title : '(삭제된 영상)';
+        const el = document.createElement('div');
+        el.className = 'set-item set-stack';
+        el.innerHTML = `
+          <div>
+            <div class="title" title="${escH(name)}">🎬 ${escH(name)}</div>
+            <div class="meta">${v && v.level ? `Lv ${escH(v.level)} · ` : ''}${v ? `문장 ${v.sentenceCount}개` : ''}</div>
+          </div>
+          <div class="set-btns">
+            <button class="btn-ghost btn-small practice-set-btn has-practice" title="${practiceButtonTitle(practiceSummary[id])}">${practiceButtonLabel(practiceSummary[id])}</button>
+          </div>`;
+        el.querySelector('.practice-set-btn').addEventListener('click', () => openPracticeStats(username, id, '🎬 ' + name));
+        listEl.appendChild(el);
+      });
+    }
   } catch (e) {
     listEl.innerHTML = `<div class="empty">⚠️ ${e.message}</div>`;
   }

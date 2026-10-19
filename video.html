@@ -271,6 +271,35 @@ const ADMIN = params.get('admin') === '1' && LS.raw('shadowing_admin_token');
 const MEMBER_TOKEN = LS.raw('shadowing_member_token');
 const MEMBER_NAME = LS.raw('shadowing_member_username');
 
+/* ---- 연습 기록: 회원 쉐도잉과 같은 기록 저장소(practice-log)에 'video-영상ID'로 쌓여 관리자 📊 연습 기록·월간 리포트에 들어가요 ---- */
+let pq = [], pTimer = null, pSession = '', repLogged = false;
+function practiceOn() { return !ADMIN && !!LS.raw('shadowing_member_token') && !!(window.__lessonId); }
+function logAttempt(s, rec) {
+  if (!practiceOn() || !s) return;
+  pq.push(Object.assign({ at: new Date().toISOString(), type: 'sentence', idx: s.i, target: s.en, session: pSession || 'v' }, rec));
+  if (pq.length >= 20) flushPractice(); else { clearTimeout(pTimer); pTimer = setTimeout(flushPractice, 5000); }
+}
+async function flushPractice(keepalive) {
+  clearTimeout(pTimer);
+  if (!pq.length || !practiceOn()) return;
+  const batch = pq.splice(0, 200);
+  try {
+    const r = await fetch('/api/member-practice', {
+      method: 'POST', keepalive: !!keepalive,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + LS.raw('shadowing_member_token') },
+      body: JSON.stringify({ setId: 'video-' + window.__lessonId, attempts: batch }),
+    });
+    if (!r.ok && r.status >= 500 && !keepalive) { pq = batch.concat(pq); pTimer = setTimeout(flushPractice, 15000); }
+  } catch (e) { if (!keepalive) { pq = batch.concat(pq); pTimer = setTimeout(flushPractice, 15000); } }
+}
+window.addEventListener('pagehide', () => flushPractice(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushPractice(true); });
+function micRecord(res, r, of) {
+  if (!res || res.error === 'aborted') return null;
+  return res.ok ? { mode: 'mic', ok: true, heard: res.heard, score: res.score, rep: r, of }
+                : { mode: 'mic', ok: false, error: String(res.error || res.code || 'fail'), rep: r, of };
+}
+
 async function api(url, token) {
   const headers = token ? { Authorization: 'Bearer ' + token } : {};
   let r = await fetch(url, { headers });
@@ -331,7 +360,7 @@ async function showPlayer(id) {
     if (e.status === 401) location.href = 'member.html?next=' + encodeURIComponent('video.html?id=' + id);
     return;
   }
-  D = d.lesson; KEY = 'vs:' + D.id + ':';
+  D = d.lesson; KEY = 'vs:' + D.id + ':'; window.__lessonId = D.id;
   document.title = D.title + ' | 영상 쉐도잉';
   $('#lessonTitle').textContent = D.title;
   S = Object.assign({ mode: 'shadow', reps: 2, rate: 1, wait: 1.5, text: 'show', ko: true, rec: false, grade: false, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
@@ -469,9 +498,9 @@ function loop() {
     // 쉐도잉·에코잉 중에는 반복 횟수를 다 채운 뒤에만 연습 엔진이 다음 문장으로 넘깁니다.
     const t = v.currentTime;
     const k = list.findIndex((s, j) => t >= s.s && t < (list[j + 1] ? list[j + 1].s : Infinity));
-    if (k >= 0 && k !== cur) { if (running && S.mode === 'listen') markDone(list[cur]); setCurrent(k); }
+    if (k >= 0 && k !== cur) { if (running && S.mode === 'listen') { markDone(list[cur]); logAttempt(list[cur], { mode: 'listen', rep: 1, of: 1 }); } setCurrent(k); }
     if (list[cur]) { const s = list[cur]; setBar((t - s.s) / (s.e - s.s)); }
-    if (running && S.mode === 'listen' && t >= list[list.length - 1].e) { markDone(list[cur]); stop('파트 끝까지 들었어요 👏'); }
+    if (running && S.mode === 'listen' && t >= list[list.length - 1].e) { markDone(list[cur]); logAttempt(list[cur], { mode: 'listen', rep: 1, of: 1 }); stop('파트 끝까지 들었어요 👏'); }
   }
   requestAnimationFrame(loop);
 }
@@ -544,12 +573,13 @@ let runId = 0; // 정지하거나 문장을 옮기면 바뀜 → 이미 울리�
 function start() {
   if (!list.length) return;
   audioCtx(); // 버튼을 누른 순간에 소리 장치를 켜 둬야 휴대폰에서도 신호음이 나요
-  running = true; rep = 0; runId++;
+  running = true; rep = 0; runId++; repLogged = false;
+  pSession = Date.now().toString(36).slice(-8);
   $('#go').textContent = '■ 정지'; $('#go').classList.add('dark');
   step();
 }
 function stop(msg) {
-  running = false; runId++;
+  running = false; runId++; setTimeout(() => flushPractice(), 0);
   try { window.ShadowingEngine && ShadowingEngine.stopListening(); } catch (e) {} clearTimers(); stopAt = null; onReach = null; v.pause();
   if (recorder && recorder.state === 'recording') recorder.stop();
   $('#go').textContent = '▶ 연습 시작'; $('#go').classList.remove('dark');
@@ -581,8 +611,9 @@ function step() {
     if (S.grade) {
       if (S.rec) await startRec(s.i); // 내 목소리 다시 듣기용 녹음도 함께
       setPill('● 따라 말하세요 🗣 (말이 끝나면 자동 채점)', 'rec'); setBar(1);
-      await listenAndGrade(s, () => { if (running) setPill('● 지금 말하세요! 🗣', 'rec'); });
+      const res = await listenAndGrade(s, () => { if (running) setPill('● 지금 말하세요! 🗣', 'rec'); });
       if (!running || myRun !== runId) { if (recorder && recorder.state === 'recording') recorder.stop(); return; }
+      const mr = micRecord(res, rep + 1, S.reps); if (mr) { logAttempt(s, mr); repLogged = true; }
       if (S.rec) { await stopRec(); setPill('내 목소리 ▶'); playUrl(recs[s.i], () => later(afterRep, 300)); }
       else later(afterRep, 700);
       return;
@@ -606,6 +637,8 @@ function step() {
 }
 function afterRep() {
   if (!running) return;
+  if (!repLogged) logAttempt(list[cur], { mode: 'listen', rep: rep + 1, of: S.reps });
+  repLogged = false;
   rep++;
   if (rep < S.reps) { later(step, 250); return; }
   markDone(list[cur]); rep = 0; cur++;
@@ -702,7 +735,8 @@ async function toggleRec(k) {
     const el = rowEl(k);
     if (await startRec(s.i)) el && el.querySelector('[data-a=rec]').classList.add('recing');
     setPill('● 따라 말하세요 (말이 끝나면 자동으로 채점)', 'rec');
-    await listenAndGrade(s);
+    const res = await listenAndGrade(s);
+    const mr = micRecord(res, 1, 1); if (mr) logAttempt(s, Object.assign(mr, { session: 'manual' }));
     await stopRec(); setPill('채점 완료 · ⇄로 비교');
     return;
   }

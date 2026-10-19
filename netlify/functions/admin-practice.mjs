@@ -5,6 +5,14 @@
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { getSet } from './_lib/store.mjs';
 import { getSummary, getLog, clearPractice } from './_lib/practice.mjs';
+import { getLesson } from './_lib/videos.mjs';
+
+// 영상 쉐도잉 기록('video-영상ID')은 영상의 문장을 회차처럼 보여줍니다.
+async function setOrVideo(username, id) {
+  if (!String(id).startsWith('video-')) return getSet(username, id);
+  const v = await getLesson(String(id).slice(6));
+  return v ? { id, title: '🎬 ' + v.title, sentences: (v.sentences || []).map(s => ({ o: s.en })), words: [], video: true } : null;
+}
 
 export default async (req) => {
   const auth = requireAuth(req, 'admin');
@@ -16,7 +24,7 @@ export default async (req) => {
     const id = url.searchParams.get('id');
     if (!username) return jsonResponse({ error: 'username_required' }, 400);
     if (!id) return jsonResponse({ summary: await getSummary(username) });
-    const [set, log] = await Promise.all([getSet(username, id), getLog(username, id)]);
+    const [set, log] = await Promise.all([setOrVideo(username, id), getLog(username, id)]);
     return jsonResponse({ set, attempts: log.attempts || [] });
   }
 
