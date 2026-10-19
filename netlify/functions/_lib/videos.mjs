@@ -1,0 +1,114 @@
+// 영상 쉐도잉 저장소 — 관리자가 올린 영상(조각으로 나눠 저장)과, 자동으로 만든 문장 스크립트를 보관합니다.
+//   video-lessons : `${id}`              → { id, title, status, visibility, mime, size, chunkSize, chunks, duration,
+//                                             partMinutes, sentences:[{s,e,en,ko}], createdAt, updatedAt }
+//   video-chunks  : `${id}/${00000}`     → 영상 파일의 n번째 조각(바이너리, CHUNK_SIZE 바이트)
+// Netlify 함수는 한 번에 6MB까지만 주고받을 수 있어서, 영상을 3.5MB 조각으로 나눠 올리고/보냅니다.
+import { getStore } from '@netlify/blobs';
+import crypto from 'node:crypto';
+
+export const CHUNK_SIZE = 3.5 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024; // 1GB
+const VISIBILITY = ['draft', 'members', 'public'];
+
+export function lessonsStore() { return getStore({ name: 'video-lessons', consistency: 'strong' }); }
+export function chunksStore() { return getStore({ name: 'video-chunks', consistency: 'strong' }); }
+
+export function chunkKey(id, n) { return `${id}/${String(n).padStart(5, '0')}`; }
+
+function clip(s, n) { return String(s == null ? '' : s).slice(0, n); }
+function num(x, d = 0) { const v = Number(x); return Number.isFinite(v) ? v : d; }
+
+// 브라우저에서 온 문장 목록을 안전한 모양으로 정리
+export function cleanSentences(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 5000).map(x => ({
+    s: Math.max(0, Math.round(num(x && x.s) * 100) / 100),
+    e: Math.max(0, Math.round(num(x && x.e) * 100) / 100),
+    en: clip(x && x.en, 1000).trim(),
+    ko: clip(x && x.ko, 1000).trim(),
+  })).filter(x => x.en && x.e > x.s).sort((a, b) => a.s - b.s);
+}
+
+// 목록에 보여줄 요약
+export function summary(v) {
+  return {
+    id: v.id, title: v.title, status: v.status, visibility: v.visibility,
+    duration: v.duration || 0, size: v.size || 0, mime: v.mime,
+    sentenceCount: Array.isArray(v.sentences) ? v.sentences.length : 0,
+    partMinutes: v.partMinutes || 1, createdAt: v.createdAt, updatedAt: v.updatedAt || null,
+    level: v.level || '', description: v.description || '',
+  };
+}
+
+export async function listLessons() {
+  const store = lessonsStore();
+  const { blobs } = await store.list();
+  const recs = await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })));
+  return recs.filter(Boolean).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export async function getLesson(id) {
+  if (!id || !/^[\w-]{8,64}$/.test(id)) return null;
+  return await lessonsStore().get(id, { type: 'json' });
+}
+
+export async function createLesson({ title, mime, size, duration }) {
+  size = Math.floor(num(size));
+  if (!size || size <= 0) throw new Error('size_required');
+  if (size > MAX_VIDEO_BYTES) throw new Error('file_too_large');
+  mime = clip(mime || 'video/mp4', 80);
+  if (!/^(video|audio)\//.test(mime)) throw new Error('unsupported_type');
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const rec = {
+    id, title: clip(title, 120).trim() || `${now.slice(0, 10)} 영상`,
+    status: 'uploading', visibility: 'draft', mime, size,
+    chunkSize: CHUNK_SIZE, chunks: Math.ceil(size / CHUNK_SIZE), uploaded: 0,
+    duration: Math.max(0, num(duration)), partMinutes: 1, sentences: [],
+    level: '', description: '', createdAt: now,
+  };
+  await lessonsStore().setJSON(id, rec);
+  return rec;
+}
+
+export async function putChunk(id, n, buf) {
+  const rec = await getLesson(id);
+  if (!rec) throw new Error('lesson_not_found');
+  n = Math.floor(num(n, -1));
+  if (n < 0 || n >= rec.chunks) throw new Error('bad_chunk_index');
+  const expected = n === rec.chunks - 1 ? rec.size - n * rec.chunkSize : rec.chunkSize;
+  if (buf.byteLength !== expected) throw new Error(`bad_chunk_size(${buf.byteLength}/${expected})`);
+  await chunksStore().set(chunkKey(id, n), buf);
+  return { ok: true };
+}
+
+export async function updateLesson(id, patch) {
+  const store = lessonsStore();
+  const rec = await store.get(id, { type: 'json' });
+  if (!rec) throw new Error('lesson_not_found');
+  if (patch.title != null) rec.title = clip(patch.title, 120).trim() || rec.title;
+  if (patch.description != null) rec.description = clip(patch.description, 500).trim();
+  if (patch.level != null) rec.level = clip(patch.level, 40).trim();
+  if (patch.visibility != null && VISIBILITY.includes(patch.visibility)) rec.visibility = patch.visibility;
+  if (patch.partMinutes != null) rec.partMinutes = Math.max(0, Math.min(30, num(patch.partMinutes, 1)));
+  if (patch.duration != null && num(patch.duration) > 0) rec.duration = num(patch.duration);
+  if (patch.sentences != null) rec.sentences = cleanSentences(patch.sentences);
+  if (patch.status === 'ready') {
+    // 모든 조각이 올라왔는지 확인한 뒤에만 '준비됨'으로 바꿉니다.
+    const { blobs } = await chunksStore().list({ prefix: `${id}/` });
+    if (blobs.length < rec.chunks) throw new Error(`upload_incomplete(${blobs.length}/${rec.chunks})`);
+    rec.status = 'ready';
+  }
+  rec.updatedAt = new Date().toISOString();
+  await store.setJSON(id, rec);
+  return rec;
+}
+
+export async function deleteLesson(id) {
+  const cs = chunksStore();
+  const { blobs } = await cs.list({ prefix: `${id}/` });
+  for (let i = 0; i < blobs.length; i += 20) {
+    await Promise.all(blobs.slice(i, i + 20).map(b => cs.delete(b.key)));
+  }
+  await lessonsStore().delete(id);
+}

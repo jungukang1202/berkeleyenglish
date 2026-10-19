@@ -157,6 +157,28 @@
   .imp-state{font-size:0.8rem; font-weight:700; margin-left:auto;}
   .imp-state.ok{color:var(--good);} .imp-state.err{color:var(--bad);} .imp-state.warn{color:var(--warn);}
   .sub-h{font-size:0.9rem; margin:18px 0 6px; color:var(--text); font-weight:800; display:flex; align-items:center; gap:8px;}
+
+  /* ============ 🎬 영상 쉐도잉 ============ */
+  .vid-grid{display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px;}
+  @media (max-width:640px){ .vid-grid{grid-template-columns:1fr;} }
+  .vid-file{width:100%; background:var(--input-bg); border:1px dashed var(--accent); border-radius:10px; padding:14px 12px; font-size:0.9rem; color:var(--text);}
+  .vid-prog{margin-top:12px; display:grid; gap:10px;}
+  .vid-prog .lbl{display:flex; justify-content:space-between; gap:10px; font-size:0.8rem; color:var(--muted); font-weight:700; margin-bottom:4px;}
+  .vid-prog .lbl span:last-child{font-weight:400; text-align:right;}
+  .vid-bar{height:8px; border-radius:4px; background:var(--border); overflow:hidden;}
+  .vid-bar > i{display:block; height:100%; width:0; background:var(--accent); transition:width .3s ease;}
+  .vid-editor{margin-top:20px; border-top:1px dashed var(--border); padding-top:18px;}
+  .vid-editor video{width:100%; max-height:300px; background:#000; border-radius:12px; display:block;}
+  .ved-list{margin-top:10px; max-height:620px; overflow-y:auto; border:1px solid var(--border); border-radius:12px; background:var(--input-bg);}
+  .ved-row{display:grid; grid-template-columns:58px 1fr auto; gap:8px; padding:10px; border-bottom:1px solid var(--border); align-items:start;}
+  .ved-time{font:12px ui-monospace,monospace; color:var(--muted); padding-top:8px;}
+  .ved-time span{font-size:11px; opacity:0.8;}
+  .ved-text textarea{width:100%; resize:none; overflow:hidden; border:1px solid transparent; background:transparent; border-radius:8px; padding:6px 8px; font-family:inherit; font-size:0.93rem; color:var(--text); line-height:1.45;}
+  .ved-text textarea:hover, .ved-text textarea:focus{border-color:var(--border); background:var(--panel);}
+  .ved-text .ved-ko{font-size:0.84rem; color:var(--muted);}
+  .ved-btns{display:flex; flex-direction:column; gap:4px;}
+  .ved-part{padding:6px 12px; font-size:0.78rem; font-weight:800; color:var(--accent2); background:#FCF6E3; border-bottom:1px solid var(--border);}
+  @media (max-width:560px){ .ved-row{grid-template-columns:1fr;} .ved-btns{flex-direction:row;} .ved-time{padding-top:0;} }
 </style>
 </head>
 <body>
@@ -341,6 +363,83 @@ vegetable, particularly"></textarea>
         <div class="empty" id="setsEmpty">아직 등록된 회차가 없어요.</div>
       </div>
     </div>
+
+    <!-- ============ 🎬 영상 쉐도잉 (자동 생성) ============ -->
+    <div class="card" id="videoCard">
+      <h2>🎬 영상 쉐도잉 만들기</h2>
+      <div class="card-desc">
+        영어 영상(또는 음성)을 올리면 <b>대사를 자동으로 받아써서 문장별 쉐도잉</b>을 만들어요. 회원은 <code>/video</code>에서 영상과 함께(또는 소리만 듣고) 듣기·쉐도잉·에코잉을 연습합니다.<br>
+        MP4(H.264) · MP3 · M4A · WebM, 1GB 이하 · Chrome/Edge 권장 · 10분 영상 기준 약 2~4분 걸려요.
+      </div>
+
+      <div class="field">
+        <label for="vidFile">영상 / 음성 파일</label>
+        <input type="file" id="vidFile" class="vid-file" accept="video/*,audio/*">
+      </div>
+      <div class="vid-grid">
+        <div class="field" style="margin-bottom:0;">
+          <label for="vidTitle">제목 (비워두면 파일 이름)</label>
+          <input type="text" id="vidTitle" placeholder="예: TED - The power of habits">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="vidParts">몇 분 단위로 나눌까요?</label>
+          <select class="full" id="vidParts">
+            <option value="0.5">30초</option><option value="1" selected>1분</option><option value="2">2분</option>
+            <option value="3">3분</option><option value="5">5분</option><option value="0">나누지 않음</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="vidVisibility">공개 범위</label>
+          <select class="full" id="vidVisibility">
+            <option value="draft">🔒 비공개(검토 후 공개)</option>
+            <option value="members" selected>👥 회원 공개</option>
+            <option value="public">🌐 전체 공개(로그인 없이)</option>
+          </select>
+        </div>
+      </div>
+      <label style="display:flex; gap:8px; align-items:center; font-weight:400; margin-top:10px; cursor:pointer;">
+        <input type="checkbox" id="vidTranslate" checked> <span style="font-size:0.85rem; color:var(--body-text);">문장마다 한국어 번역도 자동으로 넣기</span>
+      </label>
+      <div class="row">
+        <button class="btn-primary" id="vidStartBtn">🚀 업로드하고 쉐도잉 만들기</button>
+      </div>
+      <div id="vidProgress" class="vid-prog hidden">
+        <div><div class="lbl"><span>① 영상 업로드</span><span id="vidUpLabel"></span></div><div class="vid-bar"><i id="vidUpBar"></i></div></div>
+        <div><div class="lbl"><span>② 대사 받아쓰기 · 문장 정리</span><span id="vidTrLabel"></span></div><div class="vid-bar"><i id="vidTrBar"></i></div></div>
+      </div>
+      <div class="status" id="vidStatus"></div>
+
+      <!-- 문장 편집기 -->
+      <div id="vidEditor" class="vid-editor hidden">
+        <h2 style="font-size:0.95rem;">✏️ 스크립트 확인 · 수정</h2>
+        <div class="card-desc" style="margin-bottom:10px;">자동 받아쓰기라 고유명사·말끝이 틀릴 수 있어요. ▶로 들어보고 고치거나, 너무 짧은 문장은 <b>⤵ 합치기</b>로 붙이세요.</div>
+        <video id="vidPreview" controls playsinline preload="metadata"></video>
+        <div class="vid-grid" style="margin-top:12px;">
+          <div class="field" style="margin-bottom:0;"><label for="vedTitle">제목</label><input type="text" id="vedTitle"></div>
+          <div class="field" style="margin-bottom:0;"><label for="vedParts">파트 나누기</label>
+            <select class="full" id="vedParts"><option value="0.5">30초</option><option value="1">1분</option><option value="2">2분</option><option value="3">3분</option><option value="5">5분</option><option value="0">나누지 않음</option></select></div>
+          <div class="field" style="margin-bottom:0;"><label for="vedVisibility">공개 범위</label>
+            <select class="full" id="vedVisibility"><option value="draft">🔒 비공개</option><option value="members">👥 회원 공개</option><option value="public">🌐 전체 공개</option></select></div>
+        </div>
+        <div class="field" style="margin-top:10px;"><label for="vedDesc">설명 (선택, 회원 화면에 표시)</label><input type="text" id="vedDesc" placeholder="예: 중급 · 일상 대화 · 연음 집중 연습"></div>
+        <div class="row" style="justify-content:space-between;">
+          <span class="pill" id="vedCount"></span>
+          <button class="btn-ghost btn-small" id="vedRetranslate">🌐 빈 번역 채우기</button>
+        </div>
+        <div class="ved-list" id="vedList"></div>
+        <div class="row">
+          <button class="btn-primary" id="vedSave">💾 저장</button>
+          <button class="btn-ghost" id="vedCancel">닫기</button>
+        </div>
+        <div class="status" id="vedStatus"></div>
+      </div>
+
+      <div class="row" style="justify-content:space-between; margin-top:24px;">
+        <h2 style="font-size:0.95rem; margin:0;">🗂️ 올린 영상</h2>
+        <button class="btn-ghost btn-small" id="vidRefresh">↻ 새로고침</button>
+      </div>
+      <div id="vidList"></div>
+    </div>
   </div>
 
   <footer>
@@ -362,6 +461,7 @@ vegetable, particularly"></textarea>
 
 <script src="js/shadowing-engine.js?v=20261014a"></script>
 <script src="js/learning-report.js?v=20261014a"></script>
+<script src="js/video-transcript.js?v=20261019a"></script>
 <script>
 const API = {
   adminLogin: '/api/admin-login',
@@ -1181,5 +1281,6 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 /* ===================== 시작 ===================== */
 if (getToken()) showMain(); else showLogin();
 </script>
+<script src="js/video-admin.js?v=20261019a"></script>
 </body>
 </html>

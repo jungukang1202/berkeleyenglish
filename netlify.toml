@@ -26,6 +26,11 @@
     Cache-Control = "no-cache"
 
 [[headers]]
+  for = "/video"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
   for = "/shadowing"
   [headers.values]
     Cache-Control = "no-cache"

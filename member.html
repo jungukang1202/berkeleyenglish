@@ -127,6 +127,12 @@
       <button class="btn-ghost btn-small" id="logoutBtn">로그아웃</button>
     </div>
 
+    <a href="video.html" class="card" style="display:flex; align-items:center; gap:14px; text-decoration:none; padding:16px 20px;">
+      <span style="font-size:1.8rem;">🎬</span>
+      <span style="flex:1;"><b style="color:var(--text); font-size:1rem;">영상 쉐도잉</b><br><span style="color:var(--muted); font-size:0.85rem;">선생님이 올려준 영어 영상으로 문장별 듣기 · 쉐도잉 · 에코잉 연습하기</span></span>
+      <span style="color:var(--accent2); font-weight:800;">열기 →</span>
+    </a>
+
     <div class="card">
       <h2>🗂️ 회차 선택</h2>
       <div class="card-desc">선생님이 등록해준 수업 회차 중 연습할 회차를 골라주세요. (최신 회차가 먼저 보여요)</div>
@@ -220,6 +226,9 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
     if (!res.ok) throw new Error(data.message || data.error || '로그인 실패');
     setSession(data.token, data.username);
     statusEl.textContent = '';
+    // 영상 쉐도잉(video.html)에서 로그인하러 왔으면 그 화면으로 돌아갑니다.
+    const next = new URLSearchParams(location.search).get('next') || '';
+    if (/^video\.html(\?[\w=&%.-]*)?$/.test(next)) { location.href = next; return; }
     showPractice();
   } catch (e) {
     statusEl.textContent = '⚠️ 아이디 또는 비밀번호가 올바르지 않아요.';
