@@ -72,6 +72,7 @@ export function json3ToWords(json) {
     const hasOffsets = ev.segs.some(sg => sg.tOffsetMs != null);
     if (hasOffsets) { // 자동 자막: 조각마다 시작 시간이 있음
       ev.segs.forEach(sg => {
+        if (/>>|&gt;&gt;/.test(sg.utf8 || '') && words.length) words[words.length - 1].spk = 1; // 화자 바뀜
         cleanText(sg.utf8).split(' ').filter(Boolean).forEach(w => words.push({ w, s: t0 + (sg.tOffsetMs || 0) / 1000, e: null }));
       });
     } else { // 사람 자막: 한 줄씩 모아 두었다가 linesToWords로 (겹침 방지)
@@ -89,7 +90,7 @@ export function json3ToWords(json) {
     const nx = words[i + 1] ? words[i + 1].s : words[i].s + 0.6;
     words[i].e = nx > words[i].s ? Math.min(nx, words[i].s + 1.0) : words[i].s + 0.3;
   }
-  return words.map(w => { const o = { w: w.w, s: Math.round(w.s * 100) / 100, e: Math.round(w.e * 100) / 100 }; if (w.brk) o.brk = 1; return o; });
+  return words.map(w => { const o = { w: w.w, s: Math.round(w.s * 100) / 100, e: Math.round(w.e * 100) / 100 }; if (w.brk) o.brk = 1; if (w.spk) o.spk = 1; return o; });
 }
 
 async function fetchTrack(track, ua) {
@@ -110,7 +111,12 @@ export function linesToWords(lines) {
   const L = lines.filter(x => x.text).sort((a, b) => a.start - b.start);
   const words = [];
   L.forEach((ln, i) => {
-    const ws = cleanText(ln.text).split(' ').filter(Boolean);
+    // '>>'는 자동 자막에서 "말하는 사람이 바뀜" 표시 → 그 앞 단어에 spk 표시를 남깁니다(문장을 꼭 나눔)
+    const ws = [], spkAfter = new Set();
+    String(ln.text).split(/>>|&gt;&gt;/).forEach((part, pi) => {
+      if (pi > 0) { if (ws.length) spkAfter.add(ws.length - 1); else if (words.length) words[words.length - 1].spk = 1; }
+      cleanText(part).split(' ').filter(Boolean).forEach(w => ws.push(w));
+    });
     if (!ws.length) return;
     const next = L[i + 1];
     let dur = ln.dur > 0 ? ln.dur : 2;
@@ -118,7 +124,7 @@ export function linesToWords(lines) {
     dur = Math.min(dur, 0.6 + ws.length * 0.45); // 말하는 데 걸릴 만한 시간 이상으로 늘리지 않기
     const total = ws.reduce((a, w) => a + w.length + 1, 0);
     let t = Math.max(ln.start, words.length ? words[words.length - 1].s + 0.02 : 0);
-    ws.forEach(w => { const d = Math.max(0.05, dur * (w.length + 1) / total); words.push({ w, s: t, e: t + d * 0.95 }); t += d; });
+    ws.forEach((w, k) => { const d = Math.max(0.05, dur * (w.length + 1) / total); const o = { w, s: t, e: t + d * 0.95 }; if (spkAfter.has(k)) o.spk = 1; words.push(o); t += d; });
     words[words.length - 1].brk = 1;
   });
   return words.map(w => ({ ...w, s: Math.round(w.s * 100) / 100, e: Math.round(w.e * 100) / 100 }));

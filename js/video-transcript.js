@@ -139,7 +139,7 @@
       const cut = punctuated
         // 문장부호가 있으면 문장 끝(. ? !)에서만 자릅니다 — 긴 문장도 한 문장으로 유지
         // (5초 넘게 말이 없거나, 문장부호 없이 60단어를 넘는 경우만 예외)
-        ? (!nx || endsSentence(w.w) || gap > 5 || n >= 60 || (opts.pauseCut && gap >= 1.2 && n >= 2 && !/[,;:]$/.test(w.w)))
+        ? (!nx || endsSentence(w.w) || w.spk || gap > 5 || n >= 60 || (opts.pauseCut && gap >= 1.2 && n >= 2 && !/[,;:]$/.test(w.w)))
         : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
@@ -159,14 +159,14 @@
       let en = g.map(w => w.w).join(' ').replace(/\s+([,.?!;:])/g, '$1').trim();
       en = en.replace(/\bi\b/g, 'I').replace(/\bi'(m|ll|ve|d)\b/g, "I'$1");
       en = en.charAt(0).toUpperCase() + en.slice(1);
-      if ((!punctuated || opts.pauseCut) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
+      if ((!punctuated || opts.pauseCut || g[g.length - 1].spk) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
       return { s: +s.toFixed(2), e: +Math.max(e, s + 0.4).toFixed(2), en, ko: '' };
     });
   }
 
   // AI가 문장부호를 붙여 돌려준 글을 원래 단어(시간 포함)에 하나씩 맞춰 옮깁니다. 단어가 다르면 그 단어는 그대로 둡니다.
   function applyPunctuation(words, punctText) {
-    const toks = String(punctText || '').replace(/[‖|]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(t => norm(t));
+    const toks = String(punctText || '').replace(/[‖|»]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(t => norm(t));
     const out = words.map(w => Object.assign({}, w));
     let j = 0, hit = 0;
     for (let i = 0; i < out.length; i++) {
@@ -189,7 +189,7 @@
     return ws.map((w, k) => {
       const nx = ws[k + 1];
       const gap = nx ? nx.s - w.e : 0;
-      return w.w + (nx && gap >= 0.6 ? ' ‖' : '');
+      return w.w + (nx && w.spk ? ' »' : nx && gap >= 0.6 ? ' ‖' : '');
     }).join(' ');
   }
 

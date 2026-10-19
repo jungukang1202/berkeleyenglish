@@ -413,6 +413,7 @@
         <div class="ved-btns">
           <button class="btn-ghost btn-small" data-sact="play" title="이 문장 듣기">▶</button>
           <button class="btn-ghost btn-small" data-sact="adj" title="소리와 글이 안 맞으면 시작·끝 시간을 조금씩 옮겨요">⏱ 시간</button>
+          <button class="btn-ghost btn-small" data-sact="split" title="영어 문장에서 나눌 곳에 커서를 두고 누르세요">✂ 나누기</button>
           <button class="btn-ghost btn-small" data-sact="merge" title="다음 문장과 합치기" ${i === editing.sentences.length - 1 ? 'disabled' : ''}>⤵ 합치기</button>
           <button class="btn-danger btn-small" data-sact="del" title="삭제">✕</button>
         </div>
@@ -432,6 +433,11 @@
     });
   }
   $('vedList').addEventListener('input', e => { if (e.target.tagName === 'TEXTAREA') autoGrow(e.target); });
+  // ✂ 나누기용: 영어 칸에서 마지막 커서 위치 기억 (버튼을 누르면 포커스가 버튼으로 옮겨가서)
+  let lastCaret = { row: -1, pos: -1 };
+  ['keyup', 'click', 'select'].forEach(ev => $('vedList').addEventListener(ev, e => {
+    if (e.target.classList && e.target.classList.contains('ved-en')) lastCaret = { row: +e.target.closest('.ved-row').dataset.i, pos: e.target.selectionStart };
+  }));
   $('vedList').addEventListener('click', e => {
     const b = e.target.closest('[data-sact]'); if (!b) return;
     const i = +b.closest('.ved-row').dataset.i;
@@ -450,6 +456,24 @@
       const spans = row.querySelectorAll('.ved-adj > span');
       spans[0].textContent = `시작 ${x.s.toFixed(2)}초`; spans[1].textContent = `끝 ${x.e.toFixed(2)}초`;
       playIt(i);
+      return;
+    }
+    if (b.dataset.sact === 'split') {
+      const x = S[i], text = x.en;
+      let pos = lastCaret.row === i ? lastCaret.pos : -1;
+      // 커서를 안 뒀으면: 첫 번째 ! ? . , 뒤에서 나누기 (예: "Oh Banana, dad, ..." → "Oh Banana," | "dad, ...")
+      if (pos <= 0 || pos >= text.length) { const m = /[!?.,](?=\s+\S)/.exec(text); pos = m ? m.index + 1 : -1; }
+      if (pos <= 0 || pos >= text.length) { alert('영어 문장 안에서 나눌 곳을 클릭해 커서를 두고 ✂ 나누기를 눌러주세요.'); return; }
+      let a = text.slice(0, pos).trim(), c = text.slice(pos).trim();
+      if (!a || !c) return;
+      a = a.replace(/[,;:]$/, '');
+      if (!/[.?!]$/.test(a)) a += /^(oh|wow|hooray|yay|no|yes|hey|whoa|ah|oops|uh oh)\b/i.test(a) ? '!' : '.';
+      c = c.charAt(0).toUpperCase() + c.slice(1);
+      const t = +(x.s + (x.e - x.s) * (pos / text.length)).toFixed(2); // 글자 비율로 시간 나누기 (⏱로 미세 조정)
+      S.splice(i, 1, { s: x.s, e: t, en: a, ko: '' }, { s: t, e: x.e, en: c, ko: '' });
+      lastCaret = { row: -1, pos: -1 };
+      renderSentences();
+      if (x.ko) translateAll([S[i], S[i + 1]]).then(renderSentences);
       return;
     }
     if (b.dataset.sact === 'merge' && S[i + 1]) {
