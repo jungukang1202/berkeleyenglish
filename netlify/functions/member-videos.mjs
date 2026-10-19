@@ -15,12 +15,11 @@ export default async (req) => {
   if (id) {
     const lesson = await getLesson(id);
     if (!canSee(lesson)) return jsonResponse({ error: member ? 'lesson_not_found' : 'login_required' }, member ? 404 : 401);
+    const { sentences, title, duration, mime, partMinutes, description, level, youtubeId, clipStart, clipEnd } = lesson;
+    const out = { id, title, duration, mime, partMinutes, description, level, sentences, youtubeId: youtubeId || null, clipStart: clipStart || 0, clipEnd: clipEnd || 0 };
+    if (youtubeId) return jsonResponse({ lesson: out, streamUrl: null });
     const t = signToken({ role: 'video', vid: id }, STREAM_TTL);
-    const { sentences, title, duration, mime, partMinutes, description, level } = lesson;
-    return jsonResponse({
-      lesson: { id, title, duration, mime, partMinutes, description, level, sentences },
-      streamUrl: `/api/video-stream?id=${id}&t=${encodeURIComponent(t)}`,
-    });
+    return jsonResponse({ lesson: out, streamUrl: `/api/video-stream?id=${id}&t=${encodeURIComponent(t)}` });
   }
 
   const lessons = (await listLessons()).filter(canSee).map(summary);

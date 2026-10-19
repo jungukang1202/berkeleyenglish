@@ -124,15 +124,20 @@
       }
     }
     all.sort((a, b) => a.s - b.s);
-    // 문장 나누기: 문장부호 > 긴 쉼 > 너무 길면 쉼표에서
+    return wordsToSentences(all, duration, true);
+  }
+
+  // 단어 목록 → 문장. punctuated=false(YouTube 자동 자막처럼 문장부호가 없음)면 말이 쉬는 곳에서 나눕니다.
+  function wordsToSentences(all, duration, punctuated) {
     const groups = []; let cur = [];
     all.forEach((w, i) => {
       cur.push(w);
       const nx = all[i + 1];
       const gap = nx ? nx.s - w.e : 99;
       const n = cur.length;
-      const cut = !nx || endsSentence(w.w) || gap > 1.8
-        || (n >= 20 && (/[,;:]$/.test(w.w) || gap > 0.35)) || n >= 32;
+      const cut = punctuated
+        ? (!nx || endsSentence(w.w) || gap > 1.8 || (n >= 20 && (/[,;:]$/.test(w.w) || gap > 0.35)) || n >= 32)
+        : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
     // 한두 단어짜리 조각("Okay.", "So,")은 붙어 있는 문장에 합치기
@@ -149,9 +154,42 @@
       if (nx) e = Math.min(e, nx[0].s + 0.05);
       e = Math.min(e, duration || e);
       let en = g.map(w => w.w).join(' ').replace(/\s+([,.?!;:])/g, '$1').trim();
+      en = en.replace(/\bi\b/g, 'I').replace(/\bi'(m|ll|ve|d)\b/g, "I'$1");
       en = en.charAt(0).toUpperCase() + en.slice(1);
+      if (!punctuated && /[A-Za-z0-9]$/.test(en)) en += '.';
       return { s: +s.toFixed(2), e: +Math.max(e, s + 0.4).toFixed(2), en, ko: '' };
     });
+  }
+
+  // YouTube "스크립트 표시"에서 복사한 글 → 단어별 시간
+  //   0:00            또는   0:00 hi everyone welcome back
+  //   hi everyone welcome back
+  function parsePastedTranscript(text) {
+    const lines = String(text || '').replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+    const TS = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:\.\d+)?$/;
+    const toSec = m => (Number(m[1] || 0) * 3600) + Number(m[2]) * 60 + Number(m[3]);
+    const cues = [];
+    for (const line of lines) {
+      const m1 = line.match(TS);
+      if (m1) { cues.push({ s: toSec(m1), text: '' }); continue; }
+      const m2 = line.match(/^((?:\d{1,2}:)?\d{1,2}:\d{2})\s+(.+)$/);
+      if (m2) { cues.push({ s: toSec(m2[1].match(TS)), text: m2[2] }); continue; }
+      if (cues.length) cues[cues.length - 1].text += ' ' + line;
+    }
+    const words = [];
+    cues.forEach((c, i) => {
+      const t = c.text.replace(/\[[^\]]*\]/g, ' ').replace(/[♪♫]+/g, ' ').replace(/>>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!t) return;
+      const natural = c.s + 1 + t.split(' ').length * 0.45; // 한 줄을 말하는 데 걸릴 만한 시간
+      const end = Math.min(cues[i + 1] ? cues[i + 1].s : natural, natural);
+      const ws = t.split(' ');
+      const total = ws.reduce((a, w) => a + w.length + 1, 0);
+      let tt = c.s;
+      ws.forEach(w => { const d = Math.max(0.05, (end - c.s) * (w.length + 1) / total); words.push({ w, s: tt, e: tt + d * 0.9 }); tt += d; });
+      words[words.length - 1].brk = true; // 자막 한 줄의 끝 → 문장 나눌 후보
+    });
+    const punctuated = words.length ? words.filter(w => /[.?!]$/.test(w.w)).length / words.length > 0.02 : false;
+    return { words, punctuated, cues: cues.length };
   }
 
   function planParts(duration, sents, minutes) {
@@ -170,6 +208,16 @@
     }
     cuts.push(duration);
     return cuts;
+  }
+
+  // "1:23", "01:02:03", "83" → 초
+  function parseTime(str) {
+    const t = String(str || '').trim();
+    if (!t) return 0;
+    if (/^\d+(\.\d+)?$/.test(t)) return Number(t);
+    const p = t.split(':').map(Number);
+    if (p.some(x => !Number.isFinite(x))) return NaN;
+    return p.reduce((a, x) => a * 60 + x, 0);
   }
 
   function fmt(t) {
@@ -196,5 +244,5 @@
     return '';
   }
 
-  root.VideoTranscript = { SR, extractAudio, splitAudio, encodeWav, buildSentences, planParts, fmt, translate };
+  root.VideoTranscript = { SR, extractAudio, splitAudio, encodeWav, buildSentences, wordsToSentences, parsePastedTranscript, planParts, fmt, parseTime, translate };
 })(window);

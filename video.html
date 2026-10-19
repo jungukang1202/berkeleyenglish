@@ -68,6 +68,11 @@
   body.audio-only .vbox{background:linear-gradient(135deg,#1B2A4E,#2D4170); padding:18px; text-align:center; color:#E8CE73; font-weight:800;}
   .audio-note{display:none;}
   body.audio-only .audio-note{display:block;}
+  .yt-frame{position:relative; width:100%; aspect-ratio:16/9; max-height:48vh; background:#000; margin:0 auto;}
+  .yt-frame iframe{position:absolute; inset:0; width:100%; height:100%;}
+  /* YouTube는 플레이어를 숨기면 안 돼서, 소리만 모드에서는 작게 줄여서 보여줍니다 */
+  body.audio-only .vbox.yt{padding:12px;}
+  body.audio-only .vbox.yt .yt-frame{width:260px; max-width:100%; aspect-ratio:auto; height:200px; border-radius:10px; overflow:hidden;}
   .now{padding:14px 18px 16px;}
   .now .meta{display:flex; justify-content:space-between; color:var(--muted); font-size:0.8rem; margin-bottom:4px;}
   .now .en{font-family:Georgia,"Times New Roman",serif; font-size:1.45rem; line-height:1.4; color:var(--text); min-height:1.4em;}
@@ -224,6 +229,7 @@
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
 
+<script src="js/yt-media.js?v=20261019b"></script>
 <script>
 (function () {
 const $ = s => document.querySelector(s);
@@ -266,14 +272,14 @@ async function showLibrary() {
         <h3>${esc(v.title)}</h3>
         ${v.description ? `<div class="desc">${esc(v.description)}</div>` : ''}
         <div class="prog"><i style="width:${pct}%"></i></div>
-        <div class="meta"><span>⏱ ${fmt(v.duration)}</span><span>💬 ${v.sentenceCount}문장</span><span>${pct ? '✓ ' + pct + '% 연습함' : '새 영상'}</span>${v.visibility === 'public' ? '' : '<span class="tag">회원</span>'}</div>
+        <div class="meta"><span>⏱ ${fmt((v.clipEnd || v.duration) - (v.clipStart || 0))}</span>${v.youtubeId ? '<span>▶ YouTube</span>' : ''}<span>💬 ${v.sentenceCount}문장</span><span>${pct ? '✓ ' + pct + '% 연습함' : '새 영상'}</span>${v.visibility === 'public' ? '' : '<span class="tag">회원</span>'}</div>
       </a>`;
     }).join('');
   } catch (e) { $('#lib').innerHTML = `<div class="empty">⚠️ 목록을 불러오지 못했어요 (${esc(e.message)})</div>`; }
 }
 
 /* ===================== 연습 ===================== */
-const v = $('#v');
+let v = $('#v');
 let D = null, KEY = '';
 let S = {};
 let done = new Set();
@@ -298,7 +304,23 @@ async function showPlayer(id) {
   S = Object.assign({ mode: 'shadow', reps: 2, rate: 1, wait: 1.5, text: 'show', ko: true, rec: false, grade: false, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
   if (D.mime && D.mime.startsWith('audio')) { S.view = 'audio'; $('#viewMode').parentElement.style.display = 'none'; }
   done = new Set(LS.get(KEY + 'done', []));
-  v.src = d.streamUrl;
+  if (D.youtubeId) {
+    const box = document.querySelector('.vbox');
+    box.classList.add('yt');
+    box.querySelector('video').remove();
+    const frame = document.createElement('div'); frame.className = 'yt-frame';
+    box.insertBefore(frame, box.firstChild);
+    $('#viewMode').querySelector('[data-v=audio]').textContent = '📝 자막 집중(작은 화면)';
+    box.querySelector('.audio-note').textContent = '📝 자막 집중 모드 — 화면은 작게, 문장에 집중해 보세요';
+    // YouTube가 지원하는 속도만
+    $('#rate').innerHTML = '<option>0.5</option><option>0.75</option><option>1</option><option>1.25</option>';
+    S.rate = [0.5, 0.75, 1, 1.25].reduce((a, b) => (Math.abs(b - S.rate) < Math.abs(a - S.rate) ? b : a), 1);
+    try { v = await YTMedia.create(frame, D.youtubeId, { start: D.clipStart || 0 }); }
+    catch (e) { frame.innerHTML = `<div class="empty" style="color:#fff;">⚠️ ${esc(e.message)}</div>`; return; }
+  } else {
+    v.src = d.streamUrl;
+  }
+  bindMedia(v);
   buildParts();
   initControls();
   const startPart = Math.min(S.part || 0, parts.length - 1);
@@ -309,11 +331,12 @@ const saveS = () => { const { part, ...rest } = S; LS.set('vs:settings', rest); 
 function buildParts() {
   const sents = D.sentences.map((s, i) => Object.assign({ i }, s));
   D.sentences = sents;
-  const dur = D.duration || (sents.length ? sents[sents.length - 1].e : 0);
+  const clipS = D.clipStart || 0;
+  const dur = D.clipEnd || D.duration || (sents.length ? sents[sents.length - 1].e : 0);
   const L = (D.partMinutes || 0) * 60;
-  const cuts = [0];
+  const cuts = [clipS];
   if (L > 0) {
-    let pos = 0;
+    let pos = clipS;
     const gaps = sents.slice(1).map((s, k) => Math.min((sents[k].e + s.s) / 2, s.s));
     for (;;) {
       const target = pos + L; if (target >= dur - L * 0.25) break;
@@ -329,8 +352,8 @@ function buildParts() {
     const items = sents.filter(s => s.s >= cuts[k] && s.s < cuts[k + 1]);
     if (items.length) parts.push({ n: k + 1, start: cuts[k], end: cuts[k + 1], items });
   }
-  if (parts.length > 1) parts.unshift({ n: 0, start: 0, end: dur, items: sents, full: true });
-  if (!parts.length) parts = [{ n: 1, start: 0, end: dur, items: sents }];
+  if (parts.length > 1) parts.unshift({ n: 0, start: clipS, end: dur, items: sents, full: true });
+  if (!parts.length) parts = [{ n: 1, start: clipS, end: dur, items: sents }];
   $('#part').innerHTML = parts.map((p, i) => {
     const doneN = p.items.filter(s => done.has(s.i)).length;
     return `<option value="${i}">${p.full ? '전체' : 'Part ' + p.n} · ${fmt(p.start)}–${fmt(p.end)} (${p.items.length}문장${doneN ? ', ✓' + doneN : ''})</option>`;
@@ -399,7 +422,7 @@ function playSentence(k, cb) {
   v.playbackRate = S.rate;
   v.currentTime = s.s;
   stopAt = s.e; onReach = cb || null;
-  const p = v.play(); if (p) p.catch(() => toast('▶ 버튼을 한 번 더 눌러주세요 (브라우저 자동재생 제한)'));
+  const p = v.play(); if (p) p.catch(() => toast(v.isYouTube ? '영상 화면을 한 번 눌러 재생한 뒤, 다시 ▶ 연습 시작을 눌러주세요' : '▶ 버튼을 한 번 더 눌러주세요 (브라우저 자동재생 제한)'));
 }
 function reached() { const cb = onReach; stopAt = null; onReach = null; v.pause(); if (cb) cb(); }
 function loop() {
@@ -415,11 +438,13 @@ function loop() {
   }
   requestAnimationFrame(loop);
 }
-v.addEventListener('ended', () => { if (stopAt != null) reached(); else if (running) stop('끝까지 들었어요 👏'); });
 let pillBeforeWait = null;
+function bindMedia(v) {
+v.addEventListener('ended', () => { if (stopAt != null) reached(); else if (running) stop('끝까지 들었어요 👏'); });
 v.addEventListener('waiting', () => { if (running || stopAt != null) { const p = $('#pill'); pillBeforeWait = [p.textContent, p.className.replace('pill', '').trim()]; setPill('불러오는 중…'); } });
 v.addEventListener('playing', () => { if (pillBeforeWait && $('#pill').textContent === '불러오는 중…') setPill(...pillBeforeWait); pillBeforeWait = null; });
 v.addEventListener('error', () => toast('영상을 불러오지 못했어요. 새로고침해 주세요.'));
+}
 
 function updateRep() { $('#repTxt').textContent = running && S.mode !== 'listen' ? `${rep + 1}/${S.reps}회` : ''; }
 function start() {

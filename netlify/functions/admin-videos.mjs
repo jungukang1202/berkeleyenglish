@@ -4,9 +4,10 @@
 // POST /api/admin-videos  { action:'create', title, mime, size, duration }   → { lesson }  (업로드 시작)
 // PUT  /api/admin-videos?id=xxx&n=3   (본문: 영상 조각 바이너리)                → { ok }
 // POST /api/admin-videos  { action:'update', id, title?, sentences?, visibility?, partMinutes?, status? }
+// POST /api/admin-videos  { action:'create_youtube', youtubeId, title, duration, sentences, clipStart, clipEnd, ... }  (YouTube 링크형)
 // POST /api/admin-videos  { action:'delete', id }
 import { requireAuth, jsonResponse, signToken } from './_lib/auth.mjs';
-import { listLessons, getLesson, createLesson, putChunk, updateLesson, deleteLesson, summary } from './_lib/videos.mjs';
+import { listLessons, getLesson, createLesson, createYoutubeLesson, putChunk, updateLesson, deleteLesson, summary } from './_lib/videos.mjs';
 
 const STREAM_TTL = 60 * 60 * 12;
 
@@ -21,6 +22,7 @@ export default async (req) => {
       if (id) {
         const lesson = await getLesson(id);
         if (!lesson) return jsonResponse({ error: 'lesson_not_found' }, 404);
+        if (lesson.youtubeId) return jsonResponse({ lesson, streamUrl: null });
         const t = signToken({ role: 'video', vid: id }, STREAM_TTL);
         return jsonResponse({ lesson, streamUrl: `/api/video-stream?id=${id}&t=${encodeURIComponent(t)}` });
       }
@@ -42,6 +44,10 @@ export default async (req) => {
       const action = body && body.action;
       if (action === 'create') {
         const lesson = await createLesson(body);
+        return jsonResponse({ lesson });
+      }
+      if (action === 'create_youtube') {
+        const lesson = await createYoutubeLesson(body);
         return jsonResponse({ lesson });
       }
       if (!body.id) return jsonResponse({ error: 'id_required' }, 400);

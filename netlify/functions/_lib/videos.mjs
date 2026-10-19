@@ -35,9 +35,30 @@ export function summary(v) {
     id: v.id, title: v.title, status: v.status, visibility: v.visibility,
     duration: v.duration || 0, size: v.size || 0, mime: v.mime,
     sentenceCount: Array.isArray(v.sentences) ? v.sentences.length : 0,
-    partMinutes: v.partMinutes || 1, createdAt: v.createdAt, updatedAt: v.updatedAt || null,
+    partMinutes: v.partMinutes ?? 1, createdAt: v.createdAt, updatedAt: v.updatedAt || null,
     level: v.level || '', description: v.description || '',
+    youtubeId: v.youtubeId || null, clipStart: v.clipStart || 0, clipEnd: v.clipEnd || 0,
   };
+}
+
+// YouTube 링크형 레슨: 영상 파일은 저장하지 않고 YouTube 플레이어로 재생합니다.
+export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track }) {
+  if (!/^[\w-]{11}$/.test(String(youtubeId || ''))) throw new Error('bad_youtube_id');
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const rec = {
+    id, youtubeId, title: clip(title, 120).trim() || `${now.slice(0, 10)} YouTube`,
+    status: 'ready', visibility: VISIBILITY.includes(visibility) ? visibility : 'members',
+    mime: 'video/youtube', size: 0, chunks: 0, duration: Math.max(0, num(duration)),
+    clipStart: Math.max(0, num(clipStart)), clipEnd: Math.max(0, num(clipEnd)),
+    partMinutes: Math.max(0, Math.min(30, num(partMinutes, 1))), sentences: cleanSentences(sentences),
+    description: clip(description, 500).trim(), level: '',
+    captionTrack: track && typeof track === 'object' ? { lang: clip(track.lang, 20), kind: clip(track.kind, 20) } : null,
+    createdAt: now,
+  };
+  if (!rec.sentences.length) throw new Error('no_sentences');
+  await lessonsStore().setJSON(id, rec);
+  return rec;
 }
 
 export async function listLessons() {
@@ -92,6 +113,8 @@ export async function updateLesson(id, patch) {
   if (patch.visibility != null && VISIBILITY.includes(patch.visibility)) rec.visibility = patch.visibility;
   if (patch.partMinutes != null) rec.partMinutes = Math.max(0, Math.min(30, num(patch.partMinutes, 1)));
   if (patch.duration != null && num(patch.duration) > 0) rec.duration = num(patch.duration);
+  if (patch.clipStart != null) rec.clipStart = Math.max(0, num(patch.clipStart));
+  if (patch.clipEnd != null) rec.clipEnd = Math.max(0, num(patch.clipEnd));
   if (patch.sentences != null) rec.sentences = cleanSentences(patch.sentences);
   if (patch.status === 'ready') {
     // 모든 조각이 올라왔는지 확인한 뒤에만 '준비됨'으로 바꿉니다.
