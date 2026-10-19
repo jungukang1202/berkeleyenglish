@@ -583,7 +583,14 @@ async function showPlayer(id) {
   if (D.watchOnly) { $('#lessonTitle').textContent = D.title; return showWatch(D, d.streamUrl); }
   document.title = D.title + ' | 영상 쉐도잉';
   $('#lessonTitle').textContent = D.title;
-  S = Object.assign({ mode: 'shadow', reps: 2, rate: 1, wait: 1.5, text: 'show', ko: true, rec: false, grade: false, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
+  // 체크 상자(번역 · 신호음 · 녹음·재생 · 일치도 채점)는 모두 켠 상태가 기본
+  // 예전에 저장된 설정도 한 번은 모두 켜 주고, 그 뒤로는 학생이 바꾼 대로 기억해요
+  if (LS.get('vs:defaultsV', 0) < 2) {
+    const old = LS.get('vs:settings', null);
+    if (old) LS.set('vs:settings', Object.assign(old, { ko: true, cue: true, rec: true, grade: true }));
+    LS.set('vs:defaultsV', 2);
+  }
+  S = Object.assign({ mode: 'shadow', reps: 2, rate: 1, wait: 1.5, text: 'show', ko: true, rec: true, grade: true, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
   if (D.mime && D.mime.startsWith('audio')) { S.view = 'audio'; $('#viewMode').parentElement.style.display = 'none'; }
   done = new Set(LS.get(KEY + 'done', []));
   bm = LS.get(KEY + 'last', null);
