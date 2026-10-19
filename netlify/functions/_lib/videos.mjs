@@ -10,7 +10,8 @@ export const CHUNK_SIZE = 3.5 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024; // 1GB
 const VISIBILITY = ['draft', 'members', 'public'];
 // 레벨: 관리자가 영상마다 정하고, 학생은 자기 레벨만 골라 봅니다. ('' = 레벨 미지정)
-export const LEVELS = ['1-2', '3-4', '5-6', '7-9'];
+// 'kids' = 유아 레벨: 쉐도잉 없이 영상만 보여줘요 (watchOnly)
+export const LEVELS = ['kids', '1-2', '3-4', '5-6', '7-9'];
 const cleanLevel = x => (LEVELS.includes(String(x)) ? String(x) : '');
 
 export function lessonsStore() { return getStore({ name: 'video-lessons', consistency: 'strong' }); }
@@ -41,12 +42,13 @@ export function summary(v) {
     partMinutes: v.partMinutes ?? 1, createdAt: v.createdAt, updatedAt: v.updatedAt || null,
     level: v.level || '', description: v.description || '',
     youtubeId: v.youtubeId || null, clipStart: v.clipStart || 0, clipEnd: v.clipEnd || 0,
+    watchOnly: !!v.watchOnly, // 유아용: 문장·쉐도잉 없이 영상만
     caption: (v.captionTrack && v.captionTrack.kind) || '', // human(사람이 만든 자막) · auto(자동 자막) · ai(AI 받아쓰기)
   };
 }
 
 // YouTube 링크형 레슨: 영상 파일은 저장하지 않고 YouTube 플레이어로 재생합니다.
-export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track, level }) {
+export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track, level, watchOnly }) {
   if (!/^[\w-]{11}$/.test(String(youtubeId || ''))) throw new Error('bad_youtube_id');
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -58,9 +60,10 @@ export async function createYoutubeLesson({ youtubeId, title, duration, sentence
     partMinutes: Math.max(0, Math.min(30, num(partMinutes, 1))), sentences: cleanSentences(sentences),
     description: clip(description, 500).trim(), level: cleanLevel(level),
     captionTrack: track && typeof track === 'object' ? { lang: clip(track.lang, 20), kind: clip(track.kind, 20) } : null,
-    createdAt: now,
+    watchOnly: !!watchOnly, createdAt: now,
   };
-  if (!rec.sentences.length) throw new Error('no_sentences');
+  if (rec.watchOnly) { rec.sentences = []; rec.partMinutes = 0; rec.captionTrack = null; }
+  else if (!rec.sentences.length) throw new Error('no_sentences');
   await lessonsStore().setJSON(id, rec);
   return rec;
 }
@@ -120,7 +123,8 @@ export async function updateLesson(id, patch) {
   if (patch.clipStart != null) rec.clipStart = Math.max(0, num(patch.clipStart));
   if (patch.clipEnd != null) rec.clipEnd = Math.max(0, num(patch.clipEnd));
   if (patch.track && typeof patch.track === 'object') rec.captionTrack = { lang: clip(patch.track.lang, 20), kind: clip(patch.track.kind, 20) };
-  if (patch.sentences != null) rec.sentences = cleanSentences(patch.sentences);
+  if (patch.watchOnly != null) rec.watchOnly = !!patch.watchOnly;
+  if (patch.sentences != null) rec.sentences = rec.watchOnly ? [] : cleanSentences(patch.sentences);
   if (patch.status === 'ready') {
     // 모든 조각이 올라왔는지 확인한 뒤에만 '준비됨'으로 바꿉니다.
     const { blobs } = await chunksStore().list({ prefix: `${id}/` });

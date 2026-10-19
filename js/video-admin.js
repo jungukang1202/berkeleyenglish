@@ -88,15 +88,17 @@
     box.innerHTML = lessons.map(v => `
       <div class="set-item set-stack">
         <div>
-          <div class="title">${v.level ? `<span class="lv-badge">Lv ${esc(v.level)}</span>` : '<span class="lv-badge none">레벨 없음</span>'}${v.youtubeId ? '🔗 ' : '📁 '}${esc(v.title)}</div>
+          <div class="title">${v.level === 'kids' ? '<span class="lv-badge kids">👶 유아</span>' : v.level ? `<span class="lv-badge">Lv ${esc(v.level)}</span>` : '<span class="lv-badge none">레벨 없음</span>'}${v.youtubeId ? '🔗 ' : '📁 '}${esc(v.title)}</div>
+          ${v.watchOnly ? `<div class="meta">📺 영상만 보기 (쉐도잉 없음)${v.clipStart || v.clipEnd ? ` · 구간 ${VT.fmt(v.clipStart)}~${v.clipEnd ? VT.fmt(v.clipEnd) : '끝'}` : ''} · ${v.youtubeId ? 'YouTube' : fmtSize(v.size)} ·
+            ${v.status === 'ready' ? VIS_LABEL[v.visibility] : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'} · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>` : `
           <div class="meta">${VT.fmt(lessonLen(v))}${v.clipStart || v.clipEnd ? ` (${VT.fmt(v.clipStart)}~${VT.fmt(v.clipEnd || v.duration)})` : ''} · 문장 ${v.sentenceCount}개 ·
             ${v.youtubeId ? 'YouTube' + (CAPTION_INFO[v.caption] ? ` (${CAPTION_INFO[v.caption].tag})` : '') : fmtSize(v.size)} · ${v.partMinutes ? v.partMinutes + '분 단위' : '나누지 않음'} ·
             ${v.status === 'ready' ? VIS_LABEL[v.visibility] : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'}
-            · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>
+            · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>`}
         </div>
         <div class="set-btns">
-          ${v.status === 'ready' ? `<button class="btn-ghost btn-small" data-vact="edit" data-id="${v.id}">✏️ 문장 편집</button>
-          <a class="btn-ghost btn-small" style="text-decoration:none; border-radius:10px; font-weight:700;" href="video.html?id=${v.id}&admin=1" target="_blank" rel="noopener">▶ 연습 화면</a>` : ''}
+          ${v.status === 'ready' ? `<button class="btn-ghost btn-small" data-vact="edit" data-id="${v.id}">${v.watchOnly ? '✏️ 정보 수정' : '✏️ 문장 편집'}</button>
+          <a class="btn-ghost btn-small" style="text-decoration:none; border-radius:10px; font-weight:700;" href="video.html?id=${v.id}&admin=1" target="_blank" rel="noopener">${v.watchOnly ? '▶ 보기 화면' : '▶ 연습 화면'}</a>` : ''}
           <button class="btn-danger btn-small" data-vact="del" data-id="${v.id}">삭제</button>
         </div>
       </div>`).join('');
@@ -217,6 +219,44 @@
 
   $('vidStartBtn').addEventListener('click', () => { if (!busy) (src === 'youtube' ? startYoutube() : startFile()); });
 
+  /* 👶 유아 레벨: 쉐도잉 없이 영상만 올리기 */
+  const isKids = () => $('vidLevel').value === 'kids';
+  function syncKidsUI() {
+    const k = isKids();
+    $('vidKidsNote').classList.toggle('hidden', !k);
+    $('vidParts').closest('.field').classList.toggle('hidden', k);
+    $('vidTranslateRow').classList.toggle('hidden', k);
+    if (k) $('ytPasteBox').classList.add('hidden');
+    $('vidStartBtn').textContent = k ? '📺 유아 영상 올리기' : '🚀 쉐도잉 자동으로 만들기';
+  }
+  $('vidLevel').addEventListener('change', syncKidsUI);
+  syncKidsUI();
+
+  async function startYoutubeKids(videoId, clipStart, clipEndIn) {
+    startBusy(false, '② 영상 확인 · 저장');
+    try {
+      setStatus('YouTube 영상을 확인하는 중…');
+      setBar('vidTr', 0.3, '영상 정보 확인 중…');
+      const r = await fetch(VAPI.youtube, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId, infoOnly: true }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) { clearToken(); showLogin(); throw new Error('세션이 만료됐어요. 다시 로그인해주세요.'); }
+      if (!r.ok) throw new Error(d.message || d.error || ('HTTP ' + r.status));
+      await checkpoint();
+      setBar('vidTr', 0.8, '저장 중…');
+      const lesson = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
+        action: 'create_youtube', youtubeId: videoId, title: $('vidTitle').value.trim() || d.title, duration: 0,
+        clipStart, clipEnd: clipEndIn || 0, watchOnly: true, visibility: $('vidVisibility').value, level: 'kids',
+      }) })).lesson;
+      setBar('vidTr', 1, '완료');
+      setStatus(`✅ 완료! 👶 유아 영상 "${lesson.title}"을(를) 올렸어요. 회원 화면의 「유아」 탭에서 볼 수 있어요.`, 'success');
+      $('ytUrl').value = ''; $('ytStart').value = ''; $('ytEnd').value = ''; $('vidTitle').value = '';
+      await loadLessons();
+    } catch (e) {
+      if (isCancelled(e)) setStatus('⏹ 중지했어요. 아무것도 저장되지 않았어요.', '');
+      else setStatus('⚠️ ' + e.message, 'error');
+    } finally { endBusy(); }
+  }
+
   /* ================= 🔗 YouTube 링크 ================= */
   function parseYoutubeId(s) {
     s = String(s || '').trim();
@@ -267,6 +307,7 @@
     const clipStart = VT.parseTime($('ytStart').value), clipEndIn = VT.parseTime($('ytEnd').value);
     if (Number.isNaN(clipStart) || Number.isNaN(clipEndIn)) { setStatus('⚠️ 시작/끝 시간은 1:30 처럼 입력해주세요.', 'error'); return; }
     if (clipEndIn && clipEndIn <= clipStart) { setStatus('⚠️ 끝 시간이 시작 시간보다 뒤여야 해요.', 'error'); return; }
+    if (isKids()) return startYoutubeKids(videoId, clipStart, clipEndIn);
     const pasted = $('ytPaste').value.trim();
     startBusy(false, '② 자막 가져오기 · 문장 정리');
     try {
@@ -404,7 +445,8 @@
     if (/quicktime|x-matroska|avi/.test(file.type)) {
       if (!confirm('MOV/MKV/AVI 파일은 일부 브라우저(특히 Chrome·Windows)에서 재생되지 않을 수 있어요.\nMP4(H.264)로 변환해서 올리는 걸 권장해요. 그래도 올릴까요?')) return;
     }
-    startBusy(true, '② 대사 받아쓰기 · 문장 정리');
+    const kids = isKids();
+    startBusy(true, kids ? '② 저장' : '② 대사 받아쓰기 · 문장 정리');
     const localUrl = URL.createObjectURL(file);
     const title = $('vidTitle').value.trim() || file.name.replace(/\.[^.]+$/, '');
     let lesson = null;
@@ -414,8 +456,21 @@
       lesson = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'create', title, mime: file.type || 'video/mp4', size: file.size, duration,
       }) })).lesson;
-      setStatus('업로드와 받아쓰기를 함께 진행해요. 이 창을 닫지 마세요.');
+      setStatus(kids ? '👶 유아 영상을 올리는 중이에요. 이 창을 닫지 마세요.' : '업로드와 받아쓰기를 함께 진행해요. 이 창을 닫지 마세요.');
       const up = uploadChunks(file, lesson.id, (f, l) => setBar('vidUp', f, l));
+      if (kids) {
+        setBar('vidTr', 0, '업로드가 끝나면 저장해요');
+        await up; await checkpoint();
+        await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
+          action: 'update', id: lesson.id, watchOnly: true, sentences: [], partMinutes: 0, status: 'ready',
+          visibility: $('vidVisibility').value, level: 'kids',
+        }) });
+        setBar('vidTr', 1, '완료');
+        setStatus(`✅ 완료! 👶 유아 영상 "${title}"을(를) 올렸어요. 회원 화면의 「유아」 탭에서 볼 수 있어요.`, 'success');
+        $('vidFile').value = ''; $('vidTitle').value = '';
+        await loadLessons();
+        return;
+      }
       const tr = (async () => {
         const r = await transcribe(file, duration, (f, l) => setBar('vidTr', f * 0.9, l));
         if ($('vidTranslate').checked) {
@@ -472,8 +527,11 @@
       description: l.description || '', level: l.level || '', duration: l.duration || 0, youtubeId: l.youtubeId || null,
       clipStart: l.clipStart || 0, clipEnd: l.clipEnd || 0,
       caption: (l.captionTrack && l.captionTrack.kind) || l.caption || '', captionChanged: false,
-      sentences: (l.sentences || []).map(s => Object.assign({}, s)),
+      sentences: (l.sentences || []).map(s => Object.assign({}, s)), watchOnly: !!l.watchOnly,
     };
+    const wo = editing.watchOnly;
+    [$('vedParts').closest('.field'), $('vedCount').closest('.row'), $('vedList')].forEach(el => el.classList.toggle('hidden', wo));
+    $('vedLevel').disabled = wo;
     $('vidEditor').classList.remove('hidden');
     $('vedTitle').value = editing.title;
     $('vedVisibility').value = editing.visibility;
@@ -484,7 +542,8 @@
     showCaptionInfo();
     $('vedPasteBtn').classList.toggle('hidden', !editing.youtubeId);
     $('vedPasteBox').classList.add('hidden'); $('vedPaste').value = '';
-    $('vedClip').textContent = editing.youtubeId
+    $('vedClip').textContent = wo ? `👶 유아 영상 — 쉐도잉 없이 영상만 보여줘요. 제목·설명·공개 범위만 바꿀 수 있어요.`
+      : editing.youtubeId
       ? `🔗 YouTube 영상 · 사용 구간 ${VT.fmt(editing.clipStart)} ~ ${VT.fmt(editing.clipEnd || editing.duration)}`
       : '';
     setupPreview(l);
@@ -664,7 +723,7 @@
   });
   function showCaptionInfo() {
     const box = $('vedCaption');
-    const info = editing && editing.youtubeId && CAPTION_INFO[editing.caption];
+    const info = editing && editing.youtubeId && !editing.watchOnly && CAPTION_INFO[editing.caption];
     box.classList.toggle('hidden', !info);
     if (!info) return;
     box.className = 'ved-caption ' + editing.caption;

@@ -60,6 +60,20 @@
   .lv-tabs button.on{background:var(--accent2); border-color:var(--accent2); color:#fff;}
   .lv-tabs button.on small{color:#E8CE73;}
   .tag.lv{background:#1B2A4E; color:#fff;}
+  .tag.kids{background:#F2A93B; color:#3A2400;}
+  /* 👶 유아: 영상만 보기 */
+  .lv-tabs button.kids-tab{border-color:#F2C77A; background:#FFF6E5;}
+  .lv-tabs button.kids-tab.on{background:#F2A93B; border-color:#F2A93B; color:#3A2400;}
+  .lv-tabs button.kids-tab.on small{color:#5B3B00;}
+  .lesson.kids{padding:0; overflow:hidden; border-top-color:#F2A93B;}
+  .lesson.kids .thumb{position:relative; aspect-ratio:16/9; background:#2B2B2B center/cover no-repeat; display:flex; align-items:center; justify-content:center;}
+  .lesson.kids .thumb b{width:58px; height:58px; border-radius:50%; background:rgba(242,169,59,0.95); color:#3A2400; font-size:1.5rem; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.25);}
+  .lesson.kids .body{padding:14px 16px 16px; display:flex; flex-direction:column; gap:6px;}
+  .watch{max-width:980px; margin:0 auto;}
+  .watch .frame{position:relative; aspect-ratio:16/9; background:#000; border-radius:var(--radius); overflow:hidden; box-shadow:0 12px 30px rgba(27,42,78,0.15);}
+  .watch .frame iframe, .watch .frame video{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000;}
+  .watch .desc{margin:12px 2px 0; color:var(--muted); font-size:0.92rem;}
+  .watch h3{margin:22px 2px 10px; font-size:1rem; color:var(--text);}
 
   /* 연습 화면 */
   .layout{display:grid; gap:16px; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);}
@@ -164,11 +178,12 @@
     <div class="lib-head">
       <div>
         <h2>연습할 영상을 고르세요</h2>
-        <p>문장 단위로 듣고 → 따라 말하고(쉐도잉) → 멈춘 뒤 메아리처럼 말해요(에코잉).</p>
+        <p id="libSub">문장 단위로 듣고 → 따라 말하고(쉐도잉) → 멈춘 뒤 메아리처럼 말해요(에코잉).</p>
       </div>
     </div>
     <div class="lv-tabs" id="lvTabs">
       <span class="lv-label">내 레벨</span>
+      <button data-lv="kids" class="kids-tab">👶 유아<small>영상 보기</small></button>
       <button data-lv="1-2">Lv 1-2<small>입문</small></button>
       <button data-lv="3-4">Lv 3-4<small>초급</small></button>
       <button data-lv="5-6">Lv 5-6<small>중급</small></button>
@@ -186,7 +201,13 @@
       <h2 id="lessonTitle"></h2>
       <select class="sel" id="part" aria-label="파트 선택"></select>
     </div>
-    <div class="layout">
+    <div class="watch hidden" id="watchView">
+      <div class="frame" id="watchFrame"></div>
+      <div class="desc" id="watchDesc"></div>
+      <h3 id="moreHead" class="hidden">👶 다른 유아 영상</h3>
+      <div class="grid" id="moreKids"></div>
+    </div>
+    <div class="layout" id="practiceLayout">
       <div class="left">
         <div class="card">
           <div class="vbox">
@@ -323,11 +344,13 @@ async function showLibrary() {
       b.classList.toggle('on', b.dataset.lv === myLv);
       b.onclick = () => { LS.set('vs:level', b.dataset.lv); showLibrary(); };
     });
+    $('#libSub').textContent = myLv === 'kids' ? '👶 보고 싶은 영상을 누르면 크게 틀어 볼 수 있어요.' : '문장 단위로 듣고 → 따라 말하고(쉐도잉) → 멈춘 뒤 메아리처럼 말해요(에코잉).';
     // 내 레벨을 고르면 그 레벨 영상만 (레벨이 안 정해진 영상은 '전체 보기'에서만)
     const L = myLv === 'all' ? ALL : ALL.filter(v => v.level === myLv);
-    if (!L.length && ALL.length) { $('#lib').innerHTML = `<div class="empty">Lv ${esc(myLv)} 영상이 아직 없어요. 다른 레벨이나 '전체 보기'를 눌러 보세요.</div>`; return; }
+    if (!L.length && ALL.length) { $('#lib').innerHTML = `<div class="empty">${myLv === 'kids' ? '유아' : 'Lv ' + esc(myLv)} 영상이 아직 없어요. 다른 레벨이나 '전체 보기'를 눌러 보세요.</div>`; return; }
     if (!L.length) { $('#lib').innerHTML = `<div class="empty">${d.loggedIn ? '아직 올라온 영상이 없어요.' : '공개된 영상이 없어요. 회원 로그인을 해주세요.'}</div>`; return; }
     $('#lib').innerHTML = L.map(v => {
+      if (v.watchOnly) return kidsCard(v);
       const done = (LS.get('vs:' + v.id + ':done', []) || []).length;
       const pct = v.sentenceCount ? Math.round(done / v.sentenceCount * 100) : 0;
       return `<a class="card lesson" href="video.html?id=${encodeURIComponent(v.id)}">
@@ -338,6 +361,43 @@ async function showLibrary() {
       </a>`;
     }).join('');
   } catch (e) { $('#lib').innerHTML = `<div class="empty">⚠️ 목록을 불러오지 못했어요 (${esc(e.message)})</div>`; }
+}
+
+// 👶 유아 영상 카드: 썸네일을 크게, 누르면 바로 영상 보기
+function kidsCard(v) {
+  const th = v.youtubeId ? `style="background-image:url('https://i.ytimg.com/vi/${encodeURIComponent(v.youtubeId)}/hqdefault.jpg')"` : '';
+  return `<a class="card lesson kids" href="video.html?id=${encodeURIComponent(v.id)}">
+    <div class="thumb" ${th}><b>▶</b></div>
+    <div class="body">
+      <h3>${esc(v.title)}</h3>
+      ${v.description ? `<div class="desc">${esc(v.description)}</div>` : ''}
+      <div class="meta"><span class="tag kids">👶 유아</span><span>📺 영상 보기</span>${v.visibility === 'public' ? '' : '<span class="tag">회원</span>'}</div>
+    </div>
+  </a>`;
+}
+
+// 👶 유아 영상: 쉐도잉 없이 영상만 크게
+async function showWatch(D, streamUrl) {
+  $('#practiceLayout').classList.add('hidden'); $('#part').classList.add('hidden');
+  $('#watchView').classList.remove('hidden');
+  document.title = D.title + ' | 유아 영상';
+  $('#watchDesc').textContent = D.description || '';
+  const box = $('#watchFrame');
+  if (D.youtubeId) {
+    const q = new URLSearchParams({ rel: '0', playsinline: '1', modestbranding: '1', iv_load_policy: '3' });
+    if (D.clipStart) q.set('start', String(Math.floor(D.clipStart)));
+    if (D.clipEnd) q.set('end', String(Math.ceil(D.clipEnd)));
+    box.innerHTML = `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(D.youtubeId)}?${q}" title="${esc(D.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  } else {
+    box.innerHTML = '<video controls playsinline preload="metadata"></video>';
+    box.firstChild.src = streamUrl;
+  }
+  if (ADMIN) return;
+  try {
+    const d = await api('/api/member-videos', MEMBER_TOKEN);
+    const more = (d.lessons || []).filter(v => v.watchOnly && v.id !== D.id).slice(0, 12);
+    if (more.length) { $('#moreHead').classList.remove('hidden'); $('#moreKids').innerHTML = more.map(kidsCard).join(''); }
+  } catch (e) {}
 }
 
 /* ===================== 연습 ===================== */
@@ -361,6 +421,7 @@ async function showPlayer(id) {
     return;
   }
   D = d.lesson; KEY = 'vs:' + D.id + ':'; window.__lessonId = D.id;
+  if (D.watchOnly) { $('#lessonTitle').textContent = D.title; return showWatch(D, d.streamUrl); }
   document.title = D.title + ' | 영상 쉐도잉';
   $('#lessonTitle').textContent = D.title;
   S = Object.assign({ mode: 'shadow', reps: 2, rate: 1, wait: 1.5, text: 'show', ko: true, rec: false, grade: false, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));

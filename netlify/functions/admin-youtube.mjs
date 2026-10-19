@@ -169,6 +169,8 @@ export default async (req) => {
   const oe = await oembed(videoId);
   if (oe) { info.title = oe.title || ''; info.author = oe.author_name || ''; }
   else return jsonResponse({ ...info, error: 'not_found', message: '영상을 찾을 수 없어요. 비공개이거나 삭제된 영상인지, 퍼가기가 허용된 영상인지 확인해주세요.' }, 404);
+  // 유아용(영상만 보기): 자막은 필요 없고 제목만
+  if (body.infoOnly) return jsonResponse(info);
 
   const attempts = [];
   const supaKey = process.env.SUPADATA_API_KEY;
