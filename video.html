@@ -74,6 +74,26 @@
   .watch .frame iframe, .watch .frame video{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000;}
   .watch .desc{margin:12px 2px 0; color:var(--muted); font-size:0.92rem;}
   .watch h3{margin:22px 2px 10px; font-size:1rem; color:var(--text);}
+  .kp-bar{display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:14px;}
+  .kp-bar .nav{width:52px; height:52px; border-radius:50%; border:1px solid #F2C77A; background:#FFF6E5; font-size:1.3rem; cursor:pointer; color:#3A2400;}
+  .kp-bar .nav:active{transform:scale(0.94);}
+  .kp-modes{display:inline-flex; gap:6px; background:#FFF6E5; border:1px solid #F2C77A; border-radius:16px; padding:5px;}
+  .kp-modes button{border:0; background:none; padding:10px 14px; border-radius:12px; cursor:pointer; font-size:0.95rem; font-weight:800; color:#7A5A20;}
+  .kp-modes button.on{background:#F2A93B; color:#3A2400; box-shadow:0 3px 10px rgba(242,169,59,0.35);}
+  .kp-now{text-align:center; margin-top:8px; font-size:0.85rem; color:var(--muted); min-height:1.2em;}
+  .kp-list{display:flex; flex-direction:column; gap:6px;}
+  .kp-item{display:flex; align-items:center; gap:12px; padding:8px; border-radius:12px; border:1px solid var(--border); background:var(--panel); cursor:pointer; text-align:left; font:inherit; color:var(--text);}
+  .kp-item:hover{border-color:#F2C77A;}
+  .kp-item.on{background:#FFF6E5; border-color:#F2A93B;}
+  .kp-item .n{width:22px; text-align:center; font-weight:800; color:var(--muted); font-size:0.85rem;}
+  .kp-item.on .n{color:#E08A00;}
+  .kp-item .th{width:96px; aspect-ratio:16/9; border-radius:8px; background:#2B2B2B center/cover no-repeat; flex:none;}
+  .kp-item .t{font-weight:700; font-size:0.93rem; line-height:1.35;}
+  @media (max-width:640px){
+    .kp-modes{order:-1; flex:1 1 100%; justify-content:center;}
+    .kp-modes button{flex:1; padding:10px 6px; font-size:0.86rem;}
+    .kp-item .th{width:80px;}
+  }
 
   /* 연습 화면 */
   .layout{display:grid; gap:16px; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);}
@@ -203,9 +223,19 @@
     </div>
     <div class="watch hidden" id="watchView">
       <div class="frame" id="watchFrame"></div>
+      <div class="kp-bar">
+        <button class="nav" id="kpPrev" title="이전 곡" aria-label="이전 곡">⏮</button>
+        <div class="kp-modes" id="kpModes" role="group" aria-label="재생 방법">
+          <button data-m="one">🔂 한 곡 반복</button>
+          <button data-m="all">🔁 전체 재생</button>
+          <button data-m="shuffle">🔀 셔플 재생</button>
+        </div>
+        <button class="nav" id="kpNext" title="다음 곡" aria-label="다음 곡">⏭</button>
+      </div>
+      <div class="kp-now" id="kpNow"></div>
       <div class="desc" id="watchDesc"></div>
-      <h3 id="moreHead" class="hidden">👶 다른 유아 영상</h3>
-      <div class="grid" id="moreKids"></div>
+      <h3 id="kpHead" class="hidden"></h3>
+      <div class="kp-list" id="kpList"></div>
     </div>
     <div class="layout" id="practiceLayout">
       <div class="left">
@@ -376,28 +406,137 @@ function kidsCard(v) {
   </a>`;
 }
 
-// 👶 유아 영상: 쉐도잉 없이 영상만 크게
+// 👶 유아 영상: 쉐도잉 없이 영상만 크게 + 재생 목록 (🔂 한 곡 반복 · 🔁 전체 재생 · 🔀 셔플 재생)
+// 다음 곡은 페이지를 다시 열지 않고 같은 플레이어에서 바꿔 틀어요(휴대폰에서도 자동으로 이어서 재생되도록).
+const KP = { list: [], idx: 0, mode: 'all', media: null, kind: '', clipEnd: 0, token: 0, guardUntil: 0, queue: [], history: [] };
+const KP_MODE_TEXT = { one: '🔂 이 노래를 계속 반복해요', all: '🔁 목록 순서대로 전부 재생해요 (끝나면 처음부터)', shuffle: '🔀 목록을 섞어서 전부 재생해요' };
+const ytThumb = v => (v.youtubeId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.youtubeId)}/mqdefault.jpg` : '');
+
 async function showWatch(D, streamUrl) {
   $('#practiceLayout').classList.add('hidden'); $('#part').classList.add('hidden');
   $('#watchView').classList.remove('hidden');
-  document.title = D.title + ' | 유아 영상';
-  $('#watchDesc').textContent = D.description || '';
-  const box = $('#watchFrame');
-  if (D.youtubeId) {
-    const q = new URLSearchParams({ rel: '0', playsinline: '1', modestbranding: '1', iv_load_policy: '3' });
-    if (D.clipStart) q.set('start', String(Math.floor(D.clipStart)));
-    if (D.clipEnd) q.set('end', String(Math.ceil(D.clipEnd)));
-    box.innerHTML = `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(D.youtubeId)}?${q}" title="${esc(D.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
-  } else {
-    box.innerHTML = '<video controls playsinline preload="metadata"></video>';
-    box.firstChild.src = streamUrl;
+  KP.mode = ['one', 'all', 'shuffle'].includes(LS.get('kids:mode', 'all')) ? LS.get('kids:mode', 'all') : 'all';
+  KP.list = [D]; KP.idx = 0;
+  D._streamUrl = streamUrl;
+  setKpMode(KP.mode, true);
+  $('#kpModes').onclick = e => { const b = e.target.closest('[data-m]'); if (b) setKpMode(b.dataset.m); };
+  $('#kpNext').onclick = () => kpGo(kpNextIdx(), true);
+  $('#kpPrev').onclick = () => kpGo(kpPrevIdx(), true);
+  $('#kpList').onclick = e => { const b = e.target.closest('[data-i]'); if (b) kpGo(Number(b.dataset.i), true); };
+  if (!ADMIN) {
+    try {
+      const d = await api('/api/member-videos', MEMBER_TOKEN);
+      const kids = (d.lessons || []).filter(v => v.watchOnly);
+      const at = kids.findIndex(v => v.id === D.id);
+      if (at >= 0) { kids[at] = Object.assign({}, kids[at], D); KP.list = kids; KP.idx = at; }
+      else { KP.list = [D, ...kids]; KP.idx = 0; }
+    } catch (e) {}
   }
-  if (ADMIN) return;
+  renderKpList();
+  setInterval(() => { // 끝 시간이 정해진 영상: 그 시간이 되면 '끝난 것'으로
+    const m = KP.media; if (!m || !KP.clipEnd || m.paused || performance.now() < KP.guardUntil) return;
+    const t = m.isYouTube ? (m.player.getCurrentTime ? m.player.getCurrentTime() : 0) : m.currentTime;
+    if (t >= KP.clipEnd) kpEnded(KP.token); // 바로 다음 곡(또는 같은 곡)을 불러오니 따로 멈추지 않아요
+  }, 250);
+  await kpPlay(KP.idx, false);
+}
+
+function setKpMode(m, quiet) {
+  KP.mode = m; LS.set('kids:mode', m); KP.queue = [];
+  document.querySelectorAll('#kpModes [data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  if (!quiet) toast(KP_MODE_TEXT[m]);
+  updateKpNow();
+}
+function updateKpNow() {
+  const n = KP.list.length;
+  $('#kpNow').textContent = n > 1 ? `${KP_MODE_TEXT[KP.mode]} · ${KP.idx + 1} / ${n}곡` : KP_MODE_TEXT[KP.mode];
+}
+function renderKpList() {
+  const n = KP.list.length;
+  $('#kpHead').classList.toggle('hidden', n < 2);
+  $('#kpHead').textContent = `🎵 재생 목록 (${n}곡)`;
+  $('#kpList').innerHTML = n < 2 ? '' : KP.list.map((v, i) => `
+    <button class="kp-item${i === KP.idx ? ' on' : ''}" data-i="${i}">
+      <span class="n">${i === KP.idx ? '▶' : i + 1}</span>
+      <span class="th" ${v.youtubeId ? `style="background-image:url('${ytThumb(v)}')"` : ''}></span>
+      <span class="t">${esc(v.title)}</span>
+    </button>`).join('');
+}
+// 셔플: 아직 안 튼 곡을 무작위로, 다 틀면 다시 섞기
+function kpNextIdx() {
+  const n = KP.list.length; if (n < 2) return KP.idx;
+  if (KP.mode === 'shuffle') {
+    if (!KP.queue.length) {
+      KP.queue = KP.list.map((_, i) => i).filter(i => i !== KP.idx);
+      for (let i = KP.queue.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [KP.queue[i], KP.queue[j]] = [KP.queue[j], KP.queue[i]]; }
+    }
+    return KP.queue.shift();
+  }
+  return (KP.idx + 1) % n;
+}
+function kpPrevIdx() {
+  const n = KP.list.length; if (n < 2) return KP.idx;
+  if (KP.history.length) return KP.history.pop();
+  return (KP.idx - 1 + n) % n;
+}
+function kpGo(i, user) {
+  if (i !== KP.idx) { KP.history.push(KP.idx); if (KP.history.length > 50) KP.history.shift(); }
+  if (user && KP.mode === 'shuffle') KP.queue = KP.queue.filter(x => x !== i);
+  kpPlay(i, true);
+}
+function kpEnded(token) {
+  if (token !== KP.token || performance.now() < KP.guardUntil) return; // 같은 곡에서 두 번 처리하지 않게
+  KP.token++;
+  if (KP.mode === 'one') kpPlay(KP.idx, true);
+  else kpGo(kpNextIdx(), false);
+}
+
+async function kpPlay(i, autoplay) {
+  const item = KP.list[i]; if (!item) return;
+  KP.idx = i; const token = ++KP.token; KP.guardUntil = performance.now() + 1500;
+  KP.clipEnd = item.clipEnd || 0;
+  $('#lessonTitle').textContent = item.title;
+  document.title = item.title + ' | 유아 영상';
+  $('#watchDesc').textContent = item.description || '';
+  if (!ADMIN) try { history.replaceState(null, '', 'video.html?id=' + encodeURIComponent(item.id)); } catch (e) {}
+  renderKpList(); updateKpNow();
+  const box = $('#watchFrame');
+  const start = item.clipStart || 0;
   try {
-    const d = await api('/api/member-videos', MEMBER_TOKEN);
-    const more = (d.lessons || []).filter(v => v.watchOnly && v.id !== D.id).slice(0, 12);
-    if (more.length) { $('#moreHead').classList.remove('hidden'); $('#moreKids').innerHTML = more.map(kidsCard).join(''); }
-  } catch (e) {}
+    if (item.youtubeId) {
+      if (KP.kind === 'yt' && KP.media && KP.media.player && KP.media.player.loadVideoById) {
+        const args = { videoId: item.youtubeId, startSeconds: start };
+        if (autoplay) KP.media.player.loadVideoById(args); else KP.media.player.cueVideoById(args);
+      } else {
+        if (KP.media && KP.media.destroy) KP.media.destroy();
+        KP.media = null; KP.kind = 'yt';
+        const m = await YTMedia.create(box, item.youtubeId, { start });
+        if (token !== KP.token) { m.destroy(); return; }
+        m.addEventListener('ended', () => kpEnded(KP.token));
+        KP.media = m;
+        if (autoplay) m.play().catch(() => {});
+      }
+    } else {
+      let url = item._streamUrl;
+      if (!url) { const d = await api('/api/member-videos?id=' + encodeURIComponent(item.id), MEMBER_TOKEN); url = item._streamUrl = d.streamUrl; }
+      if (token !== KP.token) return;
+      if (KP.kind !== 'file' || !KP.media) {
+        if (KP.media && KP.media.destroy) KP.media.destroy();
+        box.innerHTML = '<video controls playsinline preload="metadata"></video>';
+        const vEl = box.firstChild;
+        vEl.addEventListener('ended', () => kpEnded(KP.token));
+        KP.media = vEl; KP.kind = 'file';
+      }
+      if (KP.media.getAttribute('src') !== url) KP.media.src = url;
+      KP.media.currentTime = start;
+      if (autoplay) KP.media.play().catch(() => {});
+    }
+  } catch (e) {
+    box.innerHTML = `<div class="empty" style="color:#fff; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">⚠️ ${esc(e.message)}</div>`;
+    KP.media = null; KP.kind = '';
+    // 재생할 수 없는 영상은 건너뛰기 (반복 모드가 아니고 목록이 있을 때)
+    if (autoplay && KP.mode !== 'one' && KP.list.length > 1) setTimeout(() => { if (token === KP.token) kpEnded(KP.token); }, 2500);
+  }
 }
 
 /* ===================== 연습 ===================== */
