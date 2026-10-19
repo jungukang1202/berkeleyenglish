@@ -11,7 +11,26 @@
   const CHUNK = 3.5 * 1024 * 1024;
   const VIS_LABEL = { draft: '🔒 비공개(임시)', members: '👥 회원 공개', public: '🌐 전체 공개' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  /* ---- 자동 만들기 일시정지 · 중지 ----
+   * job.paused  : 다음 단계로 넘어가기 전에 멈춰 기다림 (▶ 계속을 누르면 이어서)
+   * job.cancelled: 진행 중인 요청까지 끊고 중지 */
+  let job = null;
+  class Cancelled extends Error { constructor() { super('중지했어요.'); this.cancelled = true; } }
+  const isCancelled = e => (e && (e.cancelled || e.name === 'AbortError')) || (job && job.cancelled);
+  const sig = () => (job ? job.ctl.signal : undefined);
+  // 기다리는 중에도 중지하면 바로 깨어나도록
+  const sleep = ms => new Promise(r => {
+    const t = setTimeout(r, ms);
+    if (job) job.ctl.signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+  });
+  async function checkpoint() {
+    if (!job) return;
+    if (job.cancelled) throw new Cancelled();
+    while (job && job.paused) {
+      await new Promise(r => { job.wake = r; });
+      if (job && job.cancelled) throw new Cancelled();
+    }
+  }
 
   let lessons = [];
   let editing = null;
@@ -105,7 +124,8 @@
   let punctTitle = ''; // 영상 제목 — AI가 잘못 들린 이름(예: Louis → Bluey)을 고칠 때 참고
   async function askPunctuate(text) {
     for (let attempt = 1; attempt <= 4; attempt++) {
-      const r = await fetch(VAPI.punctuate, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text, title: punctTitle }) });
+      await checkpoint();
+      const r = await fetch(VAPI.punctuate, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text, title: punctTitle }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.text) return d.text;
       if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
@@ -136,21 +156,22 @@
     for (let i = 0; i < todo.length; i += B) {
       const batch = todo.slice(i, i + B);
       for (let attempt = 1; attempt <= 3; attempt++) {
+        await checkpoint();
         try {
-          const r = await fetch(VAPI.translate, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+          const r = await fetch(VAPI.translate, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
             body: JSON.stringify({ sentences: batch.map(x => x.en), title: trTitle() }) });
           const d = await r.json().catch(() => ({}));
           if (r.ok && Array.isArray(d.ko)) { batch.forEach((x, k) => { if (d.ko[k]) x.ko = d.ko[k]; }); break; }
           if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
           await sleep(r.status === 429 ? Math.min(30, d.retryAfter || 10) * 1000 : 1500 * attempt);
-        } catch (e) { if (/세션/.test(e.message)) throw e; await sleep(1500 * attempt); }
+        } catch (e) { if (/세션/.test(e.message)) throw e; if (isCancelled(e)) throw new Cancelled(); await sleep(1500 * attempt); }
       }
       done += batch.length; onProg && onProg(Math.min(0.95, done / todo.length));
     }
     // 서버 번역에서 빠진 문장 → 구글 번역 (한꺼번에 몰리지 않게 2개씩)
     const left = todo.filter(x => !x.ko);
     let j = 0;
-    async function worker() { while (j < left.length) { const x = left[j++]; x.ko = (await VT.translate(x.en)) || ''; await sleep(150); } }
+    async function worker() { while (j < left.length) { await checkpoint(); const x = left[j++]; x.ko = (await VT.translate(x.en)) || ''; await sleep(150); } }
     await Promise.all([worker(), worker()]);
     onProg && onProg(1);
     return todo.filter(x => !x.ko).length;
@@ -158,12 +179,41 @@
   function trWarn(n) { return n ? `\n⚠️ ${n}문장은 번역하지 못했어요. 편집 화면의 「🌐 빈 번역 채우기」를 다시 눌러 주세요.` : ''; }
 
   function startBusy(showUpload, trTitle) {
+    job = { paused: false, cancelled: false, ctl: new AbortController(), wake: null };
+    $('vidJobBtns').classList.remove('hidden');
+    $('vidPauseBtn').textContent = '⏸ 일시정지'; $('vidPauseBtn').disabled = false; $('vidCancelBtn').disabled = false;
     busy = true; $('vidStartBtn').disabled = true; $('vidProgress').classList.remove('hidden');
     $('vidUpRow').classList.toggle('hidden', !showUpload);
     $('vidTrTitle').textContent = trTitle;
     setBar('vidUp', 0, '대기 중'); setBar('vidTr', 0, '대기 중');
   }
-  function endBusy() { busy = false; $('vidStartBtn').disabled = false; }
+  function endBusy() {
+    busy = false; $('vidStartBtn').disabled = false;
+    job = null; $('vidJobBtns').classList.add('hidden'); $('vidProgress').classList.remove('paused');
+  }
+  let statusBeforePause = null;
+  $('vidPauseBtn').addEventListener('click', () => {
+    if (!job || job.cancelled) return;
+    job.paused = !job.paused;
+    $('vidPauseBtn').textContent = job.paused ? '▶ 계속' : '⏸ 일시정지';
+    $('vidProgress').classList.toggle('paused', job.paused);
+    if (job.paused) {
+      statusBeforePause = [$('vidStatus').textContent, $('vidStatus').className];
+      setStatus('⏸ 일시정지했어요. 지금 하던 요청 하나는 마저 끝나고 멈춰요. ▶ 계속을 누르면 이어서 진행해요.');
+    } else {
+      if (statusBeforePause) { $('vidStatus').textContent = statusBeforePause[0]; $('vidStatus').className = statusBeforePause[1]; }
+      if (job.wake) { const w = job.wake; job.wake = null; w(); }
+    }
+  });
+  $('vidCancelBtn').addEventListener('click', () => {
+    if (!job || job.cancelled) return;
+    if (!confirm('자동 만들기를 중지할까요? 지금까지 한 작업은 저장되지 않아요.')) return;
+    job.cancelled = true; job.paused = false;
+    $('vidPauseBtn').disabled = true; $('vidCancelBtn').disabled = true;
+    setStatus('⏹ 중지하는 중…');
+    try { job.ctl.abort(); } catch (e) {}
+    if (job.wake) { const w = job.wake; job.wake = null; w(); }
+  });
 
   $('vidStartBtn').addEventListener('click', () => { if (!busy) (src === 'youtube' ? startYoutube() : startFile()); });
 
@@ -191,13 +241,14 @@
   // 서버에서 YouTube 영어 자막(단어별 시간) 가져오기. 자동으로 못 가져오면 { needPaste:true }
   async function fetchYoutubeCaptions(videoId, onBar) {
     onBar(0.15, '자막 찾는 중…');
-    const ask = jobId => fetch(VAPI.youtube, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId, jobId }) });
+    const ask = jobId => fetch(VAPI.youtube, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId, jobId }) });
     let r = await ask();
     let d = await r.json().catch(() => ({}));
     // 자막이 없는 영상: 자막 서비스가 AI로 받아쓰는 동안 몇 초마다 다시 확인
     for (let k = 0; r.status === 202 && d.jobId && k < 90; k++) {
       onBar(0.15 + Math.min(0.3, k * 0.01), `${d.message || 'AI가 받아쓰는 중…'} (${(k + 1) * 4}초)`);
       await sleep(4000);
+      await checkpoint();
       r = await ask(d.jobId);
       d = await r.json().catch(() => ({}));
     }
@@ -242,6 +293,7 @@
         track = { lang: (d.track && d.track.lang) || 'en', kind: captionKind(d.track, punctuated) };
         setBar('vidTr', 0.5, `${{ human: '사람이 만든 영어 자막', auto: '자동 생성 영어 자막', ai: 'AI 받아쓰기' }[track.kind]} ${words.length}단어`);
       }
+      await checkpoint();
       // 구간 자르기
       const duration = info.duration || (words.length ? words[words.length - 1].e + 1 : 0);
       const clipEnd = clipEndIn && clipEndIn < duration ? clipEndIn : 0;
@@ -253,9 +305,11 @@
       sentences = sentences.filter(s => s.s >= clipStart - 0.5);
       if (clipStart) sentences.forEach(s => { s.s = Math.max(s.s, clipStart); });
       setBar('vidTr', 0.6, `문장 ${sentences.length}개로 정리`);
+      await checkpoint();
       if ($('vidTranslate').checked) {
         trFail = await translateAll(sentences, f => setBar('vidTr', 0.6 + f * 0.35, `한국어 번역 중… ${Math.round(f * 100)}%`));
       }
+      await checkpoint();
       setBar('vidTr', 0.97, '저장 중…');
       const lesson = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'create_youtube', youtubeId: videoId, title: $('vidTitle').value.trim() || info.title, duration,
@@ -268,7 +322,8 @@
       await loadLessons();
       openEditor(lesson);
     } catch (e) {
-      setStatus('⚠️ ' + e.message, 'error');
+      if (isCancelled(e)) setStatus('⏹ 자동 만들기를 중지했어요. 아무것도 저장되지 않았어요.', '');
+      else setStatus('⚠️ ' + e.message, 'error');
     } finally { endBusy(); }
   }
 
@@ -288,17 +343,19 @@
     let done = 0, next = 0;
     async function worker() {
       while (next < total) {
+        await checkpoint();
         const n = next++;
         const blob = file.slice(n * CHUNK, Math.min(file.size, (n + 1) * CHUNK));
         for (let attempt = 1; ; attempt++) {
           try {
             const r = await fetch(`${VAPI.videos}?id=${id}&n=${n}`, {
-              method: 'PUT', headers: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'application/octet-stream' }, body: blob,
+              method: 'PUT', signal: sig(), headers: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'application/octet-stream' }, body: blob,
             });
             if (r.status === 401) throw Object.assign(new Error('세션이 만료됐어요. 다시 로그인해주세요.'), { fatal: true });
             if (!r.ok) throw new Error('HTTP ' + r.status);
             break;
           } catch (e) {
+            if (isCancelled(e)) throw new Cancelled();
             if (e.fatal || attempt >= 4) throw new Error(`영상 조각 ${n + 1}/${total} 업로드 실패: ${e.message}`);
             await sleep(1500 * attempt);
           }
@@ -316,12 +373,13 @@
     const results = [];
     let prompt = '';
     for (let i = 0; i < pieces.length; i++) {
+      await checkpoint();
       onProg((i + 0.3) / pieces.length, `받아쓰는 중… ${i + 1}/${pieces.length} (${VT.fmt(pieces[i].offset)}~)`);
       const wav = VT.encodeWav(pieces[i].pcm);
       let data;
       for (let attempt = 1; ; attempt++) {
         const r = await fetch(VAPI.transcribe + '?prompt=' + encodeURIComponent(prompt), {
-          method: 'POST', headers: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'audio/wav' }, body: wav,
+          method: 'POST', signal: sig(), headers: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'audio/wav' }, body: wav,
         });
         let d = null; try { d = await r.json(); } catch (e) {}
         if (r.ok) { data = d; break; }
@@ -330,6 +388,7 @@
         const wait = r.status === 429 ? Math.min(65, (d && d.retryAfter) || 20) : 3 * attempt;
         onProg((i + 0.3) / pieces.length, `음성 인식 사용량 한도 — ${wait}초 기다렸다 계속해요… (${i + 1}/${pieces.length})`);
         await sleep(wait * 1000);
+        await checkpoint();
       }
       results.push({ offset: pieces[i].offset, segments: data.segments || [], words: data.words || [] });
       prompt = (data.segments || []).slice(-2).map(s => s.text).join(' ').slice(-300);
@@ -366,6 +425,7 @@
         return r;
       })();
       const [, r] = await Promise.all([up, tr]);
+      await checkpoint();
       if (!r.sentences.length) throw new Error('영어 대사를 찾지 못했어요. 말소리가 있는 영상인지 확인해주세요.');
       const saved = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'update', id: lesson.id, sentences: r.sentences, duration: r.duration, status: 'ready',
@@ -376,7 +436,11 @@
       await loadLessons();
       openEditor(Object.assign({}, saved, { sentences: r.sentences, src: localUrl }));
     } catch (e) {
-      setStatus('⚠️ ' + e.message + (lesson ? '\n(목록의 "업로드 미완료" 항목은 삭제 후 다시 올려주세요.)' : ''), 'error');
+      if (isCancelled(e)) {
+        if (job) { job.ctl = new AbortController(); } // 정리 요청은 끊기지 않게
+        if (lesson) { try { await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({ action: 'delete', id: lesson.id }) }); } catch (_) {} }
+        setStatus('⏹ 자동 만들기를 중지했어요. 올리던 영상 조각도 지웠어요.', '');
+      } else setStatus('⚠️ ' + e.message + (lesson ? '\n(목록의 "업로드 미완료" 항목은 삭제 후 다시 올려주세요.)' : ''), 'error');
       loadLessons();
     } finally { endBusy(); }
   }
