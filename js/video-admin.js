@@ -145,8 +145,17 @@
       } else {
         setStatus('YouTube에서 영어 자막을 가져오는 중…');
         setBar('vidTr', 0.15, '자막 찾는 중…');
-        const r = await fetch(VAPI.youtube, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId }) });
-        const d = await r.json().catch(() => ({}));
+        const ask = jobId => fetch(VAPI.youtube, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId, jobId }) });
+        let r = await ask();
+        let d = await r.json().catch(() => ({}));
+        // 자막이 없는 영상: 자막 서비스가 AI로 받아쓰는 동안 몇 초마다 다시 확인
+        for (let k = 0; r.status === 202 && d.jobId && k < 90; k++) {
+          setBar('vidTr', 0.15 + Math.min(0.3, k * 0.01), `${d.message || 'AI가 받아쓰는 중…'} (${(k + 1) * 4}초)`);
+          await sleep(4000);
+          r = await ask(d.jobId);
+          d = await r.json().catch(() => ({}));
+        }
+        if (r.status === 202) throw new Error('받아쓰기가 너무 오래 걸려요. 잠시 뒤 다시 시도해 주세요.');
         if (r.status === 401) { clearToken(); showLogin(); throw new Error('세션이 만료됐어요. 다시 로그인해주세요.'); }
         lastYt = { videoId, title: d.title || '', duration: d.duration || 0 };
         if (!r.ok) {
@@ -161,7 +170,7 @@
           throw new Error(d.message || d.error || ('HTTP ' + r.status));
         }
         words = d.words; punctuated = d.punctuated; info = lastYt; track = d.track;
-        setBar('vidTr', 0.5, `${d.track.kind === 'manual' ? '사람이 만든' : '자동 생성'} 영어 자막 ${words.length}단어`);
+        setBar('vidTr', 0.5, `${{ manual: '사람이 만든 영어 자막', auto: '자동 생성 영어 자막', supadata: '영어 자막' }[d.track.kind] || '영어 자막'} ${words.length}단어`);
       }
       // 구간 자르기
       const duration = info.duration || (words.length ? words[words.length - 1].e + 1 : 0);

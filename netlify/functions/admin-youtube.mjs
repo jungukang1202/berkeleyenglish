@@ -1,14 +1,16 @@
 // YouTube 링크로 영상 쉐도잉 만들기 — 관리자 토큰 필요.
 // POST /api/admin-youtube  { url }  →  { videoId, title, author, duration, track:{lang,kind,name}, words:[{w,s,e}], punctuated }
 //   - 영상은 받지 않고, YouTube에 올라와 있는 영어 자막(사람이 만든 자막 > 자동 자막)을 단어별 시간과 함께 가져옵니다.
+//   - Netlify 서버(AWS)는 YouTube가 자주 막아서, 환경변수 SUPADATA_API_KEY가 있으면 자막 전문 서비스(supadata.ai)로 먼저 가져옵니다.
+//     (자막이 없는 영상은 Supadata가 AI로 받아쓰는 동안 { pending:true, jobId } → 브라우저가 몇 초마다 { url, jobId }로 다시 물어봅니다)
 //   - 자막을 못 가져오면 { error:'no_captions' | 'blocked', title, duration } → 관리자 화면이 "스크립트 붙여넣기"로 안내합니다.
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 
 const UA_WEB = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 // YouTube 내부 API에 접속할 때 쓰는 앱 정보 — 하나가 막히면 다음 것으로 시도합니다.
 const CLIENTS = [
-  { name: 'ANDROID', body: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30 }, ua: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip' },
-  { name: 'IOS', body: { clientName: 'IOS', clientVersion: '19.09.3', deviceModel: 'iPhone14,3' }, ua: 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)' },
+  { name: 'ANDROID', body: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 30 }, ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip' },
+  { name: 'IOS', body: { clientName: 'IOS', clientVersion: '20.10.4', deviceModel: 'iPhone16,2' }, ua: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3 like Mac OS X)' },
   { name: 'WEB', body: { clientName: 'WEB', clientVersion: '2.20240313.05.00' }, ua: UA_WEB },
 ];
 
@@ -97,6 +99,40 @@ async function fetchTrack(track, ua) {
   return JSON.parse(text);
 }
 
+// ---- Supadata (자막 전문 API, https://supadata.ai — 무료 키: 월 100건) ----
+const SUPA = 'https://api.supadata.ai/v1/transcript';
+function supaToWords(content) {
+  const words = [];
+  for (const seg of content || []) {
+    const t0 = Number(seg.offset || 0) / 1000, dur = Number(seg.duration || 0) / 1000;
+    const ws = cleanText(seg.text).split(' ').filter(Boolean);
+    if (!ws.length) continue;
+    const total = ws.reduce((a, w) => a + w.length + 1, 0);
+    let t = t0;
+    ws.forEach(w => { const d = Math.max(0.05, dur * (w.length + 1) / total); words.push({ w, s: t, e: t + d * 0.95 }); t += d; });
+    words[words.length - 1].brk = 1;
+  }
+  words.sort((a, b) => a.s - b.s);
+  return words.map(w => ({ ...w, s: Math.round(w.s * 100) / 100, e: Math.round(w.e * 100) / 100 }));
+}
+async function supadata(videoId, key, jobId) {
+  const headers = { 'x-api-key': key };
+  let r;
+  if (jobId) r = await timed(`${SUPA}/${encodeURIComponent(jobId)}`, { headers }, 15000);
+  else r = await timed(`${SUPA}?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&lang=en&mode=auto`, { headers }, 25000);
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 202 || (d.jobId && !d.content)) return { pending: true, jobId: d.jobId || jobId };
+  if (jobId && d.status && d.status !== 'completed') {
+    if (d.status === 'failed') throw new Error('supadata job failed');
+    return { pending: true, jobId };
+  }
+  if (!r.ok) throw new Error('supadata ' + r.status + (d.message ? ' ' + String(d.message).slice(0, 80) : ''));
+  const content = Array.isArray(d.content) ? d.content : (d.result && d.result.content) || [];
+  const lang = d.lang || (content[0] && content[0].lang) || 'en';
+  if (!/^en/i.test(lang)) throw Object.assign(new Error('not english: ' + lang), { notEnglish: true });
+  return { words: supaToWords(content), lang };
+}
+
 async function oembed(videoId) {
   try {
     const r = await timed(`https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&format=json`, {}, 6000);
@@ -118,6 +154,21 @@ export default async (req) => {
   else return jsonResponse({ ...info, error: 'not_found', message: '영상을 찾을 수 없어요. 비공개이거나 삭제된 영상인지, 퍼가기가 허용된 영상인지 확인해주세요.' }, 404);
 
   const attempts = [];
+  const supaKey = process.env.SUPADATA_API_KEY;
+  if (supaKey) {
+    try {
+      const r = await supadata(videoId, supaKey, body.jobId ? String(body.jobId).slice(0, 100) : null);
+      if (r.pending) return jsonResponse({ ...info, pending: true, jobId: r.jobId, message: '자막이 없는 영상이라 AI가 받아쓰는 중이에요…' }, 202);
+      if (r.words.length) {
+        const punct = r.words.filter(w => /[.?!]$/.test(w.w)).length / r.words.length;
+        return jsonResponse({ ...info, track: { lang: r.lang, kind: 'supadata', name: 'Supadata' }, punctuated: punct > 0.02, words: r.words });
+      }
+      attempts.push('SUPADATA:empty');
+    } catch (e) {
+      if (e.notEnglish) return jsonResponse({ ...info, error: 'no_english', message: '이 영상은 영어 영상이 아닌 것 같아요.' }, 422);
+      attempts.push('SUPADATA:' + e.message);
+    }
+  } else attempts.push('SUPADATA:키 없음');
   let sawTracks = false;
   const sources = [...CLIENTS.map(c => ({ name: c.name, ua: c.ua, get: () => playerResponse(videoId, c) })),
     { name: 'WATCH', ua: UA_WEB, get: () => watchPageResponse(videoId) }];
@@ -147,8 +198,8 @@ export default async (req) => {
   }
   return jsonResponse({
     ...info,
-    error: sawTracks ? 'blocked' : 'no_captions',
-    message: sawTracks ? 'YouTube가 서버의 자막 요청을 막았어요.' : '이 영상에서 자막을 찾지 못했어요.',
+    error: 'blocked',
+    message: supaKey ? '자막을 자동으로 가져오지 못했어요.' : 'YouTube가 서버의 자막 요청을 막았어요. (Netlify 환경변수 SUPADATA_API_KEY를 넣으면 자동으로 가져올 수 있어요)',
     attempts,
   }, 422);
 };
