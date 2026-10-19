@@ -94,7 +94,8 @@
   .score{margin-top:10px; font-size:0.92rem; line-height:2;}
   .score b.badge{display:inline-block; padding:2px 10px; border-radius:999px; margin-right:6px; font-size:0.82rem;}
   .score span{padding:1px 5px; border-radius:5px; margin-right:2px;}
-  .w-ok{background:var(--good-soft); color:var(--good);} .w-miss{background:var(--bad-soft); color:var(--bad); text-decoration:line-through;}
+  .w-ok{background:var(--good-soft); color:var(--good);} .w-miss{background:var(--bad-soft); color:var(--bad); text-decoration:line-through;} .w-extra{background:#FCF1DA; color:var(--warn);}
+  .score .heard{font-size:0.82rem; color:var(--muted); margin-top:4px;}
   .b-good{background:var(--good-soft); color:var(--good);} .b-mid{background:#FCF1DA; color:var(--warn);} .b-bad{background:var(--bad-soft); color:var(--bad);}
 
   .controls{padding:14px 16px; display:grid; gap:12px;}
@@ -228,7 +229,7 @@
           </div>
           <div class="row" id="recRow">
             <label class="chk"><input type="checkbox" id="rec"> 🎙 따라 말한 내 목소리 녹음·재생</label>
-            <label class="chk"><input type="checkbox" id="grade"> 💯 발음 채점</label>
+            <label class="chk" title="회원 쉐도잉과 같은 방식: 따라 말한 소리를 알아듣고 원문과 단어별로 비교해 일치도(%)를 보여줘요"><input type="checkbox" id="grade"> 💯 일치도 채점</label>
           </div>
           <div class="big">
             <button class="btn" id="prev" title="이전 문장 (←)">◀</button>
@@ -251,6 +252,7 @@
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
 
+<script src="js/shadowing-engine.js?v=20261019a"></script>
 <script src="js/yt-media.js?v=20261019f"></script>
 <script>
 (function () {
@@ -547,7 +549,8 @@ function start() {
   step();
 }
 function stop(msg) {
-  running = false; runId++; clearTimers(); stopAt = null; onReach = null; v.pause();
+  running = false; runId++;
+  try { window.ShadowingEngine && ShadowingEngine.stopListening(); } catch (e) {} clearTimers(); stopAt = null; onReach = null; v.pause();
   if (recorder && recorder.state === 'recording') recorder.stop();
   $('#go').textContent = '▶ 연습 시작'; $('#go').classList.remove('dark');
   setPill(msg || '대기'); setBar(0); updateRep();
@@ -575,8 +578,17 @@ function step() {
     setPill('삐 — 따라 말할 차례 🗣', 'go');
     await beep();
     if (!running || myRun !== runId) return;
+    if (S.grade) {
+      if (S.rec) await startRec(s.i); // 내 목소리 다시 듣기용 녹음도 함께
+      setPill('● 따라 말하세요 🗣 (말이 끝나면 자동 채점)', 'rec'); setBar(1);
+      await listenAndGrade(s, () => { if (running) setPill('● 지금 말하세요! 🗣', 'rec'); });
+      if (!running || myRun !== runId) { if (recorder && recorder.state === 'recording') recorder.stop(); return; }
+      if (S.rec) { await stopRec(); setPill('내 목소리 ▶'); playUrl(recs[s.i], () => later(afterRep, 300)); }
+      else later(afterRep, 700);
+      return;
+    }
     const wait = ((s.e - s.s) / S.rate) * S.wait + 0.8;
-    const recording = S.rec || S.grade;
+    const recording = S.rec;
     if (recording) startRec(s.i);
     setPill(recording ? '● 녹음 중 · 따라 말하세요' : '따라 말하세요 🗣', recording ? 'rec' : 'go');
     const t0 = performance.now();
@@ -586,7 +598,6 @@ function step() {
       if (!recording) { afterRep(); return; }
       const blob = await stopRec();
       if (!running) return;
-      if (S.grade && blob) gradeIt(s, blob);
       if (S.rec && blob) { setPill('내 목소리 ▶'); playUrl(recs[s.i], () => later(afterRep, 300)); }
       else afterRep();
     }, wait * 1000);
@@ -655,32 +666,46 @@ function compareWords(target, heard) {
   while (i < A.length && j < B.length) { if (A[i] === B[j]) { ok[i] = true; i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++; }
   return { words: A, ok, score: A.length ? Math.round(ok.filter(Boolean).length / A.length * 100) : 0 };
 }
-async function gradeIt(s, blob) {
-  try {
-    const r = await fetch('/api/stt', { method: 'POST', headers: { 'Content-Type': blob.type || 'audio/webm' }, body: blob });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
-    const c = compareWords(s.en, d.text || '');
-    scores[s.i] = c.score;
-    const el = rowEl(list.indexOf(s));
-    if (el) { const e = el.querySelector('.e'); const old = e.querySelector('.sc'); if (old) old.remove(); e.insertAdjacentHTML('beforeend', `<span class="sc ${scoreClass(c.score)}">${c.score}점</span>`); }
-    if (list[cur] === s || list[cur - 1] === s) {
-      const box = $('#nowScore');
-      box.innerHTML = `<b class="badge ${scoreClass(c.score)}">${c.score}점</b>` + c.words.map((w, k) => `<span class="${c.ok[k] ? 'w-ok' : 'w-miss'}">${esc(w)}</span>`).join(' ')
-        + `<div class="hint">들린 말: ${esc(d.text || '(인식 안 됨)')}</div>`;
-      box.classList.remove('hidden');
-    }
-  } catch (e) { toast('채점 서버에 연결하지 못했어요.'); }
+// 채점 = 회원 쉐도잉(js/shadowing-engine.js)과 똑같은 방식:
+//  Chrome PC는 브라우저 음성 인식, 그 밖의 기기는 녹음 → 서버 받아쓰기(말이 끝나면 자동 종료, 지어낸 말 거르기)
+//  → 원문과 단어별 비교 → '일치도 N%' (85% 이상 초록 · 60% 이상 노랑 · 그 아래 빨강)
+function showScore(s, res) {
+  const el = rowEl(list.indexOf(s));
+  const box = $('#nowScore');
+  if (!res.ok) {
+    if (res.error === 'aborted') return;
+    box.innerHTML = `<div class="heard">${esc(res.message || '소리를 인식하지 못했어요.')}</div>`; box.classList.remove('hidden');
+    return;
+  }
+  scores[s.i] = res.score;
+  if (el) { const e = el.querySelector('.e'); const old = e.querySelector('.sc'); if (old) old.remove(); e.insertAdjacentHTML('beforeend', `<span class="sc ${scoreClass(res.score)}">${res.score}%</span>`); }
+  box.innerHTML = `<b class="badge ${scoreClass(res.score)}">일치도 ${res.score}%</b>${res.html}<div class="heard">👂 인식된 발음: "${esc(res.heard)}"</div>`;
+  box.classList.remove('hidden');
+}
+async function listenAndGrade(s, onReady) {
+  if (!window.ShadowingEngine || !ShadowingEngine.listenAndScore) return { ok: false, error: 'no-engine', message: '채점 기능을 불러오지 못했어요. 새로고침해 주세요.' };
+  const res = await ShadowingEngine.listenAndScore(s.en, { noBeep: true, onReady });
+  showScore(s, res);
+  return res;
 }
 async function toggleRec(k) {
   const s = list[k]; if (!s) return;
   if (recorder && recorder.state === 'recording') {
-    const b = await stopRec(); setPill('녹음 완료 · ⇄로 비교');
-    if (S.grade && b) gradeIt(list[recIdxToK()], b);
+    if (S.grade) { try { ShadowingEngine.stopListening(); } catch (e) {} }
+    await stopRec(); setPill('녹음 완료 · ⇄로 비교');
     return;
   }
   if (running) stop();
   setCurrent(k);
+  if (S.grade) {
+    await beep();
+    const el = rowEl(k);
+    if (await startRec(s.i)) el && el.querySelector('[data-a=rec]').classList.add('recing');
+    setPill('● 따라 말하세요 (말이 끝나면 자동으로 채점)', 'rec');
+    await listenAndGrade(s);
+    await stopRec(); setPill('채점 완료 · ⇄로 비교');
+    return;
+  }
   if (await startRec(s.i)) { const el = rowEl(k); el && el.querySelector('[data-a=rec]').classList.add('recing'); setPill('● 녹음 중 (다시 누르면 정지)', 'rec'); }
 }
 const recIdxToK = () => list.findIndex(s => s.i === recIdx);

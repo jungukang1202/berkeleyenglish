@@ -863,7 +863,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     return stop;
   }
 
-  function recordAndTranscribe(targetText, onReady) {
+  function recordAndTranscribe(targetText, onReady, opts) {
     return new Promise(async (resolve) => {
       let settled = false, stream = null, recorder = null, timer = null, aborted = false;
       const chunks = [];
@@ -877,7 +877,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
       // 마이크를 켜기 '전에' 삐 소리를 냅니다. 안드로이드는 마이크가 켜지는 순간 소리 출력이 통화 모드로 바뀌어
       // 그 뒤에 내는 삐 소리는 묻혀서 들리지 않아요.
-      await playBeep(); await new Promise(r => setTimeout(r, 80));
+      if (!(opts && opts.noBeep)) { await playBeep(); await new Promise(r => setTimeout(r, 80)); }
       if (aborted) return settle({ ok: false, error: 'aborted' });
       try {
         // 에코 제거를 끄면 태블릿이 '통화 모드'로 바뀌지 않아 다음 원어민 음성도 정상적으로 나와요.
@@ -1787,7 +1787,53 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     container.appendChild(summaryCard);
   }
 
+  // ── 따라 말하기 한 번: 회원 쉐도잉(buildShadowingControls)과 똑같은 듣기 방식을 다른 화면에서도 쓰도록 ──
+  //   Chrome PC는 브라우저 음성 인식, 그게 안 되는 기기(태블릿·이어폰 마이크 등)는 녹음 → 서버 받아쓰기(무음 자동 종료, 지어낸 말 거르기)
+  //   반환: { ok:true, heard, score, html } 또는 { ok:false, error, message }
+  let __standaloneRec = null, __standaloneActive = null;
+  function __browserRecognizeOnce(onReady) {
+    return new Promise((resolve) => {
+      let settled = false, heard = null, lastError = null;
+      const settle = (val) => { if (!settled) { settled = true; clearTimeout(hardStop); __standaloneActive = null; resolve(val); } };
+      if (!__standaloneRec) { __standaloneRec = new SpeechRecognitionCtor(); __standaloneRec.lang = 'en-US'; __standaloneRec.interimResults = false; __standaloneRec.maxAlternatives = 1; }
+      const recognition = __standaloneRec;
+      __standaloneActive = () => { try { recognition.abort(); } catch (e) {} settle({ ok: false, error: 'aborted' }); };
+      const hardStop = setTimeout(() => { try { recognition.abort(); } catch (e) {} setTimeout(() => settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }), 1000); }, 20000);
+      recognition.onstart = () => { if (onReady) onReady(); };
+      recognition.onresult = (event) => { heard = event.results[0][0].transcript; };
+      recognition.onerror = (event) => { lastError = event.error; };
+      recognition.onend = () => { settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }); };
+      const tryStart = (canRetry) => {
+        try { recognition.start(); }
+        catch (e) { if (canRetry) { try { recognition.abort(); } catch (_) {} setTimeout(() => tryStart(false), 700); } else settle({ ok: false, error: 'start-failed' }); }
+      };
+      tryStart(true);
+    });
+  }
+  async function listenAndScore(targetText, opts) {
+    opts = opts || {};
+    let result;
+    if (__sttMode === 'server' || !SpeechRecognitionCtor) {
+      result = await recordAndTranscribe(targetText, opts.onReady, { noBeep: !!opts.noBeep });
+    } else {
+      if (!opts.noBeep) await playBeep();
+      result = await __browserRecognizeOnce(opts.onReady);
+      if (noteBrowserSTTResult(result)) result.switchedToServer = true;
+    }
+    if (result.ok) {
+      const { score, html } = compareWords(targetText, result.heard);
+      return { ok: true, heard: result.heard, score, html };
+    }
+    const msg = (result.error === 'not-allowed' || result.error === 'service-not-allowed')
+      ? '🎙️ 마이크 권한이 꺼져 있어요. 주소창의 🔒(자물쇠)를 눌러 마이크를 "허용"으로 바꾼 뒤 새로고침해 주세요.'
+      : __sttFailTextBase('이번', result).replace('이번번째 시도', '이번 시도').replace('이번번째 시도에서', '이번 시도에서');
+    return Object.assign({}, result, { message: msg });
+  }
+  function stopListening() { try { __standaloneActive && __standaloneActive(); } catch (e) {} try { stopServerSTT(); } catch (e) {} }
+
   global.ShadowingEngine = {
+    listenAndScore,
+    stopListening,
     VERSION: ENGINE_VERSION,
     isPracticing: () => !!__activeShadowStop, // 연습(반복 재생) 중인지 — 자동 업데이트가 연습 중엔 새로고침하지 않게
     escapeHTML,
