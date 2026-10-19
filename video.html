@@ -778,6 +778,7 @@ function setCurrent(k, scroll = true) {
 }
 function markDone(s) {
   if (!s) return;
+  if (done.has(s.i) && bm && bm.i === s.i) return;
   done.add(s.i); LS.set(KEY + 'done', [...done]);
   bm = { i: s.i, at: new Date().toISOString() }; LS.set(KEY + 'last', bm);
   const el = rowEl(list.indexOf(s)); if (el) el.classList.add('done');
@@ -813,7 +814,7 @@ function loop() {
     const t = v.currentTime;
     const k = list.findIndex((s, j) => t >= s.s && t < (list[j + 1] ? list[j + 1].s : Infinity));
     if (k >= 0 && k !== cur) { if (running && S.mode === 'listen') { markDone(list[cur]); logAttempt(list[cur], { mode: 'listen', rep: 1, of: 1 }); } setCurrent(k); }
-    if (list[cur]) { const s = list[cur]; setBar((t - s.s) / (s.e - s.s)); }
+    if (list[cur]) { const s = list[cur]; setBar((t - s.s) / (s.e - s.s)); if (running && S.mode === 'listen' && t >= s.e - 0.05 && !(bm && bm.i === s.i)) markDone(s); }
     if (running && S.mode === 'listen' && t >= list[list.length - 1].e) { markDone(list[cur]); logAttempt(list[cur], { mode: 'listen', rep: 1, of: 1 }); stop('파트 끝까지 들었어요 👏'); }
   }
   requestAnimationFrame(loop);
@@ -917,6 +918,7 @@ function step() {
   setPill(S.mode === 'shadow' ? '같이 말하세요 🗣' : '잘 들으세요 👂', 'go');
   playSentence(cur, async () => {
     if (!running) return;
+    markDone(s); // 원어민 소리를 끝까지 들은 순간 '공부함'·책갈피
     if (S.mode === 'shadow') { later(afterRep, 450); return; }
     // 에코잉: 삐 → 멈추고 따라 말할 시간
     setPill('삐 — 따라 말할 차례 🗣', 'go');
