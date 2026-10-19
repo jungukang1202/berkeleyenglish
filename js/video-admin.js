@@ -7,7 +7,7 @@
 (function () {
   const VT = window.VideoTranscript;
   const $ = id => document.getElementById(id);
-  const VAPI = { videos: '/api/admin-videos', transcribe: '/api/admin-transcribe', youtube: '/api/admin-youtube', punctuate: '/api/admin-punctuate' };
+  const VAPI = { videos: '/api/admin-videos', transcribe: '/api/admin-transcribe', youtube: '/api/admin-youtube', punctuate: '/api/admin-punctuate', translate: '/api/admin-translate' };
   const CHUNK = 3.5 * 1024 * 1024;
   const VIS_LABEL = { draft: '🔒 비공개(임시)', members: '👥 회원 공개', public: '🌐 전체 공개' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -50,7 +50,7 @@
     box.innerHTML = lessons.map(v => `
       <div class="set-item set-stack">
         <div>
-          <div class="title">${v.youtubeId ? '🔗 ' : '📁 '}${esc(v.title)}</div>
+          <div class="title">${v.level ? `<span class="lv-badge">Lv ${esc(v.level)}</span>` : '<span class="lv-badge none">레벨 없음</span>'}${v.youtubeId ? '🔗 ' : '📁 '}${esc(v.title)}</div>
           <div class="meta">${VT.fmt(lessonLen(v))}${v.clipStart || v.clipEnd ? ` (${VT.fmt(v.clipStart)}~${VT.fmt(v.clipEnd || v.duration)})` : ''} · 문장 ${v.sentenceCount}개 ·
             ${v.youtubeId ? 'YouTube' : fmtSize(v.size)} · ${v.partMinutes ? v.partMinutes + '분 단위' : '나누지 않음'} ·
             ${v.status === 'ready' ? VIS_LABEL[v.visibility] : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'}
@@ -106,17 +106,37 @@
   }
 
   /* ---------------- 공통: 번역 ---------------- */
+  // 번역: ① 서버(Groq AI)에서 30문장씩 문맥과 함께 번역 → ② 그래도 빈 문장만 구글 번역으로 천천히 다시 시도
+  //       돌려주는 값 = 끝내 번역하지 못한 문장 수
+  const trTitle = () => (editing && $('vedTitle').value) || $('vidTitle').value || punctTitle || '';
   async function translateAll(sents, onProg) {
-    let i = 0, done = 0;
-    async function worker() {
-      while (i < sents.length) {
-        const k = i++;
-        if (!sents[k].ko) sents[k].ko = await VT.translate(sents[k].en);
-        done++; onProg && onProg(done / sents.length);
+    const todo = sents.filter(x => !x.ko && x.en);
+    if (!todo.length) { onProg && onProg(1); return 0; }
+    const B = 30;
+    let done = 0;
+    for (let i = 0; i < todo.length; i += B) {
+      const batch = todo.slice(i, i + B);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const r = await fetch(VAPI.translate, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+            body: JSON.stringify({ sentences: batch.map(x => x.en), title: trTitle() }) });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok && Array.isArray(d.ko)) { batch.forEach((x, k) => { if (d.ko[k]) x.ko = d.ko[k]; }); break; }
+          if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
+          await sleep(r.status === 429 ? Math.min(30, d.retryAfter || 10) * 1000 : 1500 * attempt);
+        } catch (e) { if (/세션/.test(e.message)) throw e; await sleep(1500 * attempt); }
       }
+      done += batch.length; onProg && onProg(Math.min(0.95, done / todo.length));
     }
-    await Promise.all([worker(), worker(), worker(), worker()]);
+    // 서버 번역에서 빠진 문장 → 구글 번역 (한꺼번에 몰리지 않게 2개씩)
+    const left = todo.filter(x => !x.ko);
+    let j = 0;
+    async function worker() { while (j < left.length) { const x = left[j++]; x.ko = (await VT.translate(x.en)) || ''; await sleep(150); } }
+    await Promise.all([worker(), worker()]);
+    onProg && onProg(1);
+    return todo.filter(x => !x.ko).length;
   }
+  function trWarn(n) { return n ? `\n⚠️ ${n}문장은 번역하지 못했어요. 편집 화면의 「🌐 빈 번역 채우기」를 다시 눌러 주세요.` : ''; }
 
   function startBusy(showUpload, trTitle) {
     busy = true; $('vidStartBtn').disabled = true; $('vidProgress').classList.remove('hidden');
@@ -207,21 +227,22 @@
       const clipEnd = clipEndIn && clipEndIn < duration ? clipEndIn : 0;
       const inClip = words.filter(w => w.s >= clipStart - 0.05 && (!clipEnd || w.s < clipEnd));
       if (!inClip.length) throw new Error('선택한 구간에 대사가 없어요. 시작/끝 시간을 확인해주세요.');
+      let trFail = 0;
       let sentences = await smartSentences(inClip, clipEnd || duration, punctuated,
         f => setBar('vidTr', 0.5 + f * 0.1, `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`), $('vidTitle').value.trim() || info.title);
       sentences = sentences.filter(s => s.s >= clipStart - 0.5);
       if (clipStart) sentences.forEach(s => { s.s = Math.max(s.s, clipStart); });
       setBar('vidTr', 0.6, `문장 ${sentences.length}개로 정리`);
       if ($('vidTranslate').checked) {
-        await translateAll(sentences, f => setBar('vidTr', 0.6 + f * 0.35, `한국어 번역 중… ${Math.round(f * 100)}%`));
+        trFail = await translateAll(sentences, f => setBar('vidTr', 0.6 + f * 0.35, `한국어 번역 중… ${Math.round(f * 100)}%`));
       }
       setBar('vidTr', 0.97, '저장 중…');
       const lesson = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'create_youtube', youtubeId: videoId, title: $('vidTitle').value.trim() || info.title, duration,
-        clipStart, clipEnd, sentences, partMinutes: Number($('vidParts').value), visibility: $('vidVisibility').value, track,
+        clipStart, clipEnd, sentences, partMinutes: Number($('vidParts').value), visibility: $('vidVisibility').value, track, level: $('vidLevel').value,
       }) })).lesson;
       setBar('vidTr', 1, `완료 — 문장 ${sentences.length}개`);
-      setStatus(`✅ 완료! "${lesson.title}" — 문장 ${sentences.length}개로 쉐도잉을 만들었어요. 아래에서 확인·수정하세요.`, 'success');
+      setStatus(`✅ 완료! "${lesson.title}" — 문장 ${sentences.length}개로 쉐도잉을 만들었어요. 아래에서 확인·수정하세요.` + trWarn(trFail), 'success');
       $('ytUrl').value = ''; $('ytStart').value = ''; $('ytEnd').value = ''; $('ytPaste').value = ''; $('vidTitle').value = '';
       $('ytPasteBox').classList.add('hidden');
       await loadLessons();
@@ -328,7 +349,7 @@
       if (!r.sentences.length) throw new Error('영어 대사를 찾지 못했어요. 말소리가 있는 영상인지 확인해주세요.');
       const saved = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'update', id: lesson.id, sentences: r.sentences, duration: r.duration, status: 'ready',
-        partMinutes: Number($('vidParts').value), visibility: $('vidVisibility').value,
+        partMinutes: Number($('vidParts').value), visibility: $('vidVisibility').value, level: $('vidLevel').value,
       }) })).lesson;
       setStatus(`✅ 완료! 문장 ${r.sentences.length}개로 쉐도잉을 만들었어요. 아래에서 문장을 확인·수정하세요.`, 'success');
       $('vidFile').value = ''; $('vidTitle').value = '';
@@ -364,7 +385,7 @@
   function openEditor(l) {
     editing = {
       id: l.id, title: l.title, visibility: l.visibility || 'draft', partMinutes: l.partMinutes ?? 1,
-      description: l.description || '', duration: l.duration || 0, youtubeId: l.youtubeId || null,
+      description: l.description || '', level: l.level || '', duration: l.duration || 0, youtubeId: l.youtubeId || null,
       clipStart: l.clipStart || 0, clipEnd: l.clipEnd || 0,
       sentences: (l.sentences || []).map(s => Object.assign({}, s)),
     };
@@ -373,6 +394,7 @@
     $('vedVisibility').value = editing.visibility;
     $('vedParts').value = String(editing.partMinutes);
     $('vedDesc').value = editing.description;
+    $('vedLevel').value = editing.level;
     $('vedRefetch').classList.toggle('hidden', !editing.youtubeId);
     $('vedClip').textContent = editing.youtubeId
       ? `🔗 YouTube 영상 · 사용 구간 ${VT.fmt(editing.clipStart)} ~ ${VT.fmt(editing.clipEnd || editing.duration)}`
@@ -436,7 +458,8 @@
   async function retranslate(items) {
     items.forEach(x => { x.ko = ''; x._tr = 1; });
     renderSentences();
-    await Promise.all(items.map(async x => { x.ko = (await VT.translate(x.en)) || ''; delete x._tr; }));
+    try { await translateAll(items); } catch (e) {}
+    items.forEach(x => { delete x._tr; });
     if (!editing) return;
     syncFromInputs(true);
     renderSentences();
@@ -502,7 +525,10 @@
     const target = empty.length ? empty : editing.sentences;
     if (!empty.length && !confirm('모든 문장의 번역을 새로 만들까요? (직접 고친 번역도 바뀌어요)')) { b.disabled = false; return; }
     target.forEach(s => { s.ko = ''; });
-    await translateAll(target, f => { b.textContent = `번역 중… ${Math.round(f * 100)}%`; });
+    let fail = 0;
+    try { fail = await translateAll(target, f => { b.textContent = `번역 중… ${Math.round(f * 100)}%`; }); } catch (e) { alert(e.message); }
+    $('vedStatus').textContent = fail ? `⚠️ ${fail}문장은 번역하지 못했어요. 잠시 뒤 다시 눌러 주세요.` : '✅ 번역을 채웠어요. 💾 저장을 눌러주세요.';
+    $('vedStatus').className = 'status ' + (fail ? 'error' : 'success');
     b.textContent = '🌐 빈 번역 채우기'; b.disabled = false;
     renderSentences();
   });
@@ -519,7 +545,7 @@
       const next = await smartSentences(words, end, false, f => { st.textContent = `AI가 문장을 다시 나누는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
       const before = editing.sentences.length;
       editing.sentences = next;
-      if (hadKo) await translateAll(editing.sentences, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
+      await translateAll(editing.sentences, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
       renderSentences();
       st.textContent = `✅ ${before}개 → ${next.length}개 문장으로 다시 나눴어요. 확인 후 💾 저장을 눌러주세요.`; st.className = 'status success';
     } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
@@ -540,7 +566,7 @@
       let next = await smartSentences(inClip, ce || d.duration || editing.duration, d.punctuated, f => { st.textContent = `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value || d.title);
       next = next.filter(s => s.s >= cs - 0.5);
       if (cs) next.forEach(s => { s.s = Math.max(s.s, cs); });
-      if (hadKo) await translateAll(next, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
+      await translateAll(next, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
       editing.sentences = next;
       renderSentences();
       st.textContent = `✅ 문장 ${next.length}개로 새로 만들었어요. ▶로 몇 문장 들어보고 💾 저장을 눌러주세요.`; st.className = 'status success';
@@ -554,7 +580,7 @@
     const st = $('vedStatus'); st.textContent = '저장 중…'; st.className = 'status';
     try {
       await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
-        action: 'update', id: editing.id, title: $('vedTitle').value, description: $('vedDesc').value,
+        action: 'update', id: editing.id, title: $('vedTitle').value, description: $('vedDesc').value, level: $('vedLevel').value,
         visibility: $('vedVisibility').value, partMinutes: Number($('vedParts').value),
         sentences: editing.sentences.filter(s => s.en),
       }) });

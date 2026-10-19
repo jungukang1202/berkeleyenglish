@@ -9,6 +9,9 @@ import crypto from 'node:crypto';
 export const CHUNK_SIZE = 3.5 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024; // 1GB
 const VISIBILITY = ['draft', 'members', 'public'];
+// 레벨: 관리자가 영상마다 정하고, 학생은 자기 레벨만 골라 봅니다. ('' = 레벨 미지정)
+export const LEVELS = ['1-2', '3-4', '5-6', '7-9'];
+const cleanLevel = x => (LEVELS.includes(String(x)) ? String(x) : '');
 
 export function lessonsStore() { return getStore({ name: 'video-lessons', consistency: 'strong' }); }
 export function chunksStore() { return getStore({ name: 'video-chunks', consistency: 'strong' }); }
@@ -42,7 +45,7 @@ export function summary(v) {
 }
 
 // YouTube 링크형 레슨: 영상 파일은 저장하지 않고 YouTube 플레이어로 재생합니다.
-export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track }) {
+export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track, level }) {
   if (!/^[\w-]{11}$/.test(String(youtubeId || ''))) throw new Error('bad_youtube_id');
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -52,7 +55,7 @@ export async function createYoutubeLesson({ youtubeId, title, duration, sentence
     mime: 'video/youtube', size: 0, chunks: 0, duration: Math.max(0, num(duration)),
     clipStart: Math.max(0, num(clipStart)), clipEnd: Math.max(0, num(clipEnd)),
     partMinutes: Math.max(0, Math.min(30, num(partMinutes, 1))), sentences: cleanSentences(sentences),
-    description: clip(description, 500).trim(), level: '',
+    description: clip(description, 500).trim(), level: cleanLevel(level),
     captionTrack: track && typeof track === 'object' ? { lang: clip(track.lang, 20), kind: clip(track.kind, 20) } : null,
     createdAt: now,
   };
@@ -109,7 +112,7 @@ export async function updateLesson(id, patch) {
   if (!rec) throw new Error('lesson_not_found');
   if (patch.title != null) rec.title = clip(patch.title, 120).trim() || rec.title;
   if (patch.description != null) rec.description = clip(patch.description, 500).trim();
-  if (patch.level != null) rec.level = clip(patch.level, 40).trim();
+  if (patch.level != null) rec.level = cleanLevel(patch.level);
   if (patch.visibility != null && VISIBILITY.includes(patch.visibility)) rec.visibility = patch.visibility;
   if (patch.partMinutes != null) rec.partMinutes = Math.max(0, Math.min(30, num(patch.partMinutes, 1)));
   if (patch.duration != null && num(patch.duration) > 0) rec.duration = num(patch.duration);
