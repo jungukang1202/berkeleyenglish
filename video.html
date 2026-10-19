@@ -790,6 +790,8 @@ function setBar(f) { $('#barI').style.width = Math.max(0, Math.min(1, f)) * 100 
 function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
 function clearTimers() { timers.forEach(clearTimeout); timers = []; if (countdown) { cancelAnimationFrame(countdown); countdown = null; } }
 
+// 문장 하나를 끝까지 들으면 '공부함' + 책갈피
+const heard = k => () => { setPill('대기'); markDone(list[k]); };
 function playSentence(k, cb) {
   const s = list[k]; if (!s) return;
   setCurrent(k);
@@ -951,9 +953,10 @@ function afterRep() {
   if (!running) return;
   if (!repLogged) logAttempt(list[cur], { mode: 'listen', rep: rep + 1, of: S.reps });
   repLogged = false;
+  markDone(list[cur]); // 한 번 끝까지 연습하면 바로 '공부함'·책갈피 (반복을 다 채우기 전에 멈춰도 남아요)
   rep++;
   if (rep < S.reps) { later(step, 250); return; }
-  markDone(list[cur]); rep = 0; cur++;
+  rep = 0; cur++;
   if (cur < list.length) { setCurrent(cur); updateRep(); }
   later(step, 500);
 }
@@ -961,7 +964,7 @@ function jump(k) {
   if (!list.length) return;
   k = Math.max(0, Math.min(list.length - 1, k));
   if (running) { clearTimers(); runId++; stopAt = null; onReach = null; if (recorder && recorder.state === 'recording') recorder.stop(); cur = k; rep = 0; setCurrent(k); step(); }
-  else playSentence(k, () => setPill('대기'));
+  else playSentence(k, heard(k));
 }
 function buildPartsLabels() { const keep = $('#part').value; buildParts(); $('#part').value = keep; }
 
@@ -1123,7 +1126,7 @@ function initControls() {
   $('#go').onclick = () => (running ? stop() : start());
   $('#prev').onclick = () => jump(cur - 1);
   $('#next').onclick = () => jump(cur + 1);
-  $('#again').onclick = () => { if (running) { rep = 0; jump(cur); } else playSentence(cur, () => setPill('대기')); };
+  $('#again').onclick = () => { if (running) { rep = 0; jump(cur); } else playSentence(cur, heard(cur)); };
   $('#nowEn').addEventListener('click', e => { if (e.target.classList.contains('w')) showPop(e.target.dataset.w, e.clientX, e.clientY); });
   $('#list').addEventListener('click', e => {
     const row = e.target.closest('.s'); if (!row) return;
@@ -1131,7 +1134,7 @@ function initControls() {
     if (e.target.classList.contains('w')) { e.stopPropagation(); showPop(e.target.dataset.w, e.clientX, e.clientY); return; }
     const a = e.target.closest('[data-a]');
     if (a) {
-      if (a.dataset.a === 'play') { if (running) stop(); playSentence(k, () => setPill('대기')); }
+      if (a.dataset.a === 'play') { if (running) stop(); playSentence(k, heard(k)); }
       if (a.dataset.a === 'rec') toggleRec(k);
       if (a.dataset.a === 'mine') compare(k);
       return;
