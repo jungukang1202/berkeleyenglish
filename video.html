@@ -112,8 +112,12 @@
   .script-head{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border);}
   .script-head b{color:var(--text);}
   .script-head span{font-size:0.82rem; color:var(--muted);}
-  .list{max-height:calc(100vh - 120px); overflow:auto; padding:6px;}
-  @media (max-width:940px){ .list{max-height:none;} }
+  .list{overflow:auto; padding:6px;}
+  /* 스크립트 칸: 왼쪽(영상·설정) 높이에 맞춰 늘어나지 않고 화면 높이에 딱 맞게 — 목록은 칸 안에서 스크롤 */
+  .layout{align-items:start;}
+  .script-card{position:sticky; top:12px; display:flex; flex-direction:column; max-height:calc(100vh - 24px);}
+  .script-card .list{flex:1 1 auto; min-height:0;}
+  @media (max-width:940px){ .script-card{position:static; max-height:none;} .script-card .list{max-height:none;} }
   .s{display:grid; grid-template-columns:50px 1fr auto; gap:4px 10px; padding:10px; border-radius:10px; cursor:pointer; border:1px solid transparent;}
   .s:hover{background:var(--input-bg);}
   .s.cur{background:var(--accent-soft); border-color:var(--accent);}
@@ -236,7 +240,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card script-card">
         <div class="script-head"><b>스크립트</b><span id="prog"></span></div>
         <div class="list" id="list"></div>
       </div>
