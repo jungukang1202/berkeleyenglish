@@ -128,7 +128,8 @@
   }
 
   // 단어 목록 → 문장. punctuated=false(YouTube 자동 자막처럼 문장부호가 없음)면 말이 쉬는 곳에서 나눕니다.
-  function wordsToSentences(all, duration, punctuated) {
+  // opts.pauseCut: AI로 문장부호를 복원한 자막이면, AI가 마침표를 놓친 곳이라도 1.2초 넘게 말이 끊기면 문장을 나눕니다.
+  function wordsToSentences(all, duration, punctuated, opts = {}) {
     const groups = []; let cur = [];
     all.forEach((w, i) => {
       cur.push(w);
@@ -138,7 +139,7 @@
       const cut = punctuated
         // 문장부호가 있으면 문장 끝(. ? !)에서만 자릅니다 — 긴 문장도 한 문장으로 유지
         // (5초 넘게 말이 없거나, 문장부호 없이 60단어를 넘는 경우만 예외)
-        ? (!nx || endsSentence(w.w) || gap > 5 || n >= 60)
+        ? (!nx || endsSentence(w.w) || gap > 5 || n >= 60 || (opts.pauseCut && gap >= 1.2 && n >= 2 && !/[,;:]$/.test(w.w)))
         : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
@@ -158,24 +159,38 @@
       let en = g.map(w => w.w).join(' ').replace(/\s+([,.?!;:])/g, '$1').trim();
       en = en.replace(/\bi\b/g, 'I').replace(/\bi'(m|ll|ve|d)\b/g, "I'$1");
       en = en.charAt(0).toUpperCase() + en.slice(1);
-      if (!punctuated && /[A-Za-z0-9]$/.test(en)) en += '.';
+      if ((!punctuated || opts.pauseCut) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
       return { s: +s.toFixed(2), e: +Math.max(e, s + 0.4).toFixed(2), en, ko: '' };
     });
   }
 
   // AI가 문장부호를 붙여 돌려준 글을 원래 단어(시간 포함)에 하나씩 맞춰 옮깁니다. 단어가 다르면 그 단어는 그대로 둡니다.
   function applyPunctuation(words, punctText) {
-    const toks = String(punctText || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    const toks = String(punctText || '').replace(/[‖|]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(t => norm(t));
     const out = words.map(w => Object.assign({}, w));
     let j = 0, hit = 0;
     for (let i = 0; i < out.length; i++) {
       const nw = norm(out[i].w);
       if (!nw) continue;
+      let found = false;
       for (let t = j; t < Math.min(toks.length, j + 4); t++) {
-        if (norm(toks[t]) === nw) { out[i].w = toks[t]; j = t + 1; hit++; break; }
+        if (norm(toks[t]) === nw) { out[i].w = toks[t]; j = t + 1; hit++; found = true; break; }
+      }
+      // 앞뒤 단어는 맞는데 이 단어만 다르면 → AI가 잘못 들린 단어(이름 등)를 고친 것으로 보고 바꿔 씀
+      if (!found && j < toks.length && i + 1 < out.length && toks[j + 1] && norm(toks[j + 1]) === norm(out[i + 1].w)) {
+        out[i].w = toks[j]; out[i].fixed = 1; j += 1; hit++;
       }
     }
     return { words: out, ratio: out.length ? hit / out.length : 0 };
+  }
+
+  // AI에 보낼 글: 말이 0.6초 이상 끊긴 곳에 ‖ 표시 (문장이 끝났을 가능성이 높은 곳)
+  function textWithPauses(ws) {
+    return ws.map((w, k) => {
+      const nx = ws[k + 1];
+      const gap = nx ? nx.s - w.e : 0;
+      return w.w + (nx && gap >= 0.6 ? ' ‖' : '');
+    }).join(' ');
   }
 
   // 문장부호가 없는 자막 → AI로 문장부호 복원. ask(text)는 서버(/api/admin-punctuate)를 불러 글을 돌려주는 함수.
@@ -191,7 +206,7 @@
       const slice = out.slice(from, Math.min(out.length, i + STEP + EXTRA));
       onProg && onProg(i / out.length);
       let text = null;
-      try { text = await ask(slice.map(w => w.w).join(' ')); } catch (e) { text = null; }
+      try { text = await ask(textWithPauses(slice)); } catch (e) { text = null; }
       if (!text) { failRow++; continue; }
       failRow = 0;
       const r = applyPunctuation(slice, text);

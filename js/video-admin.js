@@ -83,9 +83,10 @@
   });
 
   /* ---------------- 공통: AI 문장부호 복원 ---------------- */
+  let punctTitle = ''; // 영상 제목 — AI가 잘못 들린 이름(예: Louis → Bluey)을 고칠 때 참고
   async function askPunctuate(text) {
     for (let attempt = 1; attempt <= 4; attempt++) {
-      const r = await fetch(VAPI.punctuate, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text }) });
+      const r = await fetch(VAPI.punctuate, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text, title: punctTitle }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.text) return d.text;
       if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
@@ -94,12 +95,14 @@
     return null;
   }
   // 문장부호가 없는 자막이면 AI로 복원 → 문장 끝에서만 나누기
-  async function smartSentences(words, endTime, punctuated, onProg) {
+  async function smartSentences(words, endTime, punctuated, onProg, title) {
+    let pauseCut = false;
     if (!punctuated) {
+      punctTitle = title || '';
       const r = await VT.restorePunctuation(words, askPunctuate, onProg);
-      words = r.words; punctuated = r.ok;
+      words = r.words; punctuated = r.ok; pauseCut = r.ok;
     }
-    return VT.wordsToSentences(words, endTime, punctuated);
+    return VT.wordsToSentences(words, endTime, punctuated, { pauseCut });
   }
 
   /* ---------------- 공통: 번역 ---------------- */
@@ -205,7 +208,7 @@
       const inClip = words.filter(w => w.s >= clipStart - 0.05 && (!clipEnd || w.s < clipEnd));
       if (!inClip.length) throw new Error('선택한 구간에 대사가 없어요. 시작/끝 시간을 확인해주세요.');
       let sentences = await smartSentences(inClip, clipEnd || duration, punctuated,
-        f => setBar('vidTr', 0.5 + f * 0.1, `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`));
+        f => setBar('vidTr', 0.5 + f * 0.1, `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`), $('vidTitle').value.trim() || info.title);
       sentences = sentences.filter(s => s.s >= clipStart - 0.5);
       if (clipStart) sentences.forEach(s => { s.s = Math.max(s.s, clipStart); });
       setBar('vidTr', 0.6, `문장 ${sentences.length}개로 정리`);
@@ -478,7 +481,7 @@
       const hadKo = editing.sentences.some(s => s.ko);
       const words = VT.sentencesToWords(editing.sentences);
       const end = editing.clipEnd || editing.duration || editing.sentences.at(-1).e;
-      const next = await smartSentences(words, end, false, f => { st.textContent = `AI가 문장을 다시 나누는 중… ${Math.round(f * 100)}%`; });
+      const next = await smartSentences(words, end, false, f => { st.textContent = `AI가 문장을 다시 나누는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
       const before = editing.sentences.length;
       editing.sentences = next;
       if (hadKo) await translateAll(editing.sentences, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
@@ -499,7 +502,7 @@
       if (d.needPaste) throw new Error('자막을 자동으로 가져오지 못했어요. 이 영상을 삭제하고, 위에서 링크와 「스크립트 표시」 붙여넣기로 다시 만들어 주세요.');
       const cs = editing.clipStart || 0, ce = editing.clipEnd || 0;
       const inClip = d.words.filter(w => w.s >= cs - 0.05 && (!ce || w.s < ce));
-      let next = await smartSentences(inClip, ce || d.duration || editing.duration, d.punctuated, f => { st.textContent = `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`; });
+      let next = await smartSentences(inClip, ce || d.duration || editing.duration, d.punctuated, f => { st.textContent = `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value || d.title);
       next = next.filter(s => s.s >= cs - 0.5);
       if (cs) next.forEach(s => { s.s = Math.max(s.s, cs); });
       if (hadKo) await translateAll(next, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });

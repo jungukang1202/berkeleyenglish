@@ -6,9 +6,10 @@
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'openai/gpt-oss-20b';
+// 더 정확한 120b 모델을 먼저 쓰고, 안 되면 20b로
+const MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
 const MAX_CHARS = 4000;
-const TIMEOUT_MS = 40000;
+const TIMEOUT_MS = 25000; // 모델 하나당 (함수 전체 제한 60초 안에 두 모델 모두 시도)
 
 export default async (req) => {
   if (!requireAuth(req, 'admin')) return jsonResponse({ error: 'unauthorized' }, 401);
@@ -18,48 +19,56 @@ export default async (req) => {
 
   let body; try { body = await req.json(); } catch (e) { return jsonResponse({ error: 'invalid_json' }, 400); }
   const text = String((body && body.text) || '').replace(/\s+/g, ' ').trim();
+  const title = String((body && body.title) || '').replace(/\s+/g, ' ').trim().slice(0, 150);
   if (!text) return jsonResponse({ error: 'empty' }, 400);
   if (text.length > MAX_CHARS) return jsonResponse({ error: 'too_long' }, 413);
 
   const prompt = [
-    'Restore punctuation and capitalization in this English speech transcript (it may be from a cartoon, lecture or conversation).',
+    'Restore sentence boundaries, punctuation and capitalization in this automatic English speech transcript (often a cartoon, show, lecture or conversation with several speakers).',
+    title ? `Video title (for context and correct spelling of names): "${title}"` : '',
+    'The mark ‖ shows where the audio has a pause of 0.6 seconds or more. A pause very often means one sentence ended and another began (or a different character started speaking), so start a new sentence at a ‖ unless the words clearly continue the same sentence.',
+    'Short separate utterances like "One adult and two kids." or "Okay." are their own sentences.',
     'Rules:',
     '- Add periods, question marks, exclamation marks, commas and apostrophes where a native speaker would.',
     '- Capitalize the first word of each sentence, "I", and names.',
-    '- Do NOT add, remove, reorder, or change any words. Keep every word in the same order.',
-    '- Put each sentence on its own line.',
+    '- Keep every word in the same order. Do not add or remove words.',
+    '- The only allowed word change: if a word is obviously a mis-heard name from the title (e.g. a character name), replace it with the correct single word.',
+    '- Put each sentence on its own line and remove the ‖ marks.',
     '- Output only the punctuated transcript, nothing else.',
     '',
     'Transcript:',
     text,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const r = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0,
-        max_tokens: 4096, // 추론 모델이라 답변 전 생각에도 토큰을 씁니다 — 넉넉하게
-        reasoning_effort: 'low',
-      }),
-      signal: controller.signal,
-    });
-    if (r.status === 429) return jsonResponse({ error: 'rate_limited', retryAfter: Number(r.headers.get('retry-after')) || 10 }, 429);
-    if (!r.ok) return jsonResponse({ error: 'groq_http_' + r.status }, 502);
-    const data = await r.json();
-    const out = (((data.choices || [])[0] || {}).message || {}).content || '';
-    if (!out.trim()) return jsonResponse({ error: 'empty_answer' }, 502);
-    return jsonResponse({ text: out.trim() });
-  } catch (e) {
-    return jsonResponse({ error: e && e.name === 'AbortError' ? 'timeout' : 'failed' }, 502);
-  } finally {
-    clearTimeout(timer);
+  for (const model of MODELS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const r = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0,
+          max_tokens: 6000, // 추론 모델이라 답변 전 생각에도 토큰을 씁니다 — 넉넉하게
+          reasoning_effort: 'low',
+        }),
+        signal: controller.signal,
+      });
+      if (r.status === 429) return jsonResponse({ error: 'rate_limited', retryAfter: Number(r.headers.get('retry-after')) || 10 }, 429);
+      if (!r.ok) continue; // 이 모델을 못 쓰면 다음 모델로
+      const data = await r.json();
+      const out = (((data.choices || [])[0] || {}).message || {}).content || '';
+      if (!out.trim()) continue;
+      return jsonResponse({ text: out.trim(), model });
+    } catch (e) {
+      // 시간 초과 등 → 다음 모델
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return jsonResponse({ error: 'failed' }, 502);
 };
 
 export const config = { path: '/api/admin-punctuate' };
