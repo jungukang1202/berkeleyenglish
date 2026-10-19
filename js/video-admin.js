@@ -7,7 +7,7 @@
 (function () {
   const VT = window.VideoTranscript;
   const $ = id => document.getElementById(id);
-  const VAPI = { videos: '/api/admin-videos', transcribe: '/api/admin-transcribe', youtube: '/api/admin-youtube' };
+  const VAPI = { videos: '/api/admin-videos', transcribe: '/api/admin-transcribe', youtube: '/api/admin-youtube', punctuate: '/api/admin-punctuate' };
   const CHUNK = 3.5 * 1024 * 1024;
   const VIS_LABEL = { draft: '🔒 비공개(임시)', members: '👥 회원 공개', public: '🌐 전체 공개' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -81,6 +81,26 @@
       b.disabled = false;
     }
   });
+
+  /* ---------------- 공통: AI 문장부호 복원 ---------------- */
+  async function askPunctuate(text) {
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      const r = await fetch(VAPI.punctuate, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.text) return d.text;
+      if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
+      await sleep(r.status === 429 ? Math.min(30, d.retryAfter || 10) * 1000 : 2000 * attempt);
+    }
+    return null;
+  }
+  // 문장부호가 없는 자막이면 AI로 복원 → 문장 끝에서만 나누기
+  async function smartSentences(words, endTime, punctuated, onProg) {
+    if (!punctuated) {
+      const r = await VT.restorePunctuation(words, askPunctuate, onProg);
+      words = r.words; punctuated = r.ok;
+    }
+    return VT.wordsToSentences(words, endTime, punctuated);
+  }
 
   /* ---------------- 공통: 번역 ---------------- */
   async function translateAll(sents, onProg) {
@@ -177,7 +197,8 @@
       const clipEnd = clipEndIn && clipEndIn < duration ? clipEndIn : 0;
       const inClip = words.filter(w => w.s >= clipStart - 0.05 && (!clipEnd || w.s < clipEnd));
       if (!inClip.length) throw new Error('선택한 구간에 대사가 없어요. 시작/끝 시간을 확인해주세요.');
-      let sentences = VT.wordsToSentences(inClip, clipEnd || duration, punctuated);
+      let sentences = await smartSentences(inClip, clipEnd || duration, punctuated,
+        f => setBar('vidTr', 0.5 + f * 0.1, `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`));
       sentences = sentences.filter(s => s.s >= clipStart - 0.5);
       if (clipStart) sentences.forEach(s => { s.s = Math.max(s.s, clipStart); });
       setBar('vidTr', 0.6, `문장 ${sentences.length}개로 정리`);
@@ -422,6 +443,25 @@
     await translateAll(target, f => { b.textContent = `번역 중… ${Math.round(f * 100)}%`; });
     b.textContent = '🌐 빈 번역 채우기'; b.disabled = false;
     renderSentences();
+  });
+  $('vedResplit').addEventListener('click', async () => {
+    syncFromInputs();
+    if (!editing.sentences.length) return;
+    if (!confirm('문장이 중간에 끊긴 곳을 AI로 다시 이어 붙여 문장 단위로 나눌까요?\n(직접 고친 내용은 유지되지만, 번역은 새로 만들어져요)')) return;
+    const b = $('vedResplit'); b.disabled = true;
+    const st = $('vedStatus'); st.className = 'status';
+    try {
+      const hadKo = editing.sentences.some(s => s.ko);
+      const words = VT.sentencesToWords(editing.sentences);
+      const end = editing.clipEnd || editing.duration || editing.sentences.at(-1).e;
+      const next = await smartSentences(words, end, false, f => { st.textContent = `AI가 문장을 다시 나누는 중… ${Math.round(f * 100)}%`; });
+      const before = editing.sentences.length;
+      editing.sentences = next;
+      if (hadKo) await translateAll(editing.sentences, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
+      renderSentences();
+      st.textContent = `✅ ${before}개 → ${next.length}개 문장으로 다시 나눴어요. 확인 후 💾 저장을 눌러주세요.`; st.className = 'status success';
+    } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
+    b.disabled = false;
   });
   $('vedCancel').addEventListener('click', closeEditor);
   $('vedSave').addEventListener('click', async () => {

@@ -136,7 +136,9 @@
       const gap = nx ? nx.s - w.e : 99;
       const n = cur.length;
       const cut = punctuated
-        ? (!nx || endsSentence(w.w) || gap > 1.8 || (n >= 20 && (/[,;:]$/.test(w.w) || gap > 0.35)) || n >= 32)
+        // 문장부호가 있으면 문장 끝(. ? !)에서만 자릅니다 — 긴 문장도 한 문장으로 유지
+        // (5초 넘게 말이 없거나, 문장부호 없이 60단어를 넘는 경우만 예외)
+        ? (!nx || endsSentence(w.w) || gap > 5 || n >= 60)
         : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
@@ -159,6 +161,60 @@
       if (!punctuated && /[A-Za-z0-9]$/.test(en)) en += '.';
       return { s: +s.toFixed(2), e: +Math.max(e, s + 0.4).toFixed(2), en, ko: '' };
     });
+  }
+
+  // AI가 문장부호를 붙여 돌려준 글을 원래 단어(시간 포함)에 하나씩 맞춰 옮깁니다. 단어가 다르면 그 단어는 그대로 둡니다.
+  function applyPunctuation(words, punctText) {
+    const toks = String(punctText || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    const out = words.map(w => Object.assign({}, w));
+    let j = 0, hit = 0;
+    for (let i = 0; i < out.length; i++) {
+      const nw = norm(out[i].w);
+      if (!nw) continue;
+      for (let t = j; t < Math.min(toks.length, j + 4); t++) {
+        if (norm(toks[t]) === nw) { out[i].w = toks[t]; j = t + 1; hit++; break; }
+      }
+    }
+    return { words: out, ratio: out.length ? hit / out.length : 0 };
+  }
+
+  // 문장부호가 없는 자막 → AI로 문장부호 복원. ask(text)는 서버(/api/admin-punctuate)를 불러 글을 돌려주는 함수.
+  // 250단어씩 보내되 뒤에 40단어를 더 붙여 보내서, 조각 끝에서 문장이 잘못 끊기지 않게 합니다.
+  async function restorePunctuation(words, ask, onProg) {
+    const STEP = 250, EXTRA = 40;
+    const out = words.map(w => Object.assign({}, w, { w: String(w.w).replace(/[.?!…]+$/, '') }));
+    let okChunks = 0, total = 0, failRow = 0;
+    for (let i = 0; i < out.length; i += STEP) {
+      if (failRow >= 2) break; // AI가 계속 응답하지 않으면 그만두고 예전 방식(말 쉬는 곳)으로 나눔
+      total++;
+      const slice = out.slice(i, Math.min(out.length, i + STEP + EXTRA));
+      onProg && onProg(i / out.length);
+      let text = null;
+      try { text = await ask(slice.map(w => w.w).join(' ')); } catch (e) { text = null; }
+      if (!text) { failRow++; continue; }
+      failRow = 0;
+      const r = applyPunctuation(slice, text);
+      if (r.ratio < 0.85) continue; // AI가 단어를 너무 많이 바꿨으면 이 조각은 쓰지 않음
+      okChunks++;
+      const keep = i + STEP >= out.length ? r.words.length : STEP;
+      for (let k = 0; k < keep; k++) out[i + k] = r.words[k];
+    }
+    onProg && onProg(1);
+    return { words: out, ok: okChunks > 0 && okChunks >= total * 0.6 };
+  }
+
+  // 저장된 문장들 → 대략적인 단어별 시간 (문장 다시 나누기용)
+  function sentencesToWords(sents) {
+    const words = [];
+    sents.forEach(s => {
+      const ws = String(s.en || '').split(/\s+/).filter(Boolean);
+      const total = ws.reduce((a, w) => a + w.length + 1, 0) || 1;
+      let t = s.s;
+      // 예전에 문장 첫 글자라서 대문자가 된 단어는 소문자로 돌려 AI에 보냅니다 (이름은 AI가 다시 대문자로 써요)
+      if (ws.length && !/^I('|$)/.test(ws[0])) ws[0] = ws[0].charAt(0).toLowerCase() + ws[0].slice(1);
+      ws.forEach(w => { const d = Math.max(0.05, (s.e - s.s) * (w.length + 1) / total); words.push({ w, s: t, e: t + d * 0.95, ko: s.ko }); t += d; });
+    });
+    return words;
   }
 
   // YouTube "스크립트 표시"에서 복사한 글 → 단어별 시간
@@ -244,5 +300,5 @@
     return '';
   }
 
-  root.VideoTranscript = { SR, extractAudio, splitAudio, encodeWav, buildSentences, wordsToSentences, parsePastedTranscript, planParts, fmt, parseTime, translate };
+  root.VideoTranscript = { SR, extractAudio, splitAudio, encodeWav, buildSentences, wordsToSentences, parsePastedTranscript, applyPunctuation, restorePunctuation, sentencesToWords, planParts, fmt, parseTime, translate };
 })(window);

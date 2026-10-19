@@ -473,7 +473,10 @@ today we're going to talk about..."></textarea>
         <div class="field" style="margin-top:10px;"><label for="vedDesc">설명 (선택, 회원 화면에 표시)</label><input type="text" id="vedDesc" placeholder="예: 중급 · 일상 대화 · 연음 집중 연습"></div>
         <div class="row" style="justify-content:space-between;">
           <span class="pill" id="vedCount"></span>
-          <button class="btn-ghost btn-small" id="vedRetranslate">🌐 빈 번역 채우기</button>
+          <span style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn-ghost btn-small" id="vedResplit" title="중간에 끊긴 문장을 AI로 이어 붙여 다시 나눠요">✨ 문장 다시 나누기</button>
+            <button class="btn-ghost btn-small" id="vedRetranslate">🌐 빈 번역 채우기</button>
+          </span>
         </div>
         <div class="ved-list" id="vedList"></div>
         <div class="row">
@@ -510,7 +513,7 @@ today we're going to talk about..."></textarea>
 
 <script src="js/shadowing-engine.js?v=20261014a"></script>
 <script src="js/learning-report.js?v=20261014a"></script>
-<script src="js/video-transcript.js?v=20261019b"></script>
+<script src="js/video-transcript.js?v=20261019c"></script>
 <script src="js/yt-media.js?v=20261019b"></script>
 <script>
 const API = {
@@ -1331,6 +1334,6 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 /* ===================== 시작 ===================== */
 if (getToken()) showMain(); else showLogin();
 </script>
-<script src="js/video-admin.js?v=20261019b"></script>
+<script src="js/video-admin.js?v=20261019c"></script>
 </body>
 </html>
