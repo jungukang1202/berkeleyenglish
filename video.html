@@ -65,10 +65,23 @@
   .lv-tabs button.kids-tab{border-color:#F2C77A; background:#FFF6E5;}
   .lv-tabs button.kids-tab.on{background:#F2A93B; border-color:#F2A93B; color:#3A2400;}
   .lv-tabs button.kids-tab.on small{color:#5B3B00;}
-  .lesson.kids{padding:0; overflow:hidden; border-top-color:#F2A93B;}
-  .lesson.kids .thumb{position:relative; aspect-ratio:16/9; background:#2B2B2B center/cover no-repeat; display:flex; align-items:center; justify-content:center;}
-  .lesson.kids .thumb b{width:58px; height:58px; border-radius:50%; background:rgba(242,169,59,0.95); color:#3A2400; font-size:1.5rem; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.25);}
-  .lesson.kids .body{padding:14px 16px 16px; display:flex; flex-direction:column; gap:6px;}
+  /* 영상 카드 썸네일 (YouTube: hqdefault → 선명한 화면이면 maxresdefault로 교체 / 파일 영상: 그림 대신 표시) */
+  .lesson.has-thumb{padding:0; overflow:hidden; gap:0;}
+  .lesson.has-thumb:not(.kids){border-top:0;}
+  .lesson .thumb{position:relative; aspect-ratio:16/9; background:#1B2A4E; overflow:hidden; display:flex; align-items:center; justify-content:center;}
+  .lesson .thumb img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; transition:transform .25s ease;}
+  .lesson:hover .thumb img{transform:scale(1.04);}
+  .lesson .thumb.file{background:linear-gradient(135deg,#1B2A4E 0%,#33467A 100%); color:#fff; flex-direction:column; gap:6px; font-size:0.8rem; font-weight:700; letter-spacing:0.02em;}
+  .lesson .thumb.file span{font-size:2.2rem; line-height:1;}
+  .lesson .thumb b{position:relative; width:54px; height:54px; border-radius:50%; background:rgba(15,24,48,0.72); color:#fff; font-size:1.25rem; display:flex; align-items:center; justify-content:center; opacity:0; transform:scale(0.9); transition:opacity .2s ease, transform .2s ease;}
+  .lesson:hover .thumb b{opacity:1; transform:scale(1);}
+  .lesson .thumb .dur{position:absolute; right:8px; bottom:10px; background:rgba(0,0,0,0.78); color:#fff; font-size:0.74rem; font-weight:700; padding:2px 7px; border-radius:6px; font-variant-numeric:tabular-nums;}
+  .lesson .thumb .bmk{position:absolute; left:8px; top:8px; background:#F2A93B; color:#3A2400; font-size:0.72rem; font-weight:800; padding:3px 9px; border-radius:999px; box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+  .lesson .thumb .pbar{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,0.35);}
+  .lesson .thumb .pbar i{display:block; height:100%; background:var(--good);}
+  .lesson .body{padding:14px 16px 16px; display:flex; flex-direction:column; gap:8px; flex:1;}
+  .lesson.kids{border-top-color:#F2A93B;}
+  .lesson.kids .thumb b{opacity:1; transform:none; width:58px; height:58px; background:rgba(242,169,59,0.95); color:#3A2400; font-size:1.5rem; box-shadow:0 6px 18px rgba(0,0,0,0.25);}
   .watch{max-width:980px; margin:0 auto;}
   .watch .frame{position:relative; aspect-ratio:16/9; background:#000; border-radius:var(--radius); overflow:hidden; box-shadow:0 12px 30px rgba(27,42,78,0.15);}
   .watch .frame iframe, .watch .frame video{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000;}
@@ -403,21 +416,41 @@ async function showLibrary() {
       const done = Math.max((LS.get('vs:' + v.id + ':done', []) || []).length, sp ? sp.done : 0);
       const hasBm = !!LS.get('vs:' + v.id + ':last', null) || !!(sp && sp.last != null);
       const pct = v.sentenceCount ? Math.round(done / v.sentenceCount * 100) : 0;
-      return `<a class="card lesson" href="video.html?id=${encodeURIComponent(v.id)}">
-        <h3>${esc(v.title)}</h3>
-        ${v.description ? `<div class="desc">${esc(v.description)}</div>` : ''}
-        <div class="prog"><i style="width:${pct}%"></i></div>
-        <div class="meta"><span>⏱ ${fmt((v.clipEnd || v.duration) - (v.clipStart || 0))}</span>${v.youtubeId ? '<span>▶ YouTube</span>' : ''}${v.level ? `<span class="tag lv">Lv ${esc(v.level)}</span>` : ''}<span>💬 ${v.sentenceCount}문장</span><span>${pct ? '✓ ' + Math.min(100, pct) + '% 공부함' : '새 영상'}</span>${hasBm ? '<span class="bm">🔖 이어서 하기</span>' : ''}${v.visibility === 'public' ? '' : '<span class="tag">회원</span>'}</div>
+      const over = `<span class="dur">${fmt((v.clipEnd || v.duration) - (v.clipStart || 0))}</span>${hasBm ? '<span class="bmk">🔖 이어서 하기</span>' : ''}${pct ? `<span class="pbar"><i style="width:${Math.min(100, pct)}%"></i></span>` : ''}`;
+      return `<a class="card lesson has-thumb" href="video.html?id=${encodeURIComponent(v.id)}">
+        ${thumbHtml(v, over)}
+        <div class="body">
+          <h3>${esc(v.title)}</h3>
+          ${v.description ? `<div class="desc">${esc(v.description)}</div>` : ''}
+          <div class="meta">${v.level ? `<span class="tag lv">Lv ${esc(v.level)}</span>` : ''}<span>💬 ${v.sentenceCount}문장</span><span>${pct ? '✓ ' + Math.min(100, pct) + '% 공부함' : '새 영상'}</span>${v.visibility === 'public' ? '' : '<span class="tag">회원</span>'}</div>
+        </div>
       </a>`;
     }).join('');
+    upgradeThumbs($('#lib'));
   } catch (e) { $('#lib').innerHTML = `<div class="empty">⚠️ 목록을 불러오지 못했어요 (${esc(e.message)})</div>`; }
+}
+
+// 영상 카드 썸네일
+// YouTube는 hqdefault(480×360, 모든 영상에 있음)를 16:9로 잘라 먼저 보여주고,
+// maxresdefault(1280×720)가 실제로 있으면(없으면 120×90 회색 그림이 와요) 선명한 걸로 바꿔요.
+function thumbHtml(v, extra = '') {
+  if (!v.youtubeId) return `<div class="thumb file"><span>🎬</span>직접 올린 영상${extra}</div>`;
+  const id = encodeURIComponent(v.youtubeId);
+  return `<div class="thumb"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" data-yt="${id}" alt="" loading="lazy" decoding="async" onerror="this.remove()"><b>▶</b>${extra}</div>`;
+}
+function upgradeThumbs(root) {
+  if (!(window.devicePixelRatio > 1 || innerWidth > 700)) return;
+  root.querySelectorAll('img[data-yt]').forEach(img => {
+    const hi = new Image();
+    hi.onload = () => { if (hi.naturalWidth > 200) img.src = hi.src; };
+    hi.src = `https://i.ytimg.com/vi/${img.dataset.yt}/maxresdefault.jpg`;
+  });
 }
 
 // 👶 유아 영상 카드: 썸네일을 크게, 누르면 바로 영상 보기
 function kidsCard(v) {
-  const th = v.youtubeId ? `style="background-image:url('https://i.ytimg.com/vi/${encodeURIComponent(v.youtubeId)}/hqdefault.jpg')"` : '';
-  return `<a class="card lesson kids" href="video.html?id=${encodeURIComponent(v.id)}">
-    <div class="thumb" ${th}><b>▶</b></div>
+  return `<a class="card lesson has-thumb kids" href="video.html?id=${encodeURIComponent(v.id)}">
+    ${thumbHtml(v)}
     <div class="body">
       <h3>${esc(v.title)}</h3>
       ${v.description ? `<div class="desc">${esc(v.description)}</div>` : ''}
