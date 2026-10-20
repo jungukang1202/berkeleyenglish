@@ -4,12 +4,11 @@
 //   POST /api/admin-punctuate  { text: "so today i want to talk about ..." }  →  { text: "So today I want to talk about ..." }
 // 브라우저가 돌려받은 글을 원래 단어(시간 정보)와 하나씩 맞춰 보고, 단어가 바뀐 곳은 버립니다.
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
+import { groqChat, tokensEn } from './_lib/groq.mjs';
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// 더 정확한 120b 모델을 먼저 쓰고, 안 되면 20b로
-const MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+// 정확한 순서대로 시도 — 모델마다 Groq 사용 한도가 따로라서, 하나가 한도에 걸리면 다음 모델이 받아요
+const MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
 const MAX_CHARS = 4000;
-const TIMEOUT_MS = 25000; // 모델 하나당 (함수 전체 제한 60초 안에 두 모델 모두 시도)
 
 export default async (req) => {
   if (!requireAuth(req, 'admin')) return jsonResponse({ error: 'unauthorized' }, 401);
@@ -42,34 +41,13 @@ export default async (req) => {
     text,
   ].filter(Boolean).join('\n');
 
-  for (const model of MODELS) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    try {
-      const r = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0,
-          max_tokens: 6000, // 추론 모델이라 답변 전 생각에도 토큰을 씁니다 — 넉넉하게
-          reasoning_effort: 'low',
-        }),
-        signal: controller.signal,
-      });
-      if (r.status === 429) return jsonResponse({ error: 'rate_limited', retryAfter: Number(r.headers.get('retry-after')) || 10 }, 429);
-      if (!r.ok) continue; // 이 모델을 못 쓰면 다음 모델로
-      const data = await r.json();
-      const out = (((data.choices || [])[0] || {}).message || {}).content || '';
-      if (!out.trim()) continue;
-      return jsonResponse({ text: out.trim(), model });
-    } catch (e) {
-      // 시간 초과 등 → 다음 모델
-    } finally {
-      clearTimeout(timer);
-    }
-  }
+  const r = await groqChat({
+    apiKey, models: MODELS, prompt, temperature: 0,
+    outTokens: Math.ceil(tokensEn(text) * 1.15) + 20, // 문장부호·대문자만 붙인 같은 글
+    accept: c => c,
+  });
+  if (r.ok) return jsonResponse({ text: r.value, model: r.model });
+  if (r.rateLimited) return jsonResponse({ error: 'rate_limited', retryAfter: r.retryAfter }, 429);
   return jsonResponse({ error: 'failed' }, 502);
 };
 

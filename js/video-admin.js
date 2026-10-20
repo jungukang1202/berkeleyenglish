@@ -124,14 +124,26 @@
 
   /* ---------------- 공통: AI 문장부호 복원 ---------------- */
   let punctTitle = ''; // 영상 제목 — AI가 잘못 들린 이름(예: Louis → Bluey)을 고칠 때 참고
+  // AI 사용 한도(429)에 걸리면 알려준 시간만큼 기다렸다가 다시 — 쉽게 포기하지 않아요
+  // (포기하면 문장부호 없이 자막 줄 그대로 잘려서 문장이 엉망이 돼요)
+  function aiWaitNote(sec) {
+    const msg = `⏳ AI 사용 한도에 잠깐 걸렸어요. ${sec}초 기다렸다가 이어서 해요… (창을 닫지 마세요)`;
+    if (busy) setStatus(msg);
+    else if (editing) { $('vedStatus').textContent = msg; $('vedStatus').className = 'status'; }
+  }
   async function askPunctuate(text) {
-    for (let attempt = 1; attempt <= 4; attempt++) {
+    let fails = 0, waits = 0;
+    while (fails < 3 && waits < 12) {
       await checkpoint();
-      const r = await fetch(VAPI.punctuate, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text, title: punctTitle }) });
-      const d = await r.json().catch(() => ({}));
+      let r, d = {};
+      try {
+        r = await fetch(VAPI.punctuate, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text, title: punctTitle }) });
+        d = await r.json().catch(() => ({}));
+      } catch (e) { if (isCancelled(e)) throw new Cancelled(); fails++; await sleep(2000 * fails); continue; }
       if (r.ok && d.text) return d.text;
       if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
-      await sleep(r.status === 429 ? Math.min(30, d.retryAfter || 10) * 1000 : 2000 * attempt);
+      if (r.status === 429) { waits++; const sec = Math.min(60, Math.max(3, Math.ceil(d.retryAfter || 10))); aiWaitNote(sec); await sleep(sec * 1000); continue; }
+      fails++; await sleep(2000 * fails);
     }
     return null;
   }
@@ -157,7 +169,7 @@
     let done = 0;
     for (let i = 0; i < todo.length; i += B) {
       const batch = todo.slice(i, i + B);
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let attempt = 1, waits = 0; attempt <= 3 && waits < 10; attempt++) {
         await checkpoint();
         try {
           const r = await fetch(VAPI.translate, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
@@ -165,7 +177,8 @@
           const d = await r.json().catch(() => ({}));
           if (r.ok && Array.isArray(d.ko)) { batch.forEach((x, k) => { if (d.ko[k]) x.ko = d.ko[k]; }); break; }
           if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
-          await sleep(r.status === 429 ? Math.min(30, d.retryAfter || 10) * 1000 : 1500 * attempt);
+          if (r.status === 429) { waits++; attempt--; const sec = Math.min(60, Math.max(3, Math.ceil(d.retryAfter || 10))); aiWaitNote(sec); await sleep(sec * 1000); continue; } // 한도 대기는 실패로 세지 않음
+          await sleep(1500 * attempt);
         } catch (e) { if (/세션/.test(e.message)) throw e; if (isCancelled(e)) throw new Cancelled(); await sleep(1500 * attempt); }
       }
       done += batch.length; onProg && onProg(Math.min(0.95, done / todo.length));

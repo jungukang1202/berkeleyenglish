@@ -4,11 +4,11 @@
 //   POST /api/admin-translate  { sentences: ["Hi.", "How are you?"], title }  →  { ko: ["안녕.", "어떻게 지내?"] }
 //   (번역하지 못한 문장은 "" — 브라우저가 구글 번역으로 한 번 더 시도합니다)
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
+import { groqChat, tokensKo } from './_lib/groq.mjs';
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+// 모델마다 Groq 사용 한도가 따로 — 하나가 한도에 걸리면 다음 모델이 받아요
+const MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'];
 const MAX_ITEMS = 40;
-const TIMEOUT_MS = 25000;
 
 function parseList(text, n) {
   const t = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
@@ -49,31 +49,18 @@ export default async (req) => {
     JSON.stringify(list),
   ].join('\n');
 
-  for (const model of MODELS) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    try {
-      const r = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.2, max_tokens: 8000, reasoning_effort: 'low' }),
-        signal: controller.signal,
-      });
-      if (r.status === 429) return jsonResponse({ error: 'rate_limited', retryAfter: Number(r.headers.get('retry-after')) || 10 }, 429);
-      if (!r.ok) continue;
-      const data = await r.json();
-      const content = (((data.choices || [])[0] || {}).message || {}).content || '';
+  const r = await groqChat({
+    apiKey, models: MODELS, prompt, temperature: 0.2,
+    outTokens: tokensKo(list.join(' ')) / 2.2 + list.length * 6, // 한국어 번역 + JSON 따옴표
+    accept: content => {
       const arr = parseList(content, list.length);
-      if (arr.length !== list.length) continue; // 개수가 안 맞으면 다른 모델로
+      if (arr.length !== list.length) return null; // 개수가 안 맞으면 다른 모델로
       const ko = arr.map(x => (/[가-힣]/.test(x) ? x : '')); // 한글이 없는 답은 버림
-      if (ko.filter(Boolean).length < list.length * 0.5) continue;
-      return jsonResponse({ ko, model });
-    } catch (e) {
-      // 시간 초과 → 다음 모델
-    } finally {
-      clearTimeout(timer);
-    }
-  }
+      return ko.filter(Boolean).length >= list.length * 0.5 ? ko : null;
+    },
+  });
+  if (r.ok) return jsonResponse({ ko: r.value, model: r.model });
+  if (r.rateLimited) return jsonResponse({ error: 'rate_limited', retryAfter: r.retryAfter }, 429);
   return jsonResponse({ error: 'failed' }, 502);
 };
 
