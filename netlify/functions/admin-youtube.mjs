@@ -132,11 +132,11 @@ export function linesToWords(lines) {
 function supaToWords(content) {
   return linesToWords((content || []).map(seg => ({ text: seg.text, start: Number(seg.offset || 0) / 1000, dur: Number(seg.duration || 0) / 1000 })));
 }
-async function supadata(videoId, key, jobId) {
+async function supadata(videoId, key, jobId, want = 'en', mode = 'auto', ms = 25000) {
   const headers = { 'x-api-key': key };
   let r;
   if (jobId) r = await timed(`${SUPA}/${encodeURIComponent(jobId)}`, { headers }, 15000);
-  else r = await timed(`${SUPA}?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&lang=en&mode=auto`, { headers }, 25000);
+  else r = await timed(`${SUPA}?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&lang=${encodeURIComponent(want)}&mode=${mode}`, { headers }, ms);
   const d = await r.json().catch(() => ({}));
   if (r.status === 202 || (d.jobId && !d.content)) return { pending: true, jobId: d.jobId || jobId };
   if (jobId && d.status && d.status !== 'completed') {
@@ -147,8 +147,10 @@ async function supadata(videoId, key, jobId) {
   const content = Array.isArray(d.content) ? d.content : (d.result && d.result.content) || [];
   const lang = d.lang || (content[0] && content[0].lang) || 'en';
   if (!/^en/i.test(lang)) throw Object.assign(new Error('not english: ' + lang), { notEnglish: true });
-  return { words: supaToWords(content), lang };
+  const availableLangs = Array.isArray(d.availableLangs) ? d.availableLangs.map(String) : [];
+  return { words: supaToWords(content), lang, availableLangs };
 }
+const punctRatio = words => (words.length ? words.filter(w => /[.?!]$/.test(w.w)).length / words.length : 0);
 
 async function oembed(videoId) {
   try {
@@ -176,12 +178,28 @@ export default async (req) => {
   const supaKey = process.env.SUPADATA_API_KEY;
   if (supaKey) {
     try {
-      const r = await supadata(videoId, supaKey, body.jobId ? String(body.jobId).slice(0, 100) : null);
+      const t0 = Date.now();
+      let r = await supadata(videoId, supaKey, body.jobId ? String(body.jobId).slice(0, 100) : null);
       if (r.pending) return jsonResponse({ ...info, pending: true, jobId: r.jobId, message: '자막이 없는 영상이라 AI가 받아쓰는 중이에요…' }, 202);
       if (r.words.length) {
-        const punct = r.words.filter(w => /[.?!]$/.test(w.w)).length / r.words.length;
+        let punct = punctRatio(r.words);
+        // 받은 자막에 문장부호가 없으면(= YouTube 자동 자막) 다른 영어 자막(en-GB·en-US 등)에
+        // 사람이 만든 스크립트가 있는지 찾아서, 있으면 그걸 씁니다.
+        const tried = [];
+        if (!body.jobId && punct <= 0.02) {
+          const others = r.availableLangs.filter(l => /^en/i.test(l) && l.toLowerCase() !== String(r.lang).toLowerCase()).slice(0, 3);
+          for (const l of others) {
+            if (Date.now() - t0 > 6000) break; // 함수 시간 제한 안에서
+            try {
+              const r2 = await supadata(videoId, supaKey, null, l, 'native', 4500);
+              tried.push(l);
+              if (r2.words && r2.words.length > r.words.length * 0.5 && punctRatio(r2.words) > 0.02) { r = r2; punct = punctRatio(r2.words); break; }
+            } catch (e) { tried.push(l + ':' + e.message.slice(0, 30)); }
+          }
+        }
+        console.log(`[captions] ${videoId} lang=${r.lang} available=${r.availableLangs.join(',')} tried=${tried.join(',')} punct=${punct.toFixed(3)}`);
         // jobId로 받은 결과 = 자막이 없어 AI가 받아쓴 것
-        return jsonResponse({ ...info, track: { lang: r.lang, kind: body.jobId ? 'ai' : 'supadata', name: 'Supadata' }, punctuated: punct > 0.02, words: r.words });
+        return jsonResponse({ ...info, track: { lang: r.lang, kind: body.jobId ? 'ai' : (punct > 0.02 ? 'human' : 'auto'), name: 'Supadata' }, punctuated: punct > 0.02, words: r.words, availableLangs: r.availableLangs });
       }
       attempts.push('SUPADATA:empty');
     } catch (e) {
