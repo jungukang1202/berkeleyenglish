@@ -30,6 +30,7 @@ export default async (req) => {
     'Decide sentence ends by GRAMMAR and MEANING first: a sentence ends only where it is complete. Never leave an unfinished phrase as a sentence.',
     'Examples: "I feel ‖ terrible" → "I feel terrible." (one sentence, the pause is for drama) · "I have a really bad ‖ migraine" → "I have a really bad migraine." · "it costs ‖ ten dollars" → "It costs ten dollars." · but "one adult and two kids ‖ okay here you go" → "One adult and two kids. Okay, here you go." (two complete utterances).',
     'The mark » shows that a different person starts speaking — always start a new sentence there.',
+    'The text is often a dialogue (e.g. a patient and a receptionist, a waiter and a customer). End the sentence whenever the speaker changes even without a » mark: e.g. someone answering the phone with a greeting or business name ("I have to call my GP. ‖ Easy English Surgery, how can I help?"), or a question to the other person after a statement ("…on my face. And do you know if you have a fever?").',
     'Short separate utterances like "One adult and two kids." or "Okay." are their own sentences.',
     'Interjections and exclamations said on their own (e.g. "Oh no!", "Hooray!", "Wow!", "Oh, biscuits!", or a character\'s catchphrase) are their own sentence ending with "!", unless they are clearly part of the following sentence. Words that address a different person right after an exclamation (e.g. "Dad, is there...") start a new sentence.',
     'Rules:',

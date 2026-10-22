@@ -168,6 +168,8 @@
     // 문장 가운데에서도 대문자로 쓰인 단어 = 이름 (예: GP, Mitch, Peppa)
     const proper = new Set();
     all.forEach((w, i) => { if (i > 0 && /^[A-Z]/.test(w.w) && !/[.?!]["”’)]?$/.test(all[i - 1].w)) proper.add(bare(w.w)); });
+    // 문장부호 없는 부분(AI 실패 조각)을 자르는 예전 방식
+    const rawCut = (w, nx, gap, n) => !nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20;
     const newSentenceStart = x => x && /^[A-Z]/.test(x.w) && !/^I('|$)/.test(x.w) && !proper.has(bare(x.w));
     all.forEach((w, i) => {
       cur.push(w);
@@ -180,7 +182,7 @@
         // 말을 쉰 곳에서 억지로 자르지 않아요 — "I feel ‖ terrible", 느린 영어 영상의 "call my ‖(14초)‖ GP"처럼
         // 문장 가운데서 길게 쉬는 경우가 많아서요. 단, AI가 다음 말을 대문자로 새 문장처럼 시작했는데
         // 마침표만 빠뜨린 곳(쉼 1초 이상)은 자릅니다.
-        ? (!nx || endsSentence(w.w) || w.spk || n >= 60 || (gap >= 1 && n >= 2 && newSentenceStart(nx) && (w.w = w.w.replace(/[,;:]$/, '') + '.')))
+        ? (w.raw ? rawCut(w, nx, gap, n) : (!nx || endsSentence(w.w) || w.spk || n >= 60 || (gap >= 1 && n >= 2 && newSentenceStart(nx) && (w.w = w.w.replace(/[,;:]$/, '') + '.'))))
         : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
@@ -202,7 +204,7 @@
       let en = g.map(w => w.w).join(' ').replace(/\s+([,.?!;:])/g, '$1').trim();
       en = en.replace(/\bi\b/g, 'I').replace(/\bi'(m|ll|ve|d)\b/g, "I'$1");
       en = en.charAt(0).toUpperCase() + en.slice(1);
-      if ((!punctuated || g[g.length - 1].spk || g.length >= 60) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
+      if ((!punctuated || g[g.length - 1].raw || g[g.length - 1].spk || g.length >= 60) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
       return { s: +s.toFixed(2), e: +Math.max(e, s + 0.4).toFixed(2), en, ko: '' };
     });
   }
@@ -240,10 +242,10 @@
   // 250단어씩 보내되 뒤에 40단어를 더 붙여 보내서, 조각 끝에서 문장이 잘못 끊기지 않게 합니다.
   async function restorePunctuation(words, ask, onProg) {
     const STEP = 250, EXTRA = 40, LEAD = 20; // 앞뒤로 문맥을 조금 더 보내서 조각 경계에서 문장이 잘못 시작·끝나지 않게
-    const out = words.map(w => Object.assign({}, w, { w: String(w.w).replace(/[.?!…]+$/, '') }));
+    const out = words.map(w => Object.assign({}, w, { w: String(w.w).replace(/[.?!…]+$/, ''), raw: 1 }));
     let okChunks = 0, total = 0, failRow = 0;
     for (let i = 0; i < out.length; i += STEP) {
-      if (failRow >= 2) break; // AI가 계속 응답하지 않으면 그만두고 예전 방식(말 쉬는 곳)으로 나눔
+      if (failRow >= 3) break; // AI가 계속 응답하지 않으면 그만두고, 남은 부분만 예전 방식(말 쉬는 곳)으로 나눔
       total++;
       const from = Math.max(0, i - LEAD);
       const slice = out.slice(from, Math.min(out.length, i + STEP + EXTRA));
@@ -257,10 +259,11 @@
       okChunks++;
       const lead = i - from;
       const keep = i + STEP >= out.length ? r.words.length - lead : STEP;
-      for (let k = 0; k < keep; k++) out[i + k] = r.words[lead + k];
+      for (let k = 0; k < keep; k++) { out[i + k] = r.words[lead + k]; delete out[i + k].raw; }
     }
     onProg && onProg(1);
-    return { words: out, ok: okChunks > 0 && okChunks >= total * 0.6 };
+    // AI가 성공한 조각은 문장부호대로, 실패한 조각(raw)만 예전 방식으로 나눠요 (예전엔 40%만 실패해도 전체가 예전 방식이었어요)
+    return { words: out, ok: okChunks > 0 };
   }
 
   // 저장된 문장들 → 대략적인 단어별 시간 (문장 다시 나누기용)
