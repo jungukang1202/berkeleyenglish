@@ -129,6 +129,40 @@
 
   // 단어 목록 → 문장. punctuated=false(YouTube 자동 자막처럼 문장부호가 없음)면 말이 쉬는 곳에서 나눕니다.
   // opts.pauseCut: AI로 문장부호를 복원한 자막이면, AI가 마침표를 놓친 곳이라도 1.2초 넘게 말이 끊기면 문장을 나눕니다.
+  // ---- 문장이 덜 끝났는지 보는 문법 검사 ----
+  // 이 단어로는 영어 문장이 끝날 수 없어요 (관사·소유격·접속사·주어 등)
+  const NEVER_END = new Set(['a', 'an', 'the', 'of', 'my', 'your', 'our', 'their', 'its', 'and', 'but', 'or', 'nor', 'because', 'than', 'if', 'very',
+    'i', "i'm", "i'll", "i've", "i'd", "you're", "we're", "they're", "he's", "she's", "it's", "that's", "there's", 'whose', 'such', 'every', 'each', 'these', 'those']);
+  // "주어 + 이 동사"만 있는 두 단어 문장은 뒤에 말이 더 있어야 해요 ("I feel." "You look." "I want.")
+  //  (am·is·have처럼 혼자서도 대답이 되는 동사는 넣지 않아요: "I am." "I have.")
+  const NEEDS_MORE = new Set(['feel', 'feels', 'felt', 'look', 'looks', 'seem', 'seems', 'sound', 'sounds', 'become', 'became', 'want', 'wants', 'need', 'needs', 'like', 'likes', 'love', 'loves', 'hate', 'hates', 'get', 'gets', 'got']);
+  const SUBJECT = new Set(['i', 'you', 'we', 'they', 'he', 'she', 'it']);
+  // "a really bad." 처럼 관사 뒤에 꾸미는 말만 있고 명사가 빠진 경우
+  const DETERMINER = new Set(['a', 'an', 'the', 'my', 'your', 'our', 'their', 'his', 'her', 'its', 'this', 'that', 'some', 'any']);
+  const INTENSIFIER = new Set(['really', 'very', 'so', 'quite', 'too', 'pretty', 'super', 'extremely', 'little', 'big']);
+  const bare = w => String(w || '').toLowerCase().replace(/^[^a-z']+|[^a-z']+$/g, '');
+  function fixDangling(groups) {
+    // 문장 가운데에서도 대문자로 쓰인 단어 = 이름 (합칠 때 소문자로 바꾸지 않음)
+    const proper = new Set();
+    groups.forEach(g => g.forEach((w, k) => { if (k > 0 && /^[A-Z]/.test(w.w) && !/[.?!]$/.test(g[k - 1].w)) proper.add(bare(w.w)); }));
+    for (let i = 0; i + 1 < groups.length; i++) {
+      const g = groups[i], nx = groups[i + 1], last = g[g.length - 1];
+      if (!/\.$/.test(last.w) || /\.\.\.$/.test(last.w) || last.spk) continue; // ? ! 로 끝나거나 화자가 바뀌면 그대로
+      if (nx[0].s - last.e > 2.5) continue; // 한참 뒤에 이어지는 말은 다른 문장
+      const b = bare(last.w);
+      const tail = g.slice(-4).map(w => bare(w.w));
+      const dangling = NEVER_END.has(b)
+        || (g.length === 2 && SUBJECT.has(bare(g[0].w)) && NEEDS_MORE.has(b) && nx.length <= 6)
+        || (nx.length <= 3 && g.length >= 3 && INTENSIFIER.has(tail[tail.length - 2]) && tail.slice(0, -2).some(x => DETERMINER.has(x)));
+      if (!dangling) continue;
+      last.w = last.w.replace(/\.$/, '');
+      const first = nx[0];
+      if (!/^I('|$)/.test(first.w) && !proper.has(bare(first.w))) first.w = first.w.charAt(0).toLowerCase() + first.w.slice(1);
+      groups.splice(i, 2, g.concat(nx));
+      i--; // 합친 문장을 다시 검사
+    }
+  }
+
   function wordsToSentences(all, duration, punctuated, opts = {}) {
     const groups = []; let cur = [];
     all.forEach((w, i) => {
@@ -139,10 +173,13 @@
       const cut = punctuated
         // 문장부호가 있으면 문장 끝(. ? !)에서만 자릅니다 — 긴 문장도 한 문장으로 유지
         // (5초 넘게 말이 없거나, 문장부호 없이 60단어를 넘는 경우만 예외)
-        ? (!nx || endsSentence(w.w) || w.spk || gap > 5 || n >= 60 || (opts.pauseCut && gap >= 1.2 && n >= 2 && !/[,;:]$/.test(w.w)))
+        // (말을 잠깐 멈춘 곳에서 억지로 자르던 규칙은 없앴어요 — "I feel ‖ terrible"처럼 문장 중간에 쉬는 경우가 많아서)
+        ? (!nx || endsSentence(w.w) || w.spk || gap > 5 || n >= 60)
         : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
+    // 문법상 끝날 수 없는 곳에서 끊긴 문장은 다음 문장과 합치기 ("I feel." + "Terrible." → "I feel terrible.")
+    if (punctuated) fixDangling(groups);
     // 한두 단어짜리 조각("Okay.", "So,")은 붙어 있는 문장에 합치기
     const merged = [];
     groups.forEach(g => {
@@ -159,7 +196,7 @@
       let en = g.map(w => w.w).join(' ').replace(/\s+([,.?!;:])/g, '$1').trim();
       en = en.replace(/\bi\b/g, 'I').replace(/\bi'(m|ll|ve|d)\b/g, "I'$1");
       en = en.charAt(0).toUpperCase() + en.slice(1);
-      if ((!punctuated || opts.pauseCut || g[g.length - 1].spk) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
+      if ((!punctuated || g[g.length - 1].spk || g.length >= 60) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
       return { s: +s.toFixed(2), e: +Math.max(e, s + 0.4).toFixed(2), en, ko: '' };
     });
   }

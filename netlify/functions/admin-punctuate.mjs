@@ -25,7 +25,9 @@ export default async (req) => {
   const prompt = [
     'Restore sentence boundaries, punctuation and capitalization in this automatic English speech transcript (often a cartoon, show, lecture or conversation with several speakers).',
     title ? `Video title (for context and correct spelling of names): "${title}"` : '',
-    'The mark ‖ shows where the audio has a pause of 0.6 seconds or more. A pause very often means one sentence ended and another began (or a different character started speaking), so start a new sentence at a ‖ unless the words clearly continue the same sentence.',
+    'The mark ‖ shows where the audio has a pause of 0.6 seconds or more. A pause is only a HINT: it often comes between sentences, but speakers also pause in the middle of a sentence (for emphasis, drama or hesitation).',
+    'Decide sentence ends by GRAMMAR and MEANING first: a sentence ends only where it is complete. Never leave an unfinished phrase as a sentence.',
+    'Examples: "I feel ‖ terrible" → "I feel terrible." (one sentence, the pause is for drama) · "I have a really bad ‖ migraine" → "I have a really bad migraine." · "it costs ‖ ten dollars" → "It costs ten dollars." · but "one adult and two kids ‖ okay here you go" → "One adult and two kids. Okay, here you go." (two complete utterances).',
     'The mark » shows that a different person starts speaking — always start a new sentence there.',
     'Short separate utterances like "One adult and two kids." or "Okay." are their own sentences.',
     'Interjections and exclamations said on their own (e.g. "Oh no!", "Hooray!", "Wow!", "Oh, biscuits!", or a character\'s catchphrase) are their own sentence ending with "!", unless they are clearly part of the following sentence. Words that address a different person right after an exclamation (e.g. "Dad, is there...") start a new sentence.',
