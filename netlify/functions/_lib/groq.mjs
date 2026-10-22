@@ -31,7 +31,7 @@ function retryAfterOf(r, bodyText) {
  * @param {(content:string)=>any} o.accept  쓸 만한 답이면 결과값, 아니면 null
  * @returns {Promise<{ok:true, value:any, model:string} | {ok:false, rateLimited:boolean, retryAfter:number}>}
  */
-export async function groqChat({ apiKey, models, prompt, outTokens, temperature = 0, timeoutMs = 20000, accept, deadlineMs = 24000 }) {
+export async function groqChat({ apiKey, models, prompt, outTokens, temperature = 0, timeoutMs = 20000, accept, deadlineMs = 24000, effort = 'low' }) {
   const started = Date.now();
   let limited = false, wait = Infinity;
   for (const model of models) {
@@ -44,9 +44,9 @@ export async function groqChat({ apiKey, models, prompt, outTokens, temperature 
         model, temperature,
         messages: [{ role: 'user', content: prompt }],
         // 답에 필요한 만큼만 (+ 생각하는 모델은 생각할 몫을 조금 더)
-        max_tokens: Math.min(8000, Math.ceil(outTokens * 1.25) + (isReasoning(model) ? 900 : 150)),
+        max_tokens: Math.min(8000, Math.ceil(outTokens * 1.25) + (isReasoning(model) ? (effort === 'medium' ? 2500 : 900) : 150)),
       };
-      if (isReasoning(model)) body.reasoning_effort = 'low';
+      if (isReasoning(model)) body.reasoning_effort = effort;
       const r = await fetch(GROQ_URL, {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

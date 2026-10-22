@@ -7,6 +7,7 @@ import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { groqChat, tokensEn } from './_lib/groq.mjs';
 
 // 정확한 순서대로 시도 — 모델마다 Groq 사용 한도가 따로라서, 하나가 한도에 걸리면 다음 모델이 받아요
+const EFFORT = 'low'; // 생각 정도 (low · medium)
 const MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
 const MAX_CHARS = 4000;
 
@@ -45,6 +46,7 @@ export default async (req) => {
 
   const r = await groqChat({
     apiKey, models: MODELS, prompt, temperature: 0,
+    effort: ['low', 'medium'].includes(body && body.effort) ? body.effort : EFFORT,
     outTokens: Math.ceil(tokensEn(text) * 1.15) + 20, // 문장부호·대문자만 붙인 같은 글
     accept: c => c,
   });

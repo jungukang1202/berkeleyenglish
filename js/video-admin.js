@@ -695,14 +695,33 @@
   $('vedResplit').addEventListener('click', async () => {
     syncFromInputs();
     if (!editing.sentences.length) return;
-    if (!confirm('문장이 중간에 끊긴 곳을 AI로 다시 이어 붙여 문장 단위로 나눌까요?\n(직접 고친 내용은 유지되지만, 번역은 새로 만들어져요)')) return;
+    if (!confirm(editing.youtubeId
+      ? '문장을 AI로 다시 나눌까요?\n원래 YouTube 자막(실제 말한 시간 포함)을 새로 받아서 처음부터 나눠요. 직접 고친 문장과 번역은 새로 만들어져요.'
+      : '문장이 중간에 끊긴 곳을 AI로 다시 이어 붙여 문장 단위로 나눌까요?\n(직접 고친 내용은 유지되지만, 번역은 새로 만들어져요)')) return;
     const b = $('vedResplit'); b.disabled = true;
     const st = $('vedStatus'); st.className = 'status';
     try {
       const hadKo = editing.sentences.some(s => s.ko);
-      const words = VT.sentencesToWords(editing.sentences);
-      const end = editing.clipEnd || editing.duration || editing.sentences.at(-1).e;
-      const next = await smartSentences(words, end, false, f => { st.textContent = `AI가 문장을 다시 나누는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
+      const cs = editing.clipStart || 0, ce = editing.clipEnd || 0;
+      const end = ce || editing.duration || editing.sentences.at(-1).e;
+      // YouTube 영상은 저장된(이미 잘못 나뉜) 문장이 아니라 원래 자막을 새로 받아서 나눠요
+      //  → 실제 말한 시간·쉼·말하는 사람이 바뀐 표시가 그대로 있어서 훨씬 정확해요
+      let words = null, punctuated = false;
+      if (editing.youtubeId) {
+        try {
+          const d = await fetchYoutubeCaptions(editing.youtubeId, (f, l) => { st.textContent = l; });
+          if (!d.needPaste && d.words && d.words.length) {
+            words = d.words.filter(w => w.s >= cs - 0.05 && (!ce || w.s < ce));
+            punctuated = d.punctuated;
+            const kind = captionKind(d.track, d.punctuated);
+            if (kind !== editing.caption) { editing.caption = kind; editing.captionChanged = true; showCaptionInfo(); }
+          }
+        } catch (e) { if (isCancelled(e) || /세션/.test(e.message)) throw e; }
+      }
+      if (!words || !words.length) { words = VT.sentencesToWords(editing.sentences); punctuated = false; }
+      let next = await smartSentences(words, end, punctuated, f => { st.textContent = `AI가 문장을 다시 나누는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
+      next = next.filter(s => s.s >= cs - 0.5);
+      if (cs) next.forEach(s => { s.s = Math.max(s.s, cs); });
       const before = editing.sentences.length;
       editing.sentences = next;
       await translateAll(editing.sentences, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });

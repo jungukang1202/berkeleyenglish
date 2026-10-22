@@ -165,6 +165,10 @@
 
   function wordsToSentences(all, duration, punctuated, opts = {}) {
     const groups = []; let cur = [];
+    // 문장 가운데에서도 대문자로 쓰인 단어 = 이름 (예: GP, Mitch, Peppa)
+    const proper = new Set();
+    all.forEach((w, i) => { if (i > 0 && /^[A-Z]/.test(w.w) && !/[.?!]["”’)]?$/.test(all[i - 1].w)) proper.add(bare(w.w)); });
+    const newSentenceStart = x => x && /^[A-Z]/.test(x.w) && !/^I('|$)/.test(x.w) && !proper.has(bare(x.w));
     all.forEach((w, i) => {
       cur.push(w);
       const nx = all[i + 1];
@@ -173,8 +177,10 @@
       const cut = punctuated
         // 문장부호가 있으면 문장 끝(. ? !)에서만 자릅니다 — 긴 문장도 한 문장으로 유지
         // (5초 넘게 말이 없거나, 문장부호 없이 60단어를 넘는 경우만 예외)
-        // (말을 잠깐 멈춘 곳에서 억지로 자르던 규칙은 없앴어요 — "I feel ‖ terrible"처럼 문장 중간에 쉬는 경우가 많아서)
-        ? (!nx || endsSentence(w.w) || w.spk || gap > 5 || n >= 60)
+        // 말을 쉰 곳에서 억지로 자르지 않아요 — "I feel ‖ terrible", 느린 영어 영상의 "call my ‖(14초)‖ GP"처럼
+        // 문장 가운데서 길게 쉬는 경우가 많아서요. 단, AI가 다음 말을 대문자로 새 문장처럼 시작했는데
+        // 마침표만 빠뜨린 곳(쉼 1초 이상)은 자릅니다.
+        ? (!nx || endsSentence(w.w) || w.spk || n >= 60 || (gap >= 1 && n >= 2 && newSentenceStart(nx) && (w.w = w.w.replace(/[,;:]$/, '') + '.')))
         : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
@@ -260,12 +266,14 @@
   // 저장된 문장들 → 대략적인 단어별 시간 (문장 다시 나누기용)
   function sentencesToWords(sents) {
     const words = [];
+    // 문장 가운데에서 대문자로 쓰인 단어 = 이름 → 그대로 두고, 그 밖의 '문장 첫 글자 대문자'는 소문자로 (예전 나눔의 흔적 지우기)
+    const proper = new Set();
+    sents.forEach(s => String(s.en || '').split(/\s+/).filter(Boolean).forEach((w, k, arr) => { if (k > 0 && /^[A-Z]/.test(w) && !/[.?!]$/.test(arr[k - 1])) proper.add(bare(w)); }));
     sents.forEach(s => {
       const ws = String(s.en || '').split(/\s+/).filter(Boolean);
       const total = ws.reduce((a, w) => a + w.length + 1, 0) || 1;
       let t = s.s;
-      // 예전에 문장 첫 글자라서 대문자가 된 단어는 소문자로 돌려 AI에 보냅니다 (이름은 AI가 다시 대문자로 써요)
-      if (ws.length && !/^I('|$)/.test(ws[0])) ws[0] = ws[0].charAt(0).toLowerCase() + ws[0].slice(1);
+      ws.forEach((w, k) => { if ((k === 0 || /[.?!]$/.test(ws[k - 1])) && !/^I('|$)/.test(w) && !proper.has(bare(w))) ws[k] = w.charAt(0).toLowerCase() + w.slice(1); });
       ws.forEach(w => { const d = Math.max(0.05, (s.e - s.s) * (w.length + 1) / total); words.push({ w, s: t, e: t + d * 0.95, ko: s.ko }); t += d; });
     });
     return words;
