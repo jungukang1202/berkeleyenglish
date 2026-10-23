@@ -52,6 +52,21 @@
   .pill{display:inline-flex; align-items:center; gap:4px; font-size:0.76rem; font-weight:700; padding:2px 8px; border-radius:999px; background:#EFEAFB; color:var(--accent2);}
   .empty{color:var(--muted); font-size:0.85rem; padding:10px 2px;}
   .hidden{display:none !important;}
+  details.paste-box > summary{cursor:pointer; list-style:none;}
+  details.paste-box > summary::-webkit-details-marker{display:none;}
+  details.paste-box > summary::before{content:'▸ '; color:var(--muted);}
+  details.paste-box[open] > summary::before{content:'▾ ';}
+  .paste-hint{font-size:0.8rem; color:var(--muted); font-weight:400;}
+  /* 관리자 메뉴 */
+  .admin-menu{display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; margin:0 0 18px;}
+  .admin-menu button{display:flex; flex-direction:column; align-items:flex-start; gap:3px; text-align:left; padding:12px 14px; border-radius:14px; border:2px solid transparent; cursor:pointer; font:inherit; color:#1B2A4E; transition:transform .12s ease, box-shadow .12s ease;}
+  .admin-menu button b{font-size:0.93rem;}
+  .admin-menu button small{font-size:0.75rem; opacity:0.75;}
+  .admin-menu button:hover{transform:translateY(-1px); box-shadow:0 6px 14px rgba(27,42,78,0.12);}
+  .admin-menu button.on{border-color:#1B2A4E; box-shadow:0 6px 16px rgba(27,42,78,0.18);}
+  .admin-menu .m-blue{background:#DCEBFF;} .admin-menu .m-yellow{background:#FFF0B8;} .admin-menu .m-orange{background:#FFE1C7;}
+  .admin-menu .m-cyan{background:#D3F4F6;} .admin-menu .m-green{background:#DDF3DC;} .admin-menu .m-pink{background:#FFDDE7;}
+  [data-tab].tab-off{display:none !important;}
   .set-item{background:var(--input-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
   .set-item .meta{font-size:0.78rem; color:var(--muted);}
   .set-item .title{font-weight:700; color:var(--text); font-size:0.95rem;}
@@ -233,8 +248,18 @@
       <button class="btn-ghost btn-small" id="logoutBtn">로그아웃</button>
     </div>
 
+    <!-- ============ 메뉴: 필요한 화면만 보기 ============ -->
+    <nav class="admin-menu" id="adminMenu" aria-label="관리자 메뉴">
+      <button type="button" data-go="sets" class="m-blue"><b>📚 피드백쉐도잉</b><small>회차 등록 · 수정 · 연습 기록</small></button>
+      <button type="button" data-go="video" class="m-yellow"><b>🎬 영상 쉐도잉 만들기</b><small>YouTube · 영상 파일</small></button>
+      <button type="button" data-go="vrec" class="m-orange hidden"><b>🎞️ 영상쉐도잉 기록</b><small>학생별 영상 공부 상황</small></button>
+      <button type="button" data-go="report" class="m-cyan"><b>📊 학습 리포트</b><small>회원별 학습 분석</small></button>
+      <button type="button" data-go="nvoim" class="m-green"><b>📥 엔보임 피드백</b><small>자동 가져오기</small></button>
+      <button type="button" data-go="members" class="m-pink"><b>👤 회원 관리</b><small>아이디 등록 · 비번 초기화</small></button>
+    </nav>
+
     <!-- ============ 엔보임 피드백 자동 가져오기 ============ -->
-    <div class="card" id="nvoimCard">
+    <div class="card" id="nvoimCard" data-tab="nvoim">
       <h2>📥 엔보임 피드백 자동 가져오기</h2>
       <div class="card-desc">
         등록한 엔보임 계정으로 <b>30분마다(정각·30분) 자동으로</b> 로그인해서 어제·오늘 수업 피드백(문장교정·발음교정)을 가져와 회원에게 저장해요.
@@ -288,7 +313,7 @@
     </div>
 
     <!-- ============ 수업 피드백 리포트 ============ -->
-    <div class="card" id="reportCard">
+    <div class="card" id="reportCard" data-tab="report">
       <h2>📊 학습 리포트</h2>
       <div class="card-desc">
         수업 피드백과 쉐도잉 연습 기록을 모아 <b>수업 횟수 · 출결 · 쉐도잉 평균 · 공부한 문장/단어</b>를 그래프로 분석해요. "전체 회원"은 회원별 요약 표, 회원을 고르면 그 회원의 자세한 리포트(회원이 보는 것과 같은 화면)예요.<br>
@@ -315,7 +340,7 @@
     </div>
 
     <!-- ============ 회원 관리 ============ -->
-    <div class="card">
+    <div class="card" id="membersCard" data-tab="members">
       <h2>👤 회원 관리</h2>
       <div class="card-desc">회원 아이디와 초기 비밀번호를 등록해주세요. 회원은 이 아이디/비밀번호로 <code>member.html</code>에 로그인합니다.</div>
       <div class="row">
@@ -341,7 +366,7 @@
     </div>
 
     <!-- ============ 회원별 쉐도잉 콘텐츠 ============ -->
-    <div class="card">
+    <div class="card" id="setsCard" data-tab="sets">
       <h2>📚 회원별 쉐도잉 콘텐츠</h2>
       <div class="card-desc">회원을 선택하면 그 회원의 회차(세트) 목록이 보여요. 새 회차를 추가하거나 기존 회차를 수정/삭제할 수 있습니다.</div>
       <div class="field">
@@ -387,7 +412,7 @@ vegetable, particularly"></textarea>
     </div>
 
     <!-- ============ 🎬 영상 쉐도잉 (자동 생성) ============ -->
-    <div class="card" id="videoCard">
+    <div class="card" id="videoCard" data-tab="video">
       <h2>🎬 영상 쉐도잉 만들기</h2>
       <div class="card-desc">
         <b>YouTube 링크만 붙여넣으면</b> 영어 자막을 가져와 문장별로 나누고, 번역하고, 분 단위 파트로 나눠서 쉐도잉을 자동으로 만들어요.
@@ -415,19 +440,20 @@ vegetable, particularly"></textarea>
             <input type="text" id="ytEnd" placeholder="끝까지" autocomplete="off">
           </div>
         </div>
-        <div id="ytPasteBox" class="paste-box hidden">
-          <b>📋 자막을 자동으로 못 가져왔어요 — 스크립트를 붙여넣어 주세요</b>
+        <details id="ytPasteBox" class="paste-box">
+          <summary><b>📋 스크립트 직접 넣기</b> <span class="paste-hint">(선택 · 자막 서비스 사용량 0건 · 사람이 만든 자막이면 가장 정확해요)</span></summary>
+          <div class="row" style="margin:10px 0 4px;"><button type="button" class="btn-ghost btn-small" id="ytOpenBtn">▶ YouTube에서 이 영상 열기 (새 창)</button></div>
           <ol>
-            <li>YouTube에서 영상을 열고, 설명란 아래의 <b>「스크립트 표시」</b>(Show transcript)를 누르세요.</li>
+            <li>위 버튼으로 영상을 열고, 설명란 아래의 <b>「스크립트 표시」</b>(Show transcript)를 누르세요.</li>
             <li>오른쪽에 나온 스크립트를 드래그로 전부 선택해서 복사(Ctrl+C)하세요. (<code>0:00</code> 같은 시간이 같이 복사돼야 해요)</li>
-            <li>아래 칸에 붙여넣고 다시 <b>🚀 버튼</b>을 누르세요.</li>
+            <li>아래 칸에 붙여넣으면(Ctrl+V) <b>바로 자동으로 만들기 시작</b>해요. (링크를 먼저 넣어 주세요)</li>
           </ol>
           <textarea id="ytPaste" rows="6" placeholder="0:00
 hi everyone welcome back to the channel
 0:04
 today we're going to talk about..."></textarea>
           <div class="status" id="ytWhy"></div>
-        </div>
+        </details>
       </div>
 
       <!-- 파일 올리기 -->
@@ -552,6 +578,23 @@ Today we're going to talk about..."></textarea>
   </div>
 </div>
 
+<script>
+// 관리자 메뉴 — 고른 화면만 보여 주고, 주소(#sets 등)에 기억해서 새로고침해도 그 화면으로
+(function () {
+  const names = ['sets', 'video', 'vrec', 'report', 'nvoim', 'members'];
+  function showTab(name, push) {
+    if (!names.includes(name)) name = 'sets';
+    document.querySelectorAll('[data-tab]').forEach(c => c.classList.toggle('tab-off', c.dataset.tab !== name));
+    document.querySelectorAll('#adminMenu [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === name));
+    if (push !== false && location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+    window.dispatchEvent(new CustomEvent('admintab', { detail: name }));
+  }
+  window.showAdminTab = showTab;
+  document.getElementById('adminMenu').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) showTab(b.dataset.go); });
+  window.addEventListener('hashchange', () => showTab(location.hash.slice(1), false));
+  showTab(location.hash.slice(1), false);
+})();
+</script>
 <script src="js/shadowing-engine.js?v=20261014a"></script>
 <script src="js/learning-report.js?v=20261019a"></script>
 <script src="js/video-transcript.js?v=20261022d"></script>
@@ -1401,6 +1444,6 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 /* ===================== 시작 ===================== */
 if (getToken()) showMain(); else showLogin();
 </script>
-<script src="js/video-admin.js?v=20261022b"></script>
+<script src="js/video-admin.js?v=20261023a"></script>
 </body>
 </html>

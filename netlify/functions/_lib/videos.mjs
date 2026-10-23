@@ -33,6 +33,17 @@ export function cleanSentences(list) {
   })).filter(x => x.en && x.e > x.s).sort((a, b) => a.s - b.s);
 }
 
+// 원래 자막(단어별 시간) 보관 — '문장 다시 나누기'가 자막 서비스(Supadata)를 다시 쓰지 않도록
+//   raw: { words:[[단어, 시작, 끝, 표시(1=자막 줄 끝, 2=말하는 사람 바뀜)]…], punctuated, kind }
+export function cleanRaw(raw) {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.words) || !raw.words.length) return null;
+  const words = raw.words.slice(0, 20000).map(x => Array.isArray(x)
+    ? [clip(x[0], 60), Math.round(num(x[1]) * 100) / 100, Math.round(num(x[2]) * 100) / 100, Math.max(0, Math.min(3, Math.floor(num(x[3]))))]
+    : null).filter(x => x && x[0]);
+  if (!words.length) return null;
+  return { words, punctuated: !!raw.punctuated, kind: clip(raw.kind, 20) };
+}
+
 // 목록에 보여줄 요약
 export function summary(v) {
   return {
@@ -43,12 +54,13 @@ export function summary(v) {
     level: v.level || '', description: v.description || '',
     youtubeId: v.youtubeId || null, clipStart: v.clipStart || 0, clipEnd: v.clipEnd || 0,
     watchOnly: !!v.watchOnly, // 유아용: 문장·쉐도잉 없이 영상만
+    hasRaw: !!(v.raw && v.raw.words && v.raw.words.length), // 원래 자막을 보관하고 있는지
     caption: (v.captionTrack && v.captionTrack.kind) || '', // human(사람이 만든 자막) · auto(자동 자막) · ai(AI 받아쓰기)
   };
 }
 
 // YouTube 링크형 레슨: 영상 파일은 저장하지 않고 YouTube 플레이어로 재생합니다.
-export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track, level, watchOnly }) {
+export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track, level, watchOnly, raw }) {
   if (!/^[\w-]{11}$/.test(String(youtubeId || ''))) throw new Error('bad_youtube_id');
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -60,7 +72,7 @@ export async function createYoutubeLesson({ youtubeId, title, duration, sentence
     partMinutes: Math.max(0, Math.min(30, num(partMinutes, 1))), sentences: cleanSentences(sentences),
     description: clip(description, 500).trim(), level: cleanLevel(level),
     captionTrack: track && typeof track === 'object' ? { lang: clip(track.lang, 20), kind: clip(track.kind, 20) } : null,
-    watchOnly: !!watchOnly, createdAt: now,
+    watchOnly: !!watchOnly, raw: watchOnly ? null : cleanRaw(raw), createdAt: now,
   };
   if (rec.watchOnly) { rec.sentences = []; rec.partMinutes = 0; rec.captionTrack = null; }
   else if (!rec.sentences.length) throw new Error('no_sentences');
@@ -124,6 +136,7 @@ export async function updateLesson(id, patch) {
   if (patch.clipEnd != null) rec.clipEnd = Math.max(0, num(patch.clipEnd));
   if (patch.track && typeof patch.track === 'object') rec.captionTrack = { lang: clip(patch.track.lang, 20), kind: clip(patch.track.kind, 20) };
   if (patch.watchOnly != null) rec.watchOnly = !!patch.watchOnly;
+  if (patch.raw != null) rec.raw = cleanRaw(patch.raw);
   if (patch.sentences != null) rec.sentences = rec.watchOnly ? [] : cleanSentences(patch.sentences);
   if (patch.status === 'ready') {
     // 모든 조각이 올라왔는지 확인한 뒤에만 '준비됨'으로 바꿉니다.
