@@ -9,7 +9,7 @@
   const $ = id => document.getElementById(id);
   const VAPI = { videos: '/api/admin-videos', transcribe: '/api/admin-transcribe', youtube: '/api/admin-youtube', punctuate: '/api/admin-punctuate', translate: '/api/admin-translate' };
   const CHUNK = 3.5 * 1024 * 1024;
-  const VIS_LABEL = { draft: '🔒 비공개(임시)', members: '👥 회원 공개', public: '🌐 전체 공개' };
+  const VIS_LABEL = { draft: '🔒 비공개(임시)', members: '👥 회원 공개', public: '🌐 전체 공개', assigned: '🎯 선택한 학생만' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   /* ---- 자동 만들기 일시정지 · 중지 ----
    * job.paused  : 다음 단계로 넘어가기 전에 멈춰 기다림 (▶ 계속을 누르면 이어서)
@@ -93,7 +93,7 @@
             ${v.status === 'ready' ? VIS_LABEL[v.visibility] : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'} · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>` : `
           <div class="meta">${VT.fmt(lessonLen(v))}${v.clipStart || v.clipEnd ? ` (${VT.fmt(v.clipStart)}~${VT.fmt(v.clipEnd || v.duration)})` : ''} · 문장 ${v.sentenceCount}개 ·
             ${v.youtubeId ? 'YouTube' + (CAPTION_INFO[v.caption] ? ` (${CAPTION_INFO[v.caption].tag})` : '') : fmtSize(v.size)} · ${v.partMinutes ? v.partMinutes + '분 단위' : '나누지 않음'} ·
-            ${v.status === 'ready' ? VIS_LABEL[v.visibility] : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'}
+            ${v.status === 'ready' ? VIS_LABEL[v.visibility] + (v.visibility === 'assigned' ? ` (${(v.assigned || []).length}명)` : '') : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'}
             · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>`}
         </div>
         <div class="set-btns">

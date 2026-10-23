@@ -3,7 +3,7 @@
 // POST /api/member-video-progress { id, done:[…], last:{ i, at } }   → 합친 결과
 // POST /api/member-video-progress { id, reset:true }               → 표시 모두 지우기
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
-import { getLesson } from './_lib/videos.mjs';
+import { getLesson, canMemberSee } from './_lib/videos.mjs';
 import { getProgress, mergeProgress } from './_lib/video-progress.mjs';
 
 const okId = id => /^[\w-]{8,64}$/.test(String(id || ''));
@@ -20,7 +20,7 @@ export default async (req) => {
   let body; try { body = await req.json(); } catch (e) { return jsonResponse({ error: 'invalid_json' }, 400); }
   if (!okId(body && body.id)) return jsonResponse({ error: 'bad_id' }, 400);
   const lesson = await getLesson(body.id);
-  if (!lesson || lesson.status !== 'ready' || !['members', 'public'].includes(lesson.visibility)) return jsonResponse({ error: 'video_not_found' }, 404);
+  if (!canMemberSee(lesson, auth.username)) return jsonResponse({ error: 'video_not_found' }, 404);
   return jsonResponse(await mergeProgress(auth.username, body.id, { done: body.done, last: body.last, reset: !!body.reset }));
 };
 

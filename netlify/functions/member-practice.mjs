@@ -3,7 +3,7 @@
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { getSet } from './_lib/store.mjs';
 import { addAttempts } from './_lib/practice.mjs';
-import { getLesson } from './_lib/videos.mjs';
+import { getLesson, canMemberSee } from './_lib/videos.mjs';
 
 export default async (req) => {
   const auth = requireAuth(req, 'member');
@@ -18,7 +18,7 @@ export default async (req) => {
   if (setId.startsWith('video-')) {
     // 영상 쉐도잉 연습: 회원에게 공개된 영상인지 확인 (기록은 'video-영상ID' 이름으로 회차 기록과 같은 곳에 쌓여 리포트에 함께 들어가요)
     const lesson = await getLesson(setId.slice(6));
-    if (!lesson || lesson.status !== 'ready' || !['members', 'public'].includes(lesson.visibility)) return jsonResponse({ error: 'video_not_found' }, 404);
+    if (!canMemberSee(lesson, auth.username)) return jsonResponse({ error: 'video_not_found' }, 404);
   } else {
     // 본인 회차가 맞는지 확인(남의 회차나 없는 회차에는 기록하지 않음)
     const set = await getSet(auth.username, setId);

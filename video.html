@@ -219,6 +219,9 @@
 </header>
 
 <main>
+  <!-- 오늘 쉐도잉한 시간 (회원만) -->
+  <div id="stBar" class="hidden" style="margin-bottom:14px;"></div>
+
   <!-- ===== 영상 목록 ===== -->
   <section id="libView">
     <div class="lib-head">
@@ -335,6 +338,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/shadowing-engine.js?v=20261019a"></script>
+<script src="js/study-time.js?v=20261023a"></script>
 <script src="js/yt-media.js?v=20261019f"></script>
 <script>
 (function () {
@@ -1194,6 +1198,17 @@ function initControls() {
   });
   document.addEventListener('keyup', e => { if (e.key === 'h' || e.key === 'H') document.body.classList.remove('reveal'); });
   requestAnimationFrame(loop);
+}
+
+/* ---- 공부 시간: 쉐도잉 영상을 연습하는 중이거나 재생 중, 또는 최근 60초 안에 화면을 누른 경우만 ---- */
+if (!ADMIN && MEMBER_TOKEN) {
+  StudyTime.track('video', () => {
+    if ($('#playView').classList.contains('hidden') || !D || D.watchOnly) return false;
+    let playing = false; try { playing = v && !v.paused; } catch (e) {}
+    return running || playing || StudyTime.recent(60000);
+  });
+  StudyTime.onChange(() => { const b = $('#stBar'); b.innerHTML = StudyTime.barHtml(); b.classList.remove('hidden'); });
+  StudyTime.load();
 }
 
 const id = params.get('id');

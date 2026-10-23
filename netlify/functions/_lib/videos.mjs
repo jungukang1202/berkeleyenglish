@@ -8,7 +8,19 @@ import crypto from 'node:crypto';
 
 export const CHUNK_SIZE = 3.5 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024; // 1GB
-const VISIBILITY = ['draft', 'members', 'public'];
+// assigned = 선택한 학생만 (관리자 「영상쉐도잉 기록」에서 학생마다 넣어주기)
+const VISIBILITY = ['draft', 'members', 'public', 'assigned'];
+const cleanUsers = a => [...new Set((Array.isArray(a) ? a : []).map(u => String(u || '').trim().toLowerCase()).filter(u => /^[\w.-]{1,40}$/.test(u)))].slice(0, 500);
+
+// 회원(또는 로그인 안 한 손님)이 이 영상을 볼 수 있는지 — 목록 · 연습 기록 · 공부 표시 모두 같은 규칙
+export function canMemberSee(v, username) {
+  if (!v || v.status !== 'ready') return false;
+  if (v.visibility === 'public') return true;
+  if (!username) return false;
+  if (v.visibility === 'members') return true;
+  if (v.visibility === 'assigned') return (v.assigned || []).includes(String(username).toLowerCase());
+  return false;
+}
 // 레벨: 관리자가 영상마다 정하고, 학생은 자기 레벨만 골라 봅니다. ('' = 레벨 미지정)
 // 'kids' = 유아 레벨: 쉐도잉 없이 영상만 보여줘요 (watchOnly)
 export const LEVELS = ['kids', '1-2', '3-4', '5-6', '7-9'];
@@ -55,6 +67,7 @@ export function summary(v) {
     youtubeId: v.youtubeId || null, clipStart: v.clipStart || 0, clipEnd: v.clipEnd || 0,
     watchOnly: !!v.watchOnly, // 유아용: 문장·쉐도잉 없이 영상만
     hasRaw: !!(v.raw && v.raw.words && v.raw.words.length), // 원래 자막을 보관하고 있는지
+    assigned: v.assigned || [], // visibility가 assigned일 때 볼 수 있는 학생
     caption: (v.captionTrack && v.captionTrack.kind) || '', // human(사람이 만든 자막) · auto(자동 자막) · ai(AI 받아쓰기)
   };
 }
@@ -137,6 +150,7 @@ export async function updateLesson(id, patch) {
   if (patch.track && typeof patch.track === 'object') rec.captionTrack = { lang: clip(patch.track.lang, 20), kind: clip(patch.track.kind, 20) };
   if (patch.watchOnly != null) rec.watchOnly = !!patch.watchOnly;
   if (patch.raw != null) rec.raw = cleanRaw(patch.raw);
+  if (patch.assigned != null) rec.assigned = cleanUsers(patch.assigned);
   if (patch.sentences != null) rec.sentences = rec.watchOnly ? [] : cleanSentences(patch.sentences);
   if (patch.status === 'ready') {
     // 모든 조각이 올라왔는지 확인한 뒤에만 '준비됨'으로 바꿉니다.

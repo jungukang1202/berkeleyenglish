@@ -85,6 +85,16 @@
   .top-bar{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
   .status{font-size:0.82rem; color:var(--muted); margin-top:8px;}
   .status.error{color:var(--bad); font-weight:700;}
+  /* 쉐도잉 종류 카드 (오늘 공부 시간) */
+  .cat-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:12px;}
+  .cat-card{display:flex; flex-direction:column; gap:6px; padding:16px 18px; border-radius:16px; border:2px solid; text-decoration:none; color:#1B2A4E; transition:transform .12s ease, box-shadow .12s ease;}
+  .cat-card:hover{transform:translateY(-2px); box-shadow:0 10px 22px rgba(27,42,78,0.12);}
+  .cat-card .ci{font-size:1.7rem; line-height:1;}
+  .cat-card b{font-size:1.05rem;}
+  .cat-card .cd{font-size:0.85rem; color:#4A5568; line-height:1.45;}
+  .cat-card .ct{margin-top:2px; font-size:0.85rem; font-weight:800;}
+  .cat-card.c-blue{background:#DCEBFF; border-color:#3B82C4;}
+  .cat-card.c-yellow{background:#FFEFB0; border-color:#E0A21B;}
 </style>
 </head>
 <body>
@@ -127,13 +137,25 @@
       <button class="btn-ghost btn-small" id="logoutBtn">로그아웃</button>
     </div>
 
-    <a href="video.html" class="card" style="display:flex; align-items:center; gap:14px; text-decoration:none; padding:16px 20px;">
-      <span style="font-size:1.8rem;">🎬</span>
-      <span style="flex:1;"><b style="color:var(--text); font-size:1rem;">영상 쉐도잉</b><br><span style="color:var(--muted); font-size:0.85rem;">선생님이 올려준 영어 영상으로 문장별 듣기 · 쉐도잉 · 에코잉 연습하기</span></span>
-      <span style="color:var(--accent2); font-weight:800;">열기 →</span>
-    </a>
+    <!-- 듣기·따라 말하기 1000번 목표 -->
+    <div id="stGoal"></div>
 
-    <div class="card">
+    <!-- 쉐도잉 종류 + 오늘 공부 시간 -->
+    <div class="cat-cards">
+      <a href="#setCard" class="cat-card c-blue" id="catFeedback">
+        <span class="ci">💬</span><b>피드백 쉐도잉</b>
+        <span class="cd">수업에서 교정받은 문장을 한 문장씩 듣고 따라 말해요.</span>
+        <span class="ct">⏱ 오늘 <span id="stTodayFb">0초</span></span>
+      </a>
+      <a href="video.html" class="cat-card c-yellow">
+        <span class="ci">🎬</span><b>영상 쉐도잉</b>
+        <span class="cd">선생님이 넣어 준 영어 영상으로 듣기 · 쉐도잉 · 에코잉을 해요.</span>
+        <span class="ct">⏱ 오늘 <span id="stTodayVid">0초</span></span>
+      </a>
+    </div>
+    <div id="stBar" style="margin-bottom:16px;"></div>
+
+    <div class="card" id="setCard">
       <h2>🗂️ 회차 선택</h2>
       <div class="card-desc">선생님이 등록해준 수업 회차 중 연습할 회차를 골라주세요. (최신 회차가 먼저 보여요)</div>
       <select class="full" id="setSelect"></select>
@@ -176,6 +198,7 @@
 </div>
 
 <script src="js/shadowing-engine.js?v=20261016a"></script>
+<script src="js/study-time.js?v=20261023a"></script>
 <script src="js/learning-report.js?v=20261019a"></script>
 <script>
 const API = { login: '/api/member-login', sets: '/api/member-sets', report: '/api/member-insight', practice: '/api/member-practice' };
@@ -212,7 +235,23 @@ function showPractice() {
   document.getElementById('welcomeUsername').textContent = localStorage.getItem(USERNAME_KEY) || '';
   loadSets();
   loadReportMonths();
+  StudyTime.load();
 }
+
+/* ===================== 공부 시간 · 1000번 목표 ===================== */
+// 피드백 쉐도잉: 연습이 돌아가는 중이거나, 회차를 열어 두고 최근 60초 안에 화면을 누른 경우만 공부 시간으로 세요.
+StudyTime.track('feedback', () => {
+  if (document.getElementById('practiceArea').classList.contains('hidden')) return false;
+  let practicing = false; try { practicing = ShadowingEngine.isPracticing(); } catch (e) {}
+  return practicing || (contentArea.children.length > 0 && StudyTime.recent(60000));
+});
+function renderStudyTime() {
+  document.getElementById('stGoal').innerHTML = StudyTime.data ? StudyTime.goalHtml() : '';
+  document.getElementById('stBar').innerHTML = StudyTime.barHtml();
+  document.getElementById('stTodayFb').textContent = StudyTime.fmt(StudyTime.today('feedback'));
+  document.getElementById('stTodayVid').textContent = StudyTime.fmt(StudyTime.today('video'));
+}
+StudyTime.onChange(renderStudyTime);
 
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const username = document.getElementById('usernameInput').value.trim();
@@ -238,7 +277,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 [document.getElementById('usernameInput'), document.getElementById('passwordInput')].forEach(el => {
   el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginBtn').click(); });
 });
-document.getElementById('logoutBtn').addEventListener('click', async () => { try { await flushPractice(); } catch (e) {} clearSession(); showLogin(); });
+document.getElementById('logoutBtn').addEventListener('click', async () => { try { await flushPractice(); } catch (e) {} try { StudyTime.flush(); } catch (e) {} clearSession(); showLogin(); });
 
 /* ===================== 회차 목록/내용 ===================== */
 
