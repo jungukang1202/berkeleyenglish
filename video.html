@@ -749,9 +749,13 @@ function buildParts() {
   D.sentences = sents;
   const clipS = D.clipStart || 0;
   const dur = D.clipEnd || D.duration || (sents.length ? sents[sents.length - 1].e : 0);
-  const L = (D.partMinutes || 0) * 60;
+  const N = D.partSentences || 0; // '몇 문장씩'으로 나누기 (관리자가 고른 경우)
+  const L = N ? 0 : (D.partMinutes || 0) * 60;
   const cuts = [clipS];
-  if (L > 0) {
+  if (N > 0) {
+    // N문장마다 다음 문장이 시작하는 시간에서 자르기 (마지막 조각이 너무 짧으면 앞에 붙임)
+    for (let k = N; k < sents.length; k += N) { if (sents.length - k < Math.ceil(N / 3)) break; cuts.push(sents[k].s); }
+  } else if (L > 0) {
     let pos = clipS;
     const gaps = sents.slice(1).map((s, k) => Math.min((sents[k].e + s.s) / 2, s.s));
     for (;;) {

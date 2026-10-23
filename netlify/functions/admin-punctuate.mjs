@@ -20,6 +20,7 @@ export default async (req) => {
   let body; try { body = await req.json(); } catch (e) { return jsonResponse({ error: 'invalid_json' }, 400); }
   const text = String((body && body.text) || '').replace(/\s+/g, ' ').trim();
   const title = String((body && body.title) || '').replace(/\s+/g, ' ').trim().slice(0, 150);
+  const fix = !!(body && body.fix); // 잘못 들린 단어도 고치기 (관리자 선택)
   if (!text) return jsonResponse({ error: 'empty' }, 400);
   if (text.length > MAX_CHARS) return jsonResponse({ error: 'too_long' }, 413);
 
@@ -37,7 +38,9 @@ export default async (req) => {
     '- Add periods, question marks, exclamation marks, commas and apostrophes where a native speaker would.',
     '- Capitalize the first word of each sentence, "I", and names.',
     '- Keep every word in the same order. Do not add or remove words.',
-    '- The only allowed word change: if a word is obviously a mis-heard name from the title (e.g. a character name), replace it with the correct single word.',
+    fix
+      ? '- You MAY correct words that the automatic captions obviously mis-heard, using the context and the title (e.g. "migrain" → "migraine", "there" → "their", a wrong character name). Replace ONE word with exactly ONE word — never add, remove, merge or reorder words. When unsure, keep the original word.'
+      : '- The only allowed word change: if a word is obviously a mis-heard name from the title (e.g. a character name), replace it with the correct single word.',
     '- Put each sentence on its own line and remove the ‖ marks.',
     '- Output only the punctuated transcript, nothing else.',
     '',

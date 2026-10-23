@@ -9,6 +9,10 @@
   const $ = id => document.getElementById(id);
   const VAPI = { videos: '/api/admin-videos', transcribe: '/api/admin-transcribe', youtube: '/api/admin-youtube', punctuate: '/api/admin-punctuate', translate: '/api/admin-translate' };
   const CHUNK = 3.5 * 1024 * 1024;
+  // 파트 나누기 선택값: '1'(분) · 's10'(문장 수) · '0'(나누지 않음)
+  const readParts = sel => { const v = String(sel.value); return v[0] === 's' ? { partMinutes: 0, partSentences: Number(v.slice(1)) || 10 } : { partMinutes: Number(v), partSentences: 0 }; };
+  const partsValue = l => (l.partSentences ? 's' + l.partSentences : String(l.partMinutes ?? 1));
+  const partsLabel = l => (l.partSentences ? l.partSentences + '문장씩' : l.partMinutes ? l.partMinutes + '분 단위' : '나누지 않음');
   const VIS_LABEL = { draft: '🔒 비공개(임시)', members: '👥 회원 공개', public: '🌐 전체 공개', assigned: '🎯 선택한 학생만' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   /* ---- 자동 만들기 일시정지 · 중지 ----
@@ -92,7 +96,7 @@
           ${v.watchOnly ? `<div class="meta">📺 영상만 보기 (쉐도잉 없음)${v.clipStart || v.clipEnd ? ` · 구간 ${VT.fmt(v.clipStart)}~${v.clipEnd ? VT.fmt(v.clipEnd) : '끝'}` : ''} · ${v.youtubeId ? 'YouTube' : fmtSize(v.size)} ·
             ${v.status === 'ready' ? VIS_LABEL[v.visibility] : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'} · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>` : `
           <div class="meta">${VT.fmt(lessonLen(v))}${v.clipStart || v.clipEnd ? ` (${VT.fmt(v.clipStart)}~${VT.fmt(v.clipEnd || v.duration)})` : ''} · 문장 ${v.sentenceCount}개 ·
-            ${v.youtubeId ? 'YouTube' + (CAPTION_INFO[v.caption] ? ` (${CAPTION_INFO[v.caption].tag})` : '') : fmtSize(v.size)} · ${v.partMinutes ? v.partMinutes + '분 단위' : '나누지 않음'} ·
+            ${v.youtubeId ? 'YouTube' + (CAPTION_INFO[v.caption] ? ` (${CAPTION_INFO[v.caption].tag})` : '') : fmtSize(v.size)} · ${partsLabel(v)} ·
             ${v.status === 'ready' ? VIS_LABEL[v.visibility] + (v.visibility === 'assigned' ? ` (${(v.assigned || []).length}명)` : '') : '<b style="color:var(--bad)">⚠️ 업로드 미완료</b>'}
             · ${new Date(v.createdAt).toLocaleDateString('ko-KR')}</div>`}
         </div>
@@ -123,6 +127,9 @@
   });
 
   /* ---------------- 공통: AI 문장부호 복원 ---------------- */
+  // ✨ AI 교정 선택은 기억해 둬요
+  try { const f = localStorage.getItem('vid:fix'); if (f != null) $('vidFix').checked = f === '1'; } catch (e) {}
+  $('vidFix').addEventListener('change', () => { try { localStorage.setItem('vid:fix', $('vidFix').checked ? '1' : '0'); } catch (e) {} });
   let punctTitle = ''; // 영상 제목 — AI가 잘못 들린 이름(예: Louis → Bluey)을 고칠 때 참고
   // AI 사용 한도(429)에 걸리면 알려준 시간만큼 기다렸다가 다시 — 쉽게 포기하지 않아요
   // (포기하면 문장부호 없이 자막 줄 그대로 잘려서 문장이 엉망이 돼요)
@@ -137,7 +144,7 @@
       await checkpoint();
       let r, d = {};
       try {
-        r = await fetch(VAPI.punctuate, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text, title: punctTitle }) });
+        r = await fetch(VAPI.punctuate, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ text, title: punctTitle, fix: $('vidFix').checked }) });
         d = await r.json().catch(() => ({}));
       } catch (e) { if (isCancelled(e)) throw new Cancelled(); fails++; await sleep(2000 * fails); continue; }
       if (r.ok && d.text) return d.text;
@@ -239,6 +246,7 @@
     $('vidKidsNote').classList.toggle('hidden', !k);
     $('vidParts').closest('.field').classList.toggle('hidden', k);
     $('vidTranslateRow').classList.toggle('hidden', k);
+    $('vidFixRow').classList.toggle('hidden', k);
     $('ytPasteBox').classList.toggle('hidden', k);
     $('vidStartBtn').textContent = k ? '📺 유아 영상 올리기' : '🚀 쉐도잉 자동으로 만들기';
   }
@@ -390,7 +398,7 @@
       setBar('vidTr', 0.97, '저장 중…');
       const lesson = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'create_youtube', youtubeId: videoId, title: $('vidTitle').value.trim() || info.title, duration,
-        clipStart, clipEnd, sentences, partMinutes: Number($('vidParts').value), visibility: $('vidVisibility').value, track, level: $('vidLevel').value,
+        clipStart, clipEnd, sentences, ...readParts($('vidParts')), visibility: $('vidVisibility').value, track, level: $('vidLevel').value,
         raw: { words: packWords(words), punctuated, kind: track.kind }, // 원래 자막 보관 → 다시 나누기에 재사용
       }) })).lesson;
       setBar('vidTr', 1, `완료 — 문장 ${sentences.length}개`);
@@ -521,7 +529,7 @@
       if (!r.sentences.length) throw new Error('영어 대사를 찾지 못했어요. 말소리가 있는 영상인지 확인해주세요.');
       const saved = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'update', id: lesson.id, sentences: r.sentences, duration: r.duration, status: 'ready',
-        partMinutes: Number($('vidParts').value), visibility: $('vidVisibility').value, level: $('vidLevel').value,
+        ...readParts($('vidParts')), visibility: $('vidVisibility').value, level: $('vidLevel').value,
       }) })).lesson;
       setStatus(`✅ 완료! 문장 ${r.sentences.length}개로 쉐도잉을 만들었어요. 아래에서 문장을 확인·수정하세요.`, 'success');
       $('vidFile').value = ''; $('vidTitle').value = '';
@@ -560,7 +568,7 @@
 
   function openEditor(l) {
     editing = {
-      id: l.id, title: l.title, visibility: l.visibility || 'draft', partMinutes: l.partMinutes ?? 1,
+      id: l.id, title: l.title, visibility: l.visibility || 'draft', partMinutes: l.partMinutes ?? 1, partSentences: l.partSentences || 0,
       description: l.description || '', level: l.level || '', duration: l.duration || 0, youtubeId: l.youtubeId || null,
       clipStart: l.clipStart || 0, clipEnd: l.clipEnd || 0,
       caption: (l.captionTrack && l.captionTrack.kind) || l.caption || '', captionChanged: false,
@@ -573,7 +581,7 @@
     $('vidEditor').classList.remove('hidden');
     $('vedTitle').value = editing.title;
     $('vedVisibility').value = editing.visibility;
-    $('vedParts').value = String(editing.partMinutes);
+    $('vedParts').value = partsValue(editing);
     $('vedDesc').value = editing.description;
     $('vedLevel').value = editing.level;
     $('vedRefetch').classList.toggle('hidden', !editing.youtubeId);
@@ -599,7 +607,10 @@
     const end = editing.clipEnd || editing.duration || (editing.sentences.at(-1) || {}).e || 0;
     const startT = editing.clipStart || 0;
     const rel = editing.sentences.map(s => ({ s: s.s - startT, e: s.e - startT }));
-    const parts = VT.planParts(end - startT, rel, Number($('vedParts').value)).map(x => x + startT);
+    const pv = readParts($('vedParts'));
+    const parts = pv.partSentences
+      ? [startT, ...editing.sentences.filter((_, k) => k > 0 && k % pv.partSentences === 0 && editing.sentences.length - k >= Math.ceil(pv.partSentences / 3)).map(s => s.s), end]
+      : VT.planParts(end - startT, rel, pv.partMinutes).map(x => x + startT);
     let p = 1;
     const rows = [];
     editing.sentences.forEach((s, i) => {
@@ -826,7 +837,7 @@
     try {
       await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
         action: 'update', id: editing.id, title: $('vedTitle').value, description: $('vedDesc').value, level: $('vedLevel').value,
-        visibility: $('vedVisibility').value, partMinutes: Number($('vedParts').value),
+        visibility: $('vedVisibility').value, ...readParts($('vedParts')),
         sentences: editing.sentences.filter(s => s.en),
         ...(editing.captionChanged && editing.caption ? { track: { lang: 'en', kind: editing.caption } } : {}),
         ...(editing.rawChanged && editing.raw ? { raw: editing.raw } : {}),

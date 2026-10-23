@@ -62,7 +62,7 @@ export function summary(v) {
     id: v.id, title: v.title, status: v.status, visibility: v.visibility,
     duration: v.duration || 0, size: v.size || 0, mime: v.mime,
     sentenceCount: Array.isArray(v.sentences) ? v.sentences.length : 0,
-    partMinutes: v.partMinutes ?? 1, createdAt: v.createdAt, updatedAt: v.updatedAt || null,
+    partMinutes: v.partMinutes ?? 1, partSentences: v.partSentences || 0, createdAt: v.createdAt, updatedAt: v.updatedAt || null,
     level: v.level || '', description: v.description || '',
     youtubeId: v.youtubeId || null, clipStart: v.clipStart || 0, clipEnd: v.clipEnd || 0,
     watchOnly: !!v.watchOnly, // 유아용: 문장·쉐도잉 없이 영상만
@@ -73,7 +73,7 @@ export function summary(v) {
 }
 
 // YouTube 링크형 레슨: 영상 파일은 저장하지 않고 YouTube 플레이어로 재생합니다.
-export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, visibility, clipStart, clipEnd, description, track, level, watchOnly, raw }) {
+export async function createYoutubeLesson({ youtubeId, title, duration, sentences, partMinutes, partSentences, visibility, clipStart, clipEnd, description, track, level, watchOnly, raw }) {
   if (!/^[\w-]{11}$/.test(String(youtubeId || ''))) throw new Error('bad_youtube_id');
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -83,6 +83,7 @@ export async function createYoutubeLesson({ youtubeId, title, duration, sentence
     mime: 'video/youtube', size: 0, chunks: 0, duration: Math.max(0, num(duration)),
     clipStart: Math.max(0, num(clipStart)), clipEnd: Math.max(0, num(clipEnd)),
     partMinutes: Math.max(0, Math.min(30, num(partMinutes, 1))), sentences: cleanSentences(sentences),
+    partSentences: Math.max(0, Math.min(200, Math.floor(num(partSentences, 0)))), // 0이 아니면 '몇 문장씩'으로 파트 나누기
     description: clip(description, 500).trim(), level: cleanLevel(level),
     captionTrack: track && typeof track === 'object' ? { lang: clip(track.lang, 20), kind: clip(track.kind, 20) } : null,
     watchOnly: !!watchOnly, raw: watchOnly ? null : cleanRaw(raw), createdAt: now,
@@ -144,6 +145,7 @@ export async function updateLesson(id, patch) {
   if (patch.level != null) rec.level = cleanLevel(patch.level);
   if (patch.visibility != null && VISIBILITY.includes(patch.visibility)) rec.visibility = patch.visibility;
   if (patch.partMinutes != null) rec.partMinutes = Math.max(0, Math.min(30, num(patch.partMinutes, 1)));
+  if (patch.partSentences != null) rec.partSentences = Math.max(0, Math.min(200, Math.floor(num(patch.partSentences, 0))));
   if (patch.duration != null && num(patch.duration) > 0) rec.duration = num(patch.duration);
   if (patch.clipStart != null) rec.clipStart = Math.max(0, num(patch.clipStart));
   if (patch.clipEnd != null) rec.clipEnd = Math.max(0, num(patch.clipEnd));

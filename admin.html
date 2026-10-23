@@ -501,10 +501,11 @@ today we're going to talk about..."></textarea>
           <input type="text" id="vidTitle" placeholder="예: TED - The power of habits">
         </div>
         <div class="field" style="margin-bottom:0;">
-          <label for="vidParts">몇 분 단위로 나눌까요?</label>
+          <label for="vidParts">파트를 어떻게 나눌까요?</label>
           <select class="full" id="vidParts">
             <option value="0.5">30초</option><option value="1" selected>1분</option><option value="2">2분</option>
             <option value="3">3분</option><option value="5">5분</option><option value="0">나누지 않음</option>
+            <optgroup label="문장 수로"><option value="s5">5문장씩</option><option value="s10">10문장씩</option><option value="s20">20문장씩</option><option value="s30">30문장씩</option></optgroup>
           </select>
         </div>
         <div class="field" style="margin-bottom:0;">
@@ -522,6 +523,9 @@ today we're going to talk about..."></textarea>
         <select class="full" id="vidLevel"><option value="">레벨 선택 안 함</option><option value="kids">👶 유아 (영상만 보기 · 쉐도잉 없음)</option><option value="1-2">Lv 1-2 (입문)</option><option value="3-4">Lv 3-4 (초급)</option><option value="5-6">Lv 5-6 (중급)</option><option value="7-9">Lv 7-9 (고급)</option></select>
       </div>
       <div class="kids-note hidden" id="vidKidsNote">👶 <b>유아 레벨</b>은 자막·문장·쉐도잉을 만들지 않고 <b>영상만</b> 올려요. 아이들은 「유아」 탭에서 영상을 크게 틀어 볼 수 있어요.</div>
+      <label id="vidFixRow" style="display:flex; gap:8px; align-items:center; font-weight:400; margin-top:10px; cursor:pointer;">
+        <input type="checkbox" id="vidFix" checked> <span style="font-size:0.85rem; color:var(--body-text);">✨ 자동 자막에서 잘못 들린 단어 · 이름은 AI가 고쳐서 만들기 <span style="color:var(--muted);">(문장 다시 나누기에도 적용)</span></span>
+      </label>
       <label id="vidTranslateRow" style="display:flex; gap:8px; align-items:center; font-weight:400; margin-top:10px; cursor:pointer;">
         <input type="checkbox" id="vidTranslate" checked> <span style="font-size:0.85rem; color:var(--body-text);">문장마다 한국어 번역도 자동으로 넣기</span>
       </label>
@@ -560,7 +564,7 @@ Today we're going to talk about..."></textarea>
         <div class="vid-grid" style="margin-top:12px;">
           <div class="field" style="margin-bottom:0;"><label for="vedTitle">제목</label><input type="text" id="vedTitle"></div>
           <div class="field" style="margin-bottom:0;"><label for="vedParts">파트 나누기</label>
-            <select class="full" id="vedParts"><option value="0.5">30초</option><option value="1">1분</option><option value="2">2분</option><option value="3">3분</option><option value="5">5분</option><option value="0">나누지 않음</option></select></div>
+            <select class="full" id="vedParts"><option value="0.5">30초</option><option value="1">1분</option><option value="2">2분</option><option value="3">3분</option><option value="5">5분</option><option value="0">나누지 않음</option><optgroup label="문장 수로"><option value="s5">5문장씩</option><option value="s10">10문장씩</option><option value="s20">20문장씩</option><option value="s30">30문장씩</option></optgroup></select></div>
           <div class="field" style="margin-bottom:0;"><label for="vedVisibility">공개 범위</label>
             <select class="full" id="vedVisibility"><option value="draft">🔒 비공개</option><option value="members">👥 회원 공개</option><option value="public">🌐 전체 공개</option><option value="assigned">🎯 선택한 학생만</option></select></div>
         </div>
@@ -1477,7 +1481,7 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 /* ===================== 시작 ===================== */
 if (getToken()) showMain(); else showLogin();
 </script>
-<script src="js/video-admin.js?v=20261023b"></script>
+<script src="js/video-admin.js?v=20261023c"></script>
 <script src="js/video-records.js?v=20261023a"></script>
 </body>
 </html>
