@@ -1,10 +1,10 @@
 // 공부 시간 기록 — 회원이 실제로 연습한 시간(초)을 날짜별 · 종류별(피드백 쉐도잉 / 영상 쉐도잉)로 쌓아요.
-//   study-time : `${username}/${YYYY-MM}` → { days: { 'DD': { feedback: 초, video: 초 } }, updatedAt }
+//   study-time : `${username}/${YYYY-MM}` → { days: { 'DD': { feedback: 초, book: 초, video: 초 } }, updatedAt }
 // 날짜는 한국 시간(KST) 기준이에요.
 import { getStore } from '@netlify/blobs';
 import { getSummary } from './practice.mjs';
 
-export const CATS = ['feedback', 'video'];
+export const CATS = ['feedback', 'book', 'video']; // 피드백 · 📖 교재 · 🎬 영상
 const store = () => getStore({ name: 'study-time', consistency: 'strong' });
 const norm = u => String(u || '').trim().toLowerCase();
 export const kstDate = (t = Date.now()) => new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
@@ -24,8 +24,8 @@ export async function addTime(username, cat, sec) {
   return row;
 }
 
-const empty = () => ({ feedback: 0, video: 0, total: 0 });
-const addRow = (acc, row) => { CATS.forEach(c => { acc[c] += (row && row[c]) || 0; }); acc.total = acc.feedback + acc.video; return acc; };
+const empty = () => ({ feedback: 0, book: 0, video: 0, total: 0 });
+const addRow = (acc, row) => { CATS.forEach(c => { acc[c] += (row && row[c]) || 0; }); acc.total = CATS.reduce((a, c) => a + acc[c], 0); return acc; };
 
 // 오늘 · 이번 달 · 최근 7일 공부 시간 + 지금까지 듣기/따라 말하기 횟수(1000번 목표용)
 export async function timeSummary(username) {

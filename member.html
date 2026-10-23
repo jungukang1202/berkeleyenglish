@@ -95,6 +95,29 @@
   .cat-card .ct{margin-top:2px; font-size:0.85rem; font-weight:800;}
   .cat-card.c-blue{background:#DCEBFF; border-color:#3B82C4;}
   .cat-card.c-yellow{background:#FFEFB0; border-color:#E0A21B;}
+  .cat-card.c-pink{background:#FFDCE7; border-color:#D9578A;}
+  .cat-card.on{box-shadow:0 0 0 3px #1B2A4E inset, 0 10px 22px rgba(27,42,78,0.14);}
+  .cat-card .cc{display:inline-block; margin-right:8px; padding:1px 8px; border-radius:999px; background:rgba(255,255,255,0.7); font-weight:800;}
+  /* 📖 교재 */
+  .book-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px;}
+  .book{display:flex; flex-direction:column; gap:6px; padding:10px; border-radius:16px; border:2px solid var(--border); background:#fff; cursor:pointer; text-align:center; font:inherit; color:var(--text); transition:transform .12s ease, box-shadow .12s ease;}
+  .book:hover{transform:translateY(-2px); box-shadow:0 10px 22px rgba(27,42,78,0.12);}
+  .book .cover{aspect-ratio:3/4; border-radius:10px; overflow:hidden; background:#EEE center/cover no-repeat; display:flex; align-items:center; justify-content:center; padding:10px; color:#fff; font-weight:900; font-size:1.05rem; line-height:1.3; word-break:keep-all; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05);}
+  .book .cover img{width:100%; height:100%; object-fit:cover; display:block;}
+  .book .cover.img{padding:0; background:#fff;}
+  .book b{font-size:0.92rem;}
+  .book .bm{font-size:0.76rem; color:var(--muted);}
+  .book .pbar{height:6px; border-radius:4px; background:var(--border); overflow:hidden;}
+  .book .pbar i{display:block; height:100%; background:var(--good);}
+  .book .pp{font-size:0.78rem; font-weight:800; color:var(--text);}
+  .book-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .unit-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:8px;}
+  .unit{display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:left; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:var(--panel); cursor:pointer; font:inherit; color:var(--text);}
+  .unit:hover{border-color:#D9578A;}
+  .unit.on{border:2px solid #D9578A; background:#FFF0F5;}
+  .unit .ut{font-weight:800; font-size:0.88rem;}
+  .unit .um{font-size:0.75rem; color:var(--muted);}
+  .unit .um.done{color:var(--good); font-weight:700;}
 </style>
 </head>
 <body>
@@ -142,10 +165,15 @@
 
     <!-- 쉐도잉 종류 + 오늘 공부 시간 -->
     <div class="cat-cards">
-      <a href="#setCard" class="cat-card c-blue" id="catFeedback">
+      <a href="?view=feedback" class="cat-card c-blue" data-view="feedback">
         <span class="ci">💬</span><b>피드백 쉐도잉</b>
         <span class="cd">수업에서 교정받은 문장을 한 문장씩 듣고 따라 말해요.</span>
         <span class="ct">⏱ 오늘 <span id="stTodayFb">0초</span></span>
+      </a>
+      <a href="?view=book" class="cat-card c-pink" data-view="book">
+        <span class="ci">📖</span><b>교재 쉐도잉</b>
+        <span class="cd">선생님이 넣어 준 교재의 문장을 유닛별로 쉐도잉해요.</span>
+        <span class="ct"><span class="cc" id="bookCount"></span>⏱ 오늘 <span id="stTodayBook">0초</span></span>
       </a>
       <a href="video.html" class="cat-card c-yellow">
         <span class="ci">🎬</span><b>영상 쉐도잉</b>
@@ -155,6 +183,25 @@
     </div>
     <div id="stBar" style="margin-bottom:16px;"></div>
 
+    <!-- ===== 📖 교재 쉐도잉 ===== -->
+    <div id="bookView" class="hidden">
+      <div class="card" id="bookListCard">
+        <h2>📖 교재 쉐도잉</h2>
+        <div class="card-desc">선생님이 넣어 준 교재가 보여요. 교재를 누르고 유닛을 고르면 문장을 하나씩 듣고 따라 말할 수 있어요. (피드백 쉐도잉과 같은 방식)</div>
+        <div class="book-grid" id="bookGrid"><div class="empty">불러오는 중...</div></div>
+      </div>
+      <div class="card hidden" id="bookDetailCard">
+        <div class="book-head">
+          <button class="btn-ghost btn-small" id="bookBackBtn">← 교재 목록</button>
+          <h2 id="bookTitle" style="margin:0;"></h2>
+        </div>
+        <div class="card-desc" id="bookDesc"></div>
+        <div class="unit-list" id="unitList"></div>
+      </div>
+      <div id="bookContent"></div>
+    </div>
+
+    <div id="feedbackView">
     <div class="card" id="setCard">
       <h2>🗂️ 회차 선택</h2>
       <div class="card-desc">선생님이 등록해준 수업 회차 중 연습할 회차를 골라주세요. (최신 회차가 먼저 보여요)</div>
@@ -163,6 +210,7 @@
     </div>
 
     <div id="contentArea"></div>
+    </div>
 
     <div class="card" id="reportCard">
       <h2>📊 나의 학습 리포트</h2>
@@ -198,7 +246,7 @@
 </div>
 
 <script src="js/shadowing-engine.js?v=20261016a"></script>
-<script src="js/study-time.js?v=20261023a"></script>
+<script src="js/study-time.js?v=20261023b"></script>
 <script src="js/learning-report.js?v=20261019a"></script>
 <script>
 const API = { login: '/api/member-login', sets: '/api/member-sets', report: '/api/member-insight', practice: '/api/member-practice' };
@@ -236,21 +284,102 @@ function showPractice() {
   loadSets();
   loadReportMonths();
   StudyTime.load();
+  showView(new URLSearchParams(location.search).get('view') === 'book' ? 'book' : 'feedback', false);
+  if (currentView !== 'book') loadBooks(); // 교재 카드의 '교재 N권'
 }
 
 /* ===================== 공부 시간 · 1000번 목표 ===================== */
 // 피드백 쉐도잉: 연습이 돌아가는 중이거나, 회차를 열어 두고 최근 60초 안에 화면을 누른 경우만 공부 시간으로 세요.
-StudyTime.track('feedback', () => {
+// 지금 보고 있는 쪽(피드백 / 교재)으로 공부 시간을 나눠 세요.
+function studyActive() {
   if (document.getElementById('practiceArea').classList.contains('hidden')) return false;
   let practicing = false; try { practicing = ShadowingEngine.isPracticing(); } catch (e) {}
-  return practicing || (contentArea.children.length > 0 && StudyTime.recent(60000));
-});
+  const box = currentView === 'book' ? document.getElementById('bookContent') : contentArea;
+  return practicing || (box.children.length > 0 && StudyTime.recent(60000));
+}
+StudyTime.track('feedback', studyActive);
 function renderStudyTime() {
   document.getElementById('stGoal').innerHTML = StudyTime.data ? StudyTime.goalHtml() : '';
   document.getElementById('stBar').innerHTML = StudyTime.barHtml();
   document.getElementById('stTodayFb').textContent = StudyTime.fmt(StudyTime.today('feedback'));
   document.getElementById('stTodayVid').textContent = StudyTime.fmt(StudyTime.today('video'));
+  document.getElementById('stTodayBook').textContent = StudyTime.fmt(StudyTime.today('book'));
 }
+
+/* ===================== 💬 피드백 / 📖 교재 화면 바꾸기 ===================== */
+let currentView = 'feedback';
+function showView(view, push) {
+  currentView = view === 'book' ? 'book' : 'feedback';
+  document.getElementById('feedbackView').classList.toggle('hidden', currentView !== 'feedback');
+  document.getElementById('bookView').classList.toggle('hidden', currentView !== 'book');
+  document.querySelectorAll('.cat-card[data-view]').forEach(c => c.classList.toggle('on', c.dataset.view === currentView));
+  StudyTime.track(currentView === 'book' ? 'book' : 'feedback', studyActive);
+  if (push !== false) { try { history.replaceState(null, '', currentView === 'book' ? '?view=book' : location.pathname); } catch (e) {} }
+  if (currentView === 'book') loadBooks();
+}
+document.querySelectorAll('.cat-card[data-view]').forEach(c => c.addEventListener('click', e => { e.preventDefault(); showView(c.dataset.view); }));
+
+/* ===================== 📖 교재 쉐도잉 ===================== */
+const BOOK_COLORS = ['#3B82C4', '#2E9E6B', '#E08A00', '#D9578A', '#7A5AF8', '#0E9AA7', '#C2410C', '#4F46E5'];
+let booksCache = null, openBook = null;
+const escB = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function coverHtml(b, k) {
+  if (b.cover) return `<div class="cover img"><img src="${b.cover}" alt="" loading="lazy"></div>`;
+  return `<div class="cover" style="background:${b.color || BOOK_COLORS[k % BOOK_COLORS.length]}">${escB(b.title)}</div>`;
+}
+async function loadBooks(force) {
+  const grid = document.getElementById('bookGrid');
+  if (!booksCache || force) {
+    try { booksCache = (await apiFetch('/api/member-books')).books || []; }
+    catch (e) { grid.innerHTML = `<div class="empty">⚠️ ${escB(e.message)}</div>`; return; }
+  }
+  document.getElementById('bookCount').textContent = `교재 ${booksCache.length}권`;
+  grid.innerHTML = booksCache.length ? booksCache.map((b, k) => `
+    <button class="book" data-book="${escB(b.id)}">
+      ${coverHtml(b, k)}
+      <b>${escB(b.title)}</b>
+      <span class="bm">${b.unitCount}유닛${b.studiedUnits ? ` · ✅ ${b.studiedUnits}유닛 공부함` : ''}</span>
+      <span class="pbar"><i style="width:${b.pct}%"></i></span>
+      <span class="pp">📈 공부한 양 ${b.pct}%</span>
+    </button>`).join('') : '<div class="empty">아직 선생님이 넣어 준 교재가 없어요.</div>';
+}
+document.getElementById('bookGrid').addEventListener('click', e => { const b = e.target.closest('[data-book]'); if (b) openBookDetail(b.dataset.book); });
+async function openBookDetail(id, unit) {
+  const card = document.getElementById('bookDetailCard');
+  document.getElementById('bookListCard').classList.add('hidden'); card.classList.remove('hidden');
+  document.getElementById('unitList').innerHTML = '<div class="empty">불러오는 중...</div>';
+  document.getElementById('bookContent').innerHTML = '';
+  try { openBook = (await apiFetch('/api/member-books?id=' + encodeURIComponent(id))).book; }
+  catch (e) { document.getElementById('unitList').innerHTML = `<div class="empty">⚠️ ${escB(e.message)}</div>`; return; }
+  document.getElementById('bookTitle').textContent = '📖 ' + openBook.title;
+  document.getElementById('bookDesc').textContent = openBook.desc || '유닛을 고르면 아래에서 문장을 하나씩 듣고 따라 말할 수 있어요.';
+  renderUnits(unit);
+  if (unit != null) openUnit(unit);
+}
+function renderUnits(active) {
+  document.getElementById('unitList').innerHTML = openBook.units.map((u, k) => `
+    <button class="unit${k === active ? ' on' : ''}" data-unit="${k}">
+      <span class="ut">${escB(u.title)}</span>
+      <span class="um${u.reps ? ' done' : ''}">${u.sentences.length}문장${u.reps ? ` · ✅ ${u.reps}번 연습${u.avg != null ? ' · 평균 ' + u.avg + '%' : ''}` : ''}</span>
+    </button>`).join('');
+}
+document.getElementById('unitList').addEventListener('click', e => { const u = e.target.closest('[data-unit]'); if (u) openUnit(Number(u.dataset.unit)); });
+function openUnit(k) {
+  const u = openBook && openBook.units[k]; if (!u) return;
+  renderUnits(k);
+  const setId = `book-${openBook.id}-u${k}`;
+  const box = document.getElementById('bookContent');
+  // 피드백 쉐도잉과 같은 연습 화면 (듣기 · 따라 말하기 · 채점 · 비슷한 표현)
+  ShadowingEngine.renderPracticeSet(box, { id: setId, title: u.title, sentences: u.sentences.map(x => ({ o: x.o })), words: [] }, {
+    onAttempt: rec => { queuePractice(setId, rec); u.reps = (u.reps || 0) + 1; },
+  });
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+document.getElementById('bookBackBtn').addEventListener('click', () => {
+  openBook = null; document.getElementById('bookContent').innerHTML = '';
+  document.getElementById('bookDetailCard').classList.add('hidden'); document.getElementById('bookListCard').classList.remove('hidden');
+  loadBooks(true);
+});
 StudyTime.onChange(renderStudyTime);
 
 document.getElementById('loginBtn').addEventListener('click', async () => {

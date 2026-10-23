@@ -65,8 +65,20 @@
   .admin-menu button:hover{transform:translateY(-1px); box-shadow:0 6px 14px rgba(27,42,78,0.12);}
   .admin-menu button.on{border-color:#1B2A4E; box-shadow:0 6px 16px rgba(27,42,78,0.18);}
   .admin-menu .m-blue{background:#DCEBFF;} .admin-menu .m-yellow{background:#FFF0B8;} .admin-menu .m-orange{background:#FFE1C7;}
-  .admin-menu .m-cyan{background:#D3F4F6;} .admin-menu .m-green{background:#DDF3DC;} .admin-menu .m-pink{background:#FFDDE7;}
+  .admin-menu .m-cyan{background:#D3F4F6;} .admin-menu .m-rose{background:#FFDCE7;} .admin-menu .m-green{background:#DDF3DC;} .admin-menu .m-pink{background:#FFDDE7;}
   [data-tab].tab-off{display:none !important;}
+  /* 📖 교재 */
+  .book-form{margin:14px 0; padding:16px; border:1px solid var(--border); border-radius:14px; background:var(--input-bg);}
+  .bk-cover-prev{width:42px; height:56px; border-radius:6px; background:#ddd center/cover no-repeat; display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:#fff; overflow:hidden; text-align:center;}
+  .bk-assign{display:flex; flex-wrap:wrap; gap:6px 14px; max-height:140px; overflow:auto; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:var(--panel);}
+  .bk-assign label{display:flex; gap:6px; align-items:center; font-weight:400; margin:0; font-size:0.86rem; cursor:pointer;}
+  .bk-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:14px;}
+  .bk-item{display:flex; flex-direction:column; gap:5px; padding:10px; border:1px solid var(--border); border-radius:14px; background:var(--panel);}
+  .bk-item .cv{aspect-ratio:3/4; border-radius:8px; background:#eee center/cover no-repeat; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; padding:8px; text-align:center; word-break:keep-all; font-size:0.92rem;}
+  .bk-item b{font-size:0.88rem; color:var(--text);}
+  .bk-item .m{font-size:0.75rem; color:var(--muted);}
+  .bk-rec{margin-top:16px;}
+  .bk-rec h3{font-size:0.92rem; margin:14px 0 6px; color:var(--text);}
   /* 영상쉐도잉 기록 */
   .vr-tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:14px 0;}
   .vr-tile{background:var(--input-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px;}
@@ -269,6 +281,7 @@
     <!-- ============ 메뉴: 필요한 화면만 보기 ============ -->
     <nav class="admin-menu" id="adminMenu" aria-label="관리자 메뉴">
       <button type="button" data-go="sets" class="m-blue"><b>📚 피드백쉐도잉</b><small>회차 등록 · 수정 · 연습 기록</small></button>
+      <button type="button" data-go="book" class="m-rose"><b>📖 교재 쉐도잉</b><small>교재 등록 · 넣어주기 · 연습 기록</small></button>
       <button type="button" data-go="video" class="m-yellow"><b>🎬 영상 쉐도잉 만들기</b><small>YouTube · 영상 파일</small></button>
       <button type="button" data-go="vrec" class="m-orange"><b>🎞️ 영상쉐도잉 기록</b><small>학생별 영상 공부 상황</small></button>
       <button type="button" data-go="report" class="m-cyan"><b>📊 학습 리포트</b><small>회원별 학습 분석</small></button>
@@ -427,6 +440,58 @@ vegetable, particularly"></textarea>
         <div id="setsList"></div>
         <div class="empty" id="setsEmpty">아직 등록된 회차가 없어요.</div>
       </div>
+    </div>
+
+    <!-- ============ 📖 교재 쉐도잉 ============ -->
+    <div class="card" id="bookCard" data-tab="book">
+      <h2>📖 교재 쉐도잉</h2>
+      <div class="card-desc">교재 문장을 유닛별로 쉐도잉해요. 학생은 회원 화면의 「📖 교재 쉐도잉」에서 피드백 쉐도잉과 같은 방식으로 연습합니다.
+        공개 범위가 「🎯 선택한 학생만」이면 넣어 준 학생만 볼 수 있어요.</div>
+      <div class="row" style="margin-top:0; justify-content:space-between;">
+        <button class="btn-primary" id="bookNewBtn">➕ 새 교재 만들기</button>
+        <label style="display:flex; gap:8px; align-items:center; margin:0; font-weight:400;">연습 기록 볼 회원
+          <select id="bookUser" style="min-width:160px;"><option value="">-- 선택 --</option></select></label>
+      </div>
+      <div class="status" id="bookStatus"></div>
+
+      <!-- 교재 만들기 · 고치기 -->
+      <div id="bookForm" class="hidden book-form">
+        <h2 style="font-size:0.98rem;" id="bookFormTitle">➕ 새 교재</h2>
+        <div class="vid-grid">
+          <div class="field" style="margin-bottom:0;"><label for="bkTitle">교재 이름</label><input type="text" id="bkTitle" placeholder="예: Grammar Points"></div>
+          <div class="field" style="margin-bottom:0;"><label for="bkLevel">레벨 (선택)</label><input type="text" id="bkLevel" placeholder="예: Lv 3-4"></div>
+          <div class="field" style="margin-bottom:0;"><label for="bkVis">공개 범위</label>
+            <select class="full" id="bkVis"><option value="members">👥 모든 회원</option><option value="assigned">🎯 선택한 학생만</option><option value="draft">🔒 비공개(준비 중)</option></select></div>
+        </div>
+        <div class="vid-grid vid-grid-2" style="margin-top:10px;">
+          <div class="field" style="margin-bottom:0;"><label for="bkDesc">설명 (선택)</label><input type="text" id="bkDesc" placeholder="예: 기초 문법을 문장으로 익혀요"></div>
+          <div class="field" style="margin-bottom:0;"><label>표지 그림 (선택 · 없으면 색 표지)</label>
+            <div class="row" style="margin:0; gap:8px; align-items:center;">
+              <input type="file" id="bkCoverFile" accept="image/*" style="max-width:220px;">
+              <input type="color" id="bkColor" value="#3B82C4" title="그림이 없을 때 표지 색">
+              <div id="bkCoverPrev" class="bk-cover-prev"></div>
+              <button type="button" class="btn-ghost btn-small" id="bkCoverClear">그림 빼기</button>
+            </div></div>
+        </div>
+        <div class="field" id="bkAssignBox" style="margin:10px 0 0;"><label>🎯 넣어 줄 학생</label><div class="bk-assign" id="bkAssign"></div></div>
+        <div class="field" style="margin:12px 0 0;">
+          <label for="bkUnits">유닛과 문장 — <code># 유닛 이름</code> 줄로 유닛을 시작하고, 그 아래에 한 줄에 한 문장씩 (한국어 뜻은 <code>|</code> 뒤에, 선택)</label>
+          <textarea id="bkUnits" rows="12" placeholder="# Unit 1. Greetings
+Hello, how are you?
+I'm fine, thank you. | 잘 지내요, 고마워요.
+# Unit 2. Family
+This is my mother."></textarea>
+          <div class="status" id="bkCount"></div>
+        </div>
+        <div class="row">
+          <button class="btn-primary" id="bkSave">💾 저장</button>
+          <button class="btn-ghost" id="bkCancel">닫기</button>
+          <button class="btn-danger" id="bkDelete" style="margin-left:auto;">삭제</button>
+        </div>
+      </div>
+
+      <div class="bk-list" id="bookList"><div class="empty">불러오는 중…</div></div>
+      <div id="bookRecords"></div>
     </div>
 
     <!-- ============ 🎞️ 영상쉐도잉 기록 · 학생별 넣어주기 ============ -->
@@ -617,7 +682,7 @@ Today we're going to talk about..."></textarea>
 <script>
 // 관리자 메뉴 — 고른 화면만 보여 주고, 주소(#sets 등)에 기억해서 새로고침해도 그 화면으로
 (function () {
-  const names = ['sets', 'video', 'vrec', 'report', 'nvoim', 'members'];
+  const names = ['sets', 'book', 'video', 'vrec', 'report', 'nvoim', 'members'];
   function showTab(name, push) {
     if (!names.includes(name)) name = 'sets';
     document.querySelectorAll('[data-tab]').forEach(c => c.classList.toggle('tab-off', c.dataset.tab !== name));
@@ -672,6 +737,8 @@ function showMain() {
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('mainArea').classList.remove('hidden');
   loadMembers();
+  // 로그인한 뒤 지금 보고 있는 메뉴(#book 등)의 내용을 불러오기
+  setTimeout(() => { if (window.showAdminTab) window.showAdminTab(location.hash.slice(1), false); }, 0);
 }
 
 document.getElementById('adminLoginBtn').addEventListener('click', async () => {
@@ -774,6 +841,7 @@ function renderMemberSelect() {
   });
   if (membersCache.some(m => m.username === current)) sel.value = current;
   if (window.fillVrecUsers) window.fillVrecUsers();
+  if (window.fillBookUsers) window.fillBookUsers();
 }
 
 document.getElementById('addMemberBtn').addEventListener('click', async () => {
@@ -1482,6 +1550,7 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 if (getToken()) showMain(); else showLogin();
 </script>
 <script src="js/video-admin.js?v=20261023c"></script>
-<script src="js/video-records.js?v=20261023a"></script>
+<script src="js/video-records.js?v=20261023b"></script>
+<script src="js/book-admin.js?v=20261023a"></script>
 </body>
 </html>

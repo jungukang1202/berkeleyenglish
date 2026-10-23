@@ -203,9 +203,10 @@ function analyzeStudent(data, from, to) {
 
   // 이 기간 가장 많이 연습한 수업 문장·단어 (영상 쉐도잉 문장은 아래 video에서 따로)
   const isVideo = a => String(a.setId || '').startsWith('video-');
+  const isBook = a => String(a.setId || '').startsWith('book-'); // 📖 교재 쉐도잉 (수업 문장 순위에는 넣지 않아요)
   const classIn = new Map(), videoIn = new Map();
   attempts.forEach(a => {
-    if (a.type === 'variant' || a.day < from || a.day > to) return;
+    if (a.type === 'variant' || a.day < from || a.day > to || isBook(a)) return;
     const m = isVideo(a) ? videoIn : classIn;
     const k = itemKey(a.type, a.target);
     if (!m.has(k)) m.set(k, { agg: newAgg(), sample: a });

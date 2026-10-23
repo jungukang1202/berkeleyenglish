@@ -10,9 +10,9 @@
 (function (root) {
   const TOKEN = 'shadowing_member_token';
   const token = () => { try { return localStorage.getItem(TOKEN); } catch (e) { return null; } };
-  const CAT_LABEL = { feedback: '피드백', video: '영상' };
+  const CAT_LABEL = { feedback: '피드백', book: '교재', video: '영상' };
   let cat = null, isActive = null, pending = 0, lastAct = 0, base = null;
-  const local = { feedback: 0, video: 0 };
+  const local = { feedback: 0, book: 0, video: 0 };
   const listeners = [];
 
   function fmt(sec) {
@@ -56,7 +56,7 @@
       const r = await fetch('/api/member-time', { headers: { Authorization: 'Bearer ' + token() } });
       if (!r.ok) return null;
       base = await r.json();
-      local.feedback = 0; local.video = 0; // 서버 값에 이미 들어간 만큼은 다시 세지 않게 (보내지 않은 pending만 남김)
+      local.feedback = 0; local.book = 0; local.video = 0; // 서버 값에 이미 들어간 만큼은 다시 세지 않게 (보내지 않은 pending만 남김)
       if (cat) local[cat] = pending;
       emit();
       return base;
@@ -67,9 +67,9 @@
   const month = c => ((base && base.month && base.month[c]) || 0) + (local[c] || 0);
 
   function barHtml() {
-    const t = today('feedback') + today('video');
-    return `<div class="st-bar">⏱ 오늘 쉐도잉한 시간 <b>${fmt(t)}</b> <span>피드백 ${fmt(today('feedback'))} · 🎬 영상 ${fmt(today('video'))}</span>`
-      + (base ? ` <span class="st-month">· 📅 이번 달 ${fmt(month('feedback') + month('video'))}</span>` : '') + `</div>`;
+    const t = today('feedback') + today('book') + today('video');
+    return `<div class="st-bar">⏱ 오늘 쉐도잉한 시간 <b>${fmt(t)}</b> <span>피드백 ${fmt(today('feedback'))} · 📖 교재 ${fmt(today('book'))} · 🎬 영상 ${fmt(today('video'))}</span>`
+      + (base ? ` <span class="st-month">· 📅 이번 달 ${fmt(month('feedback') + month('book') + month('video'))}</span>` : '') + `</div>`;
   }
 
   // 듣기 · 따라 말하기 1000번 목표 (1000번을 넘으면 다음 목표 2000번 …)
@@ -111,7 +111,9 @@
   document.head.appendChild(css);
 
   root.StudyTime = {
-    track(c, fn) { cat = c; isActive = fn; },
+    // 종류를 바꾸면(피드백 → 교재) 그때까지 센 시간은 원래 종류로 먼저 보내요
+    track(c, fn) { if (cat && cat !== c && pending) flush(); cat = c; if (fn) isActive = fn; },
+    get cat() { return cat; },
     recent, load, fmt, today, month, barHtml, goalHtml, flush,
     onChange(fn) { listeners.push(fn); },
     get data() { return base; },

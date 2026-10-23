@@ -2,6 +2,7 @@
 // GET  /api/admin-practice?username=xxx          → { summary: { [setId]: { listen, spoke, failed, scoreSum, best, last } } }
 // GET  /api/admin-practice?username=xxx&id=yyy   → { set, attempts:[...] }
 // POST /api/admin-practice { action:'clear', username, id }  → 그 회차 연습 기록 초기화
+import { getBook, parseUnitSetId } from './_lib/books.mjs';
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { getSet } from './_lib/store.mjs';
 import { getSummary, getLog, clearPractice } from './_lib/practice.mjs';
@@ -9,6 +10,11 @@ import { getLesson } from './_lib/videos.mjs';
 
 // 영상 쉐도잉 기록('video-영상ID')은 영상의 문장을 회차처럼 보여줍니다.
 async function setOrVideo(username, id) {
+  const bp = parseUnitSetId(id);
+  if (bp) { // 📖 교재 유닛
+    const b = await getBook(bp.bookId); const u = b && b.units[bp.unit];
+    return u ? { id, title: '📖 ' + b.title + ' · ' + u.title, sentences: u.sentences.map(s => ({ o: s.o })), words: [], book: true } : null;
+  }
   if (!String(id).startsWith('video-')) return getSet(username, id);
   const v = await getLesson(String(id).slice(6));
   return v ? { id, title: '🎬 ' + v.title, sentences: (v.sentences || []).map(s => ({ o: s.en })), words: [], video: true } : null;
