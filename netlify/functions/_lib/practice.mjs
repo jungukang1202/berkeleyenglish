@@ -61,15 +61,38 @@ export async function addAttempts(username, setId, rawAttempts) {
   const ss = summaryStore();
   const sum = (await ss.get(uname, { type: 'json' })) || {};
   const s = sum[setId] || { listen: 0, spoke: 0, failed: 0, scoreSum: 0, best: 0, last: null };
+  const sents = new Set(Array.isArray(s.sents) ? s.sents : []);
   list.forEach(a => {
+    if (a.type === 'sentence' && a.idx >= 0) sents.add(a.idx); // 한 번이라도 연습한 문장 번호 (교재 '공부한 양 %')
     if (a.mode === 'listen') s.listen++;
     else if (a.ok) { s.spoke++; s.scoreSum += a.score; if (a.score > s.best) s.best = a.score; }
     else s.failed++;
     if (!s.last || a.at > s.last) s.last = a.at;
   });
+  s.sents = [...sents].sort((a, b) => a - b);
   sum[setId] = s;
   await ss.setJSON(uname, sum);
   return { added: list.length };
+}
+
+// 문장마다 연습한 횟수 · 따라 말한 횟수 { counts:{번호:n}, mic:{번호:n}, sents:[번호] } — 기록(로그)에서 셉니다
+export async function sentenceCounts(username, setId) {
+  const log = await getLog(username, setId);
+  const counts = {}, mic = {};
+  (log.attempts || []).forEach(a => {
+    if (a.type !== 'sentence' || !(a.idx >= 0)) return;
+    counts[a.idx] = (counts[a.idx] || 0) + 1;
+    if (a.mode === 'mic') mic[a.idx] = (mic[a.idx] || 0) + 1;
+  });
+  return { counts, mic, sents: Object.keys(counts).map(Number).sort((a, b) => a - b) };
+}
+
+// 지금까지 듣기 · 따라 말하기 횟수 (🔥 1000번 목표 배너) — 따라 말하기도 원어민 문장을 먼저 들으니 듣기에 더해요
+export function practiceTotals(summary) {
+  return Object.values(summary || {}).reduce((t, x) => {
+    const speak = ((x && x.spoke) || 0) + ((x && x.failed) || 0);
+    t.listen += ((x && x.listen) || 0) + speak; t.speak += speak; return t;
+  }, { listen: 0, speak: 0 });
 }
 
 export async function getSummary(username) {

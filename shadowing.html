@@ -128,7 +128,7 @@
 <body>
 <header>
   <div class="wrap" style="padding:0 16px;">
-    <a href="index.html" style="display:inline-block; margin-bottom:8px; font-size:0.85rem; color:var(--text); font-weight:700; text-decoration:none;">🏠 버클리원어민영어회화 홈으로</a>
+    <a href='/' style='display:inline-block; margin-bottom:8px; font-size:0.85rem; color:var(--text); font-weight:700; text-decoration:none;'>🏠 버클리원어민영어회화 홈으로</a>
     <h1>🗣️ 원어민 피드백 쉐도잉 연습장</h1>
     <div class="sub">수업에서 원어민이 교정해준 문장(x → o)이나 발음 지적을 받은 단어를 직접 입력하면,
     듣기(TTS)와 따라 말하기(음성 인식)로 쉐도잉 연습을 할 수 있어요. (마이크 권한 필요)</div>
@@ -393,7 +393,7 @@ let __voiceGen = 0;
 let __lastTtsEnd = 0;
 // 지금 재생 중인 카드의 '멈춤' 함수. 다른 카드를 누르면 이걸 불러서 앞 카드의 반복을 완전히 멈춥니다(소리 겹침 방지).
 let __activeShadowStop = null;
-const ENGINE_VERSION = '2026-10-16a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+const ENGINE_VERSION = '2026-10-27b'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
 // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
 const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
 function __dbg(msg) {

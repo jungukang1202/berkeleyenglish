@@ -129,48 +129,8 @@
 
   // 단어 목록 → 문장. punctuated=false(YouTube 자동 자막처럼 문장부호가 없음)면 말이 쉬는 곳에서 나눕니다.
   // opts.pauseCut: AI로 문장부호를 복원한 자막이면, AI가 마침표를 놓친 곳이라도 1.2초 넘게 말이 끊기면 문장을 나눕니다.
-  // ---- 문장이 덜 끝났는지 보는 문법 검사 ----
-  // 이 단어로는 영어 문장이 끝날 수 없어요 (관사·소유격·접속사·주어 등)
-  const NEVER_END = new Set(['a', 'an', 'the', 'of', 'my', 'your', 'our', 'their', 'its', 'and', 'but', 'or', 'nor', 'because', 'than', 'if', 'very',
-    'i', "i'm", "i'll", "i've", "i'd", "you're", "we're", "they're", "he's", "she's", "it's", "that's", "there's", 'whose', 'such', 'every', 'each', 'these', 'those']);
-  // "주어 + 이 동사"만 있는 두 단어 문장은 뒤에 말이 더 있어야 해요 ("I feel." "You look." "I want.")
-  //  (am·is·have처럼 혼자서도 대답이 되는 동사는 넣지 않아요: "I am." "I have.")
-  const NEEDS_MORE = new Set(['feel', 'feels', 'felt', 'look', 'looks', 'seem', 'seems', 'sound', 'sounds', 'become', 'became', 'want', 'wants', 'need', 'needs', 'like', 'likes', 'love', 'loves', 'hate', 'hates', 'get', 'gets', 'got']);
-  const SUBJECT = new Set(['i', 'you', 'we', 'they', 'he', 'she', 'it']);
-  // "a really bad." 처럼 관사 뒤에 꾸미는 말만 있고 명사가 빠진 경우
-  const DETERMINER = new Set(['a', 'an', 'the', 'my', 'your', 'our', 'their', 'his', 'her', 'its', 'this', 'that', 'some', 'any']);
-  const INTENSIFIER = new Set(['really', 'very', 'so', 'quite', 'too', 'pretty', 'super', 'extremely', 'little', 'big']);
-  const bare = w => String(w || '').toLowerCase().replace(/^[^a-z']+|[^a-z']+$/g, '');
-  function fixDangling(groups) {
-    // 문장 가운데에서도 대문자로 쓰인 단어 = 이름 (합칠 때 소문자로 바꾸지 않음)
-    const proper = new Set();
-    groups.forEach(g => g.forEach((w, k) => { if (k > 0 && /^[A-Z]/.test(w.w) && !/[.?!]$/.test(g[k - 1].w)) proper.add(bare(w.w)); }));
-    for (let i = 0; i + 1 < groups.length; i++) {
-      const g = groups[i], nx = groups[i + 1], last = g[g.length - 1];
-      if (!/\.$/.test(last.w) || /\.\.\.$/.test(last.w) || last.spk) continue; // ? ! 로 끝나거나 화자가 바뀌면 그대로
-      if (nx[0].s - last.e > 2.5) continue; // 한참 뒤에 이어지는 말은 다른 문장
-      const b = bare(last.w);
-      const tail = g.slice(-4).map(w => bare(w.w));
-      const dangling = NEVER_END.has(b)
-        || (g.length === 2 && SUBJECT.has(bare(g[0].w)) && NEEDS_MORE.has(b) && nx.length <= 6)
-        || (nx.length <= 3 && g.length >= 3 && INTENSIFIER.has(tail[tail.length - 2]) && tail.slice(0, -2).some(x => DETERMINER.has(x)));
-      if (!dangling) continue;
-      last.w = last.w.replace(/\.$/, '');
-      const first = nx[0];
-      if (!/^I('|$)/.test(first.w) && !proper.has(bare(first.w))) first.w = first.w.charAt(0).toLowerCase() + first.w.slice(1);
-      groups.splice(i, 2, g.concat(nx));
-      i--; // 합친 문장을 다시 검사
-    }
-  }
-
   function wordsToSentences(all, duration, punctuated, opts = {}) {
     const groups = []; let cur = [];
-    // 문장 가운데에서도 대문자로 쓰인 단어 = 이름 (예: GP, Mitch, Peppa)
-    const proper = new Set();
-    all.forEach((w, i) => { if (i > 0 && /^[A-Z]/.test(w.w) && !/[.?!]["”’)]?$/.test(all[i - 1].w)) proper.add(bare(w.w)); });
-    // 문장부호 없는 부분(AI 실패 조각)을 자르는 예전 방식
-    const rawCut = (w, nx, gap, n) => !nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20;
-    const newSentenceStart = x => x && /^[A-Z]/.test(x.w) && !/^I('|$)/.test(x.w) && !proper.has(bare(x.w));
     all.forEach((w, i) => {
       cur.push(w);
       const nx = all[i + 1];
@@ -179,15 +139,10 @@
       const cut = punctuated
         // 문장부호가 있으면 문장 끝(. ? !)에서만 자릅니다 — 긴 문장도 한 문장으로 유지
         // (5초 넘게 말이 없거나, 문장부호 없이 60단어를 넘는 경우만 예외)
-        // 말을 쉰 곳에서 억지로 자르지 않아요 — "I feel ‖ terrible", 느린 영어 영상의 "call my ‖(14초)‖ GP"처럼
-        // 문장 가운데서 길게 쉬는 경우가 많아서요. 단, AI가 다음 말을 대문자로 새 문장처럼 시작했는데
-        // 마침표만 빠뜨린 곳(쉼 1초 이상)은 자릅니다.
-        ? (w.raw ? rawCut(w, nx, gap, n) : (!nx || endsSentence(w.w) || w.spk || n >= 60 || (gap >= 1 && n >= 2 && newSentenceStart(nx) && (w.w = w.w.replace(/[,;:]$/, '') + '.'))))
+        ? (!nx || endsSentence(w.w) || w.spk || gap > 5 || n >= 60 || (opts.pauseCut && gap >= 1.2 && n >= 2 && !/[,;:]$/.test(w.w)))
         : (!nx || (gap > 0.65 && n >= 3) || gap > 1.5 || (n >= 13 && gap > 0.25) || (w.brk && n >= 8) || n >= 20);
       if (cut) { groups.push(cur); cur = []; }
     });
-    // 문법상 끝날 수 없는 곳에서 끊긴 문장은 다음 문장과 합치기 ("I feel." + "Terrible." → "I feel terrible.")
-    if (punctuated) fixDangling(groups);
     // 한두 단어짜리 조각("Okay.", "So,")은 붙어 있는 문장에 합치기
     const merged = [];
     groups.forEach(g => {
@@ -204,7 +159,7 @@
       let en = g.map(w => w.w).join(' ').replace(/\s+([,.?!;:])/g, '$1').trim();
       en = en.replace(/\bi\b/g, 'I').replace(/\bi'(m|ll|ve|d)\b/g, "I'$1");
       en = en.charAt(0).toUpperCase() + en.slice(1);
-      if ((!punctuated || g[g.length - 1].raw || g[g.length - 1].spk || g.length >= 60) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
+      if ((!punctuated || opts.pauseCut || g[g.length - 1].spk) && /[A-Za-z0-9'"]$/.test(en)) en += '.';
       return { s: +s.toFixed(2), e: +Math.max(e, s + 0.4).toFixed(2), en, ko: '' };
     });
   }
@@ -240,61 +195,76 @@
 
   // 문장부호가 없는 자막 → AI로 문장부호 복원. ask(text)는 서버(/api/admin-punctuate)를 불러 글을 돌려주는 함수.
   // 250단어씩 보내되 뒤에 40단어를 더 붙여 보내서, 조각 끝에서 문장이 잘못 끊기지 않게 합니다.
-  async function restorePunctuation(words, ask, onProg, opts = {}) {
-    const STEP = opts.step || 250, EXTRA = opts.extra || 40, LEAD = opts.lead || 20; // 앞뒤로 문맥을 조금 더 보내서 조각 경계에서 문장이 잘못 시작·끝나지 않게
-    const out = words.map(w => Object.assign({}, w, { w: String(w.w).replace(/[.?!…]+$/, ''), raw: 1 }));
-    let okChunks = 0, total = 0, failRow = 0;
-    for (let i = 0; i < out.length; i += STEP) {
-      if (failRow >= 3) break; // AI가 계속 응답하지 않으면 그만두고, 남은 부분만 예전 방식(말 쉬는 곳)으로 나눔
-      total++;
-      const from = Math.max(0, i - LEAD);
-      const slice = out.slice(from, Math.min(out.length, i + STEP + EXTRA));
-      onProg && onProg(i / out.length);
-      let text = null;
-      try { text = await ask(textWithPauses(slice)); } catch (e) { text = null; }
-      if (!text) { failRow++; continue; }
-      failRow = 0;
-      const r = applyPunctuation(slice, text);
-      if (r.ratio < 0.85) continue; // AI가 단어를 너무 많이 바꿨으면 이 조각은 쓰지 않음
-      okChunks++;
-      const lead = i - from;
-      const keep = i + STEP >= out.length ? r.words.length - lead : STEP;
-      for (let k = 0; k < keep; k++) { out[i + k] = r.words[lead + k]; delete out[i + k].raw; }
+  async function restorePunctuation(words, ask, onProg) {
+    const STEP = 250, EXTRA = 40, LEAD = 20; // 앞뒤로 문맥을 조금 더 보내서 조각 경계에서 문장이 잘못 시작·끝나지 않게
+    const out = words.map(w => Object.assign({}, w, { w: String(w.w).replace(/[.?!…]+$/, '') }));
+    const base = out.map(w => Object.assign({}, w)); // 조각마다 같은 원본을 보고 (동시에 보내도 서로 섞이지 않게)
+    const starts = [];
+    for (let i = 0; i < out.length; i += STEP) starts.push(i);
+    let okChunks = 0, fails = 0, done = 0, next = 0;
+    // 빨리 만들기: 조각을 3개씩 동시에 AI에 보내요 (예전엔 하나씩 차례로)
+    async function worker() {
+      while (next < starts.length) {
+        if (fails >= 3) return; // AI가 계속 응답하지 않으면 그만두고 예전 방식(말 쉬는 곳)으로 나눔
+        const i = starts[next++];
+        const from = Math.max(0, i - LEAD);
+        const slice = base.slice(from, Math.min(base.length, i + STEP + EXTRA));
+        let text = null;
+        try { text = await ask(textWithPauses(slice)); } catch (e) { text = null; }
+        done++; onProg && onProg(done / starts.length);
+        if (!text) { fails++; continue; }
+        const r = applyPunctuation(slice, text);
+        if (r.ratio < 0.85) continue; // AI가 단어를 너무 많이 바꿨으면 이 조각은 쓰지 않음
+        okChunks++;
+        const lead = i - from;
+        const keep = i + STEP >= out.length ? r.words.length - lead : STEP;
+        for (let k = 0; k < keep; k++) out[i + k] = r.words[lead + k];
+      }
     }
+    await Promise.all([worker(), worker(), worker()]);
+    const total = starts.length;
     onProg && onProg(1);
-    // AI가 성공한 조각은 문장부호대로, 실패한 조각(raw)만 예전 방식으로 나눠요 (예전엔 40%만 실패해도 전체가 예전 방식이었어요)
-    return { words: out, ok: okChunks > 0 };
+    return { words: out, ok: okChunks > 0 && okChunks >= total * 0.6 };
   }
 
   // 저장된 문장들 → 대략적인 단어별 시간 (문장 다시 나누기용)
   function sentencesToWords(sents) {
     const words = [];
-    // 문장 가운데에서 대문자로 쓰인 단어 = 이름 → 그대로 두고, 그 밖의 '문장 첫 글자 대문자'는 소문자로 (예전 나눔의 흔적 지우기)
-    const proper = new Set();
-    sents.forEach(s => String(s.en || '').split(/\s+/).filter(Boolean).forEach((w, k, arr) => { if (k > 0 && /^[A-Z]/.test(w) && !/[.?!]$/.test(arr[k - 1])) proper.add(bare(w)); }));
     sents.forEach(s => {
       const ws = String(s.en || '').split(/\s+/).filter(Boolean);
       const total = ws.reduce((a, w) => a + w.length + 1, 0) || 1;
       let t = s.s;
-      ws.forEach((w, k) => { if ((k === 0 || /[.?!]$/.test(ws[k - 1])) && !/^I('|$)/.test(w) && !proper.has(bare(w))) ws[k] = w.charAt(0).toLowerCase() + w.slice(1); });
+      // 예전에 문장 첫 글자라서 대문자가 된 단어는 소문자로 돌려 AI에 보냅니다 (이름은 AI가 다시 대문자로 써요)
+      if (ws.length && !/^I('|$)/.test(ws[0])) ws[0] = ws[0].charAt(0).toLowerCase() + ws[0].slice(1);
       ws.forEach(w => { const d = Math.max(0.05, (s.e - s.s) * (w.length + 1) / total); words.push({ w, s: t, e: t + d * 0.95, ko: s.ko }); t += d; });
     });
     return words;
   }
 
-  // YouTube "스크립트 표시"에서 복사한 글 → 단어별 시간
-  //   0:00            또는   0:00 hi everyone welcome back
-  //   hi everyone welcome back
+  // YouTube "스크립트 표시"에서 복사한 글 → 단어별 시간. 이런 모양을 모두 읽어요:
+  // 0:00 / 0:00 hi everyone welcome back / 0:000초[Music] / 0:1717초it was a chilly morning
+  // hi everyone (한국어 화면은 시간 · 읽기용 시간(17초) · 대사가 붙어서 복사돼요)
+  // 챕터 2: … / Chapter 2: … 같은 챕터 제목 줄은 대사가 아니라서 빼요
+  const SPOKEN = '(?:\\d+\\s*(?:시간|분|초)\\s*)+|\\d+\\s*(?:hours?|minutes?|seconds?)(?:,?\\s*\\d+\\s*(?:hours?|minutes?|seconds?))*';
+  const LEAD_TIME = new RegExp('^((?:\\d{1,2}:)?\\d{1,2}:\\d{2})(?:\\.\\d+)?\\s*(?:' + SPOKEN + ')?\\s*', 'i');
   function parsePastedTranscript(text) {
-    const lines = String(text || '').replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+    let raw = String(text || '').replace(/\r/g, '').replace(/ /g, ' ');
+    // 줄바꿈 없이 한 줄로 붙어서 복사된 경우: 시간(0:00)이 나올 때마다 줄을 나눠요
+    // (시간 바로 뒤에 '1초' 같은 숫자가 붙어 와도 시간으로 봐요: "0:011초little fox")
+    const STAMP = /(?<![\d:])((?:\d{1,2}:)?\d{1,2}:\d{2})(?!:)/g;
+    const stamps = (raw.match(STAMP) || []).length;
+    if (stamps >= 3 && raw.split('\n').filter(l => l.trim()).length < stamps / 2) raw = raw.replace(STAMP, '\n$1');
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
     const TS = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:\.\d+)?$/;
     const toSec = m => (Number(m[1] || 0) * 3600) + Number(m[2]) * 60 + Number(m[3]);
     const cues = [];
+    // 한국어 YouTube 화면에서 복사하면 시간 아래에 "0초", "1분 5초", "1시간 2분" 같은 읽기용 줄이 함께 와요 → 대사가 아니라서 빼요
+    const SPOKEN_TIME = new RegExp('^(?:' + SPOKEN + ')$', 'i');
     for (const line of lines) {
-      const m1 = line.match(TS);
-      if (m1) { cues.push({ s: toSec(m1), text: '' }); continue; }
-      const m2 = line.match(/^((?:\d{1,2}:)?\d{1,2}:\d{2})\s+(.+)$/);
-      if (m2) { cues.push({ s: toSec(m2[1].match(TS)), text: m2[2] }); continue; }
+      if (SPOKEN_TIME.test(line)) continue;
+      if (/^(?:챕터|chapter)\s*\d+\s*[:.]/i.test(line)) continue; // 챕터 제목
+      const m = line.match(LEAD_TIME);
+      if (m) { cues.push({ s: toSec(m[1].match(TS)), text: line.slice(m[0].length).trim() }); continue; }
       if (cues.length) cues[cues.length - 1].text += ' ' + line;
     }
     const words = [];

@@ -1,10 +1,12 @@
 // 회원(아이디/비번) 관리 — 반드시 관리자 토큰이 필요합니다.
 // GET  /api/admin-members              → { members: [{username, createdAt}] }
-// POST /api/admin-members  { action: 'create', username, password }
+// POST /api/admin-members  { action: 'create', username, password, name? }
+// POST /api/admin-members  { action: 'set-name', username, name }
 // POST /api/admin-members  { action: 'reset-password', username, password }
 // POST /api/admin-members  { action: 'delete', username }
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
-import { listMembers, createMember, resetMemberPassword, deleteMember } from './_lib/store.mjs';
+import { listMembers, createMember, resetMemberPassword, deleteMember, setMemberName } from './_lib/store.mjs';
+import { deleteAccess } from './_lib/access.mjs';
 import { clearMemberPractice } from './_lib/practice.mjs';
 
 const ERROR_MESSAGES = {
@@ -30,16 +32,21 @@ export default async (req) => {
 
     try {
       if (action === 'create') {
-        const member = await createMember(body.username, body.password);
+        const member = await createMember(body.username, body.password, body.name);
         return jsonResponse({ member });
       }
       if (action === 'reset-password') {
         const member = await resetMemberPassword(body.username, body.password);
         return jsonResponse({ member });
       }
+      if (action === 'set-name') {
+        const member = await setMemberName(body.username, body.name);
+        return jsonResponse({ member });
+      }
       if (action === 'delete') {
         await deleteMember(body.username);
         try { await clearMemberPractice(body.username); } catch (e) {} // 연습 기록도 정리
+        try { await deleteAccess(body.username); } catch (e) {} // 넣어 준 교재·영상 목록도 정리
         return jsonResponse({ ok: true });
       }
       return jsonResponse({ error: 'unknown_action' }, 400);

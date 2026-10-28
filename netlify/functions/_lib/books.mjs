@@ -10,14 +10,19 @@ const clip = (s, n) => String(s == null ? '' : s).slice(0, n);
 const VIS = ['draft', 'members', 'assigned'];
 const cleanUsers = a => [...new Set((Array.isArray(a) ? a : []).map(u => String(u || '').trim().toLowerCase()).filter(u => /^[\w.-]{1,40}$/.test(u)))].slice(0, 500);
 export const unitSetId = (bookId, k) => `book-${bookId}-u${k}`;
-export const parseUnitSetId = setId => { const m = /^book-([\w-]{8,64})-u(\d{1,4})$/.exec(String(setId || '')); return m ? { bookId: m[1], unit: Number(m[2]) } : null; };
+export const parseUnitSetId = setId => { const m = /^book-([\w-]{2,64})-u(\d{1,4})$/.exec(String(setId || '')); return m ? { bookId: m[1], unit: Number(m[2]) } : null; };
 
 function cleanUnits(units) {
-  return (Array.isArray(units) ? units : []).slice(0, 300).map((u, k) => ({
-    title: clip(u && u.title, 120).trim() || `Unit ${k + 1}`,
-    sentences: (Array.isArray(u && u.sentences) ? u.sentences : []).slice(0, 400)
-      .map(x => ({ o: clip(x && x.o, 500).trim(), ko: clip(x && x.ko, 500).trim() })).filter(x => x.o),
-  })).filter(u => u.sentences.length);
+  return (Array.isArray(units) ? units : []).slice(0, 300).map((u, k) => {
+    const out = {
+      title: clip(u && u.title, 160).trim() || `Unit ${k + 1}`,
+      sentences: (Array.isArray(u && u.sentences) ? u.sentences : []).slice(0, 1000)
+        .map(x => { const r = { o: clip(x && x.o, 500).trim(), ko: clip(x && x.ko, 500).trim() }; const xx = clip(x && x.x, 500).trim(); if (xx) r.x = xx; return r; }).filter(x => x.o),
+    };
+    const words = (Array.isArray(u && u.words) ? u.words : []).map(w => clip(w, 80).trim()).filter(Boolean).slice(0, 300);
+    if (words.length) out.words = words;
+    return out;
+  }).filter(u => u.sentences.length);
 }
 function cleanCover(c) {
   const s = String(c || '');
@@ -47,20 +52,27 @@ export async function listBooks() {
   return recs.filter(Boolean).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
 }
 export async function getBook(id) {
-  if (!/^[\w-]{8,64}$/.test(String(id || ''))) return null;
+  if (!/^[\w-]{2,64}$/.test(String(id || ''))) return null;
   return await store().get(id, { type: 'json' });
 }
 export async function saveBook(id, data) {
   const now = new Date().toISOString();
-  const old = id ? await getBook(id) : null;
+  // data.newId: 다른 사이트에서 옮겨 온 교재는 원래 ID(gp, gn …)를 그대로 써요 (표지 · 색이 ID로 정해져서)
+  const newId = !id && /^[\w-]{2,64}$/.test(String(data.newId || '')) ? String(data.newId) : null;
+  const old = id ? await getBook(id) : newId ? await getBook(newId) : null;
   if (id && !old) throw new Error('book_not_found');
-  const rec = old || { id: crypto.randomUUID(), createdAt: now, assigned: [], visibility: 'members' };
+  const rec = old || { id: newId || crypto.randomUUID(), createdAt: now, assigned: [], visibility: 'members' };
   if (data.title != null) rec.title = clip(data.title, 120).trim() || rec.title || '새 교재';
   if (data.level != null) rec.level = clip(data.level, 20);
   if (data.desc != null) rec.desc = clip(data.desc, 300).trim();
   if (data.color != null) rec.color = /^#[0-9a-fA-F]{6}$/.test(data.color) ? data.color : '';
   if (data.cover != null) rec.cover = cleanCover(data.cover);
-  if (data.units != null) rec.units = cleanUnits(data.units);
+  if (data.units != null) {
+    const units = cleanUnits(data.units);
+    // 「📚 교재 고치기」 글상자에는 단어 목록이 없어서, 같은 이름의 유닛에 있던 단어는 그대로 남겨요
+    units.forEach(u => { if (!u.words) { const ou = (rec.units || []).find(x => x.title === u.title); if (ou && ou.words) u.words = ou.words; } });
+    rec.units = units;
+  }
   if (data.visibility != null && VIS.includes(data.visibility)) rec.visibility = data.visibility;
   if (data.assigned != null) rec.assigned = cleanUsers(data.assigned);
   if (!rec.title) rec.title = '새 교재';
@@ -70,3 +82,16 @@ export async function saveBook(id, data) {
   return rec;
 }
 export async function deleteBook(id) { await store().delete(id); }
+
+// 📖 교재쉐도잉 화면(유닛 단위) — 유닛 하나가 피드백 회차 하나와 같은 모양이에요
+export function unitList(b) {
+  return (b.units || []).map((u, k) => ({ id: unitSetId(b.id, k), title: u.title, sentenceCount: u.sentences.length, wordCount: (u.words || []).length }));
+}
+export function unitSet(b, k) {
+  const u = b && b.units && b.units[k];
+  return u ? { id: unitSetId(b.id, k), title: `${b.title} ${u.title}`, book: b.id, sentences: u.sentences.map(s => ({ x: s.x || '', o: s.o, ...(s.ko ? { ko: s.ko } : {}) })), words: u.words || [] } : null;
+}
+
+// 📖 교재 표지 그림 파일 (/images/textbooks/파일이름 → /api/textbook-cover) — 여러 교재가 같은 표지를 같이 써요
+export const coverStore = () => getStore({ name: 'textbook-covers', consistency: 'strong' });
+export const okCoverName = n => /^[\w-]{1,60}\.(png|jpe?g|webp)$/i.test(String(n || ''));

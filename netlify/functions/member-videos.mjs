@@ -2,7 +2,8 @@
 // GET /api/member-videos            → { lessons:[요약], loggedIn }
 // GET /api/member-videos?id=xxx     → { lesson:{...문장 포함}, streamUrl }
 import { requireAuth, jsonResponse, signToken } from './_lib/auth.mjs';
-import { listLessons, getLesson, summary, canMemberSee } from './_lib/videos.mjs';
+import { listLessons, getLesson, summary } from './_lib/videos.mjs';
+import { getAccess, canSeeVideoWith } from './_lib/access.mjs';
 import { progressSummary } from './_lib/video-progress.mjs';
 
 const STREAM_TTL = 60 * 60 * 12;
@@ -10,12 +11,13 @@ const STREAM_TTL = 60 * 60 * 12;
 export default async (req) => {
   if (req.method !== 'GET') return jsonResponse({ error: 'method_not_allowed' }, 405);
   const member = requireAuth(req, 'member');
-  const canSee = v => canMemberSee(v, member && member.username);
+  const access = member ? await getAccess(member.username) : null;
+  const canSee = v => canSeeVideoWith(v, member && member.username, access);
   const id = new URL(req.url).searchParams.get('id');
 
   if (id) {
     const lesson = await getLesson(id);
-    if (!canSee(lesson)) return jsonResponse({ error: member ? 'lesson_not_found' : 'login_required' }, member ? 404 : 401);
+    if (!canSee(lesson)) return jsonResponse({ error: !member ? 'login_required' : lesson ? 'not_assigned' : 'lesson_not_found' }, !member ? 401 : lesson ? 403 : 404);
     const { sentences, title, duration, mime, partMinutes, partSentences, description, level, youtubeId, clipStart, clipEnd, watchOnly } = lesson;
     const out = { id, title, duration, mime, partMinutes, partSentences: partSentences || 0, description, level, sentences, youtubeId: youtubeId || null, clipStart: clipStart || 0, clipEnd: clipEnd || 0, watchOnly: !!watchOnly };
     if (youtubeId) return jsonResponse({ lesson: out, streamUrl: null });

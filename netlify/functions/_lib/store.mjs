@@ -25,7 +25,7 @@ export async function listMembers() {
   const records = await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })));
   const out = records
     .filter(Boolean)
-    .map(r => ({ username: r.username, createdAt: r.createdAt || null }));
+    .map(r => ({ username: r.username, name: r.name || '', createdAt: r.createdAt || null }));
   out.sort((a, b) => (a.username < b.username ? -1 : 1));
   return out;
 }
@@ -35,7 +35,9 @@ export async function getMember(username) {
   return await store.get(normUsername(username), { type: 'json' });
 }
 
-export async function createMember(username, password) {
+const cleanName = n => String(n == null ? '' : n).replace(/\s+/g, ' ').trim().slice(0, 30);
+
+export async function createMember(username, password, name) {
   const uname = normUsername(username);
   if (!uname) throw new Error('username_required');
   if (!password || String(password).length < 4) throw new Error('password_too_short');
@@ -43,8 +45,9 @@ export async function createMember(username, password) {
   const existing = await store.get(uname, { type: 'json' });
   if (existing) throw new Error('username_taken');
   const createdAt = new Date().toISOString();
-  await store.setJSON(uname, { username: uname, passwordHash: hashPassword(password), createdAt }, { metadata: { createdAt } });
-  return { username: uname, createdAt };
+  const nm = cleanName(name);
+  await store.setJSON(uname, { username: uname, passwordHash: hashPassword(password), createdAt, ...(nm ? { name: nm } : {}) }, { metadata: { createdAt } });
+  return { username: uname, name: nm, createdAt };
 }
 
 export async function resetMemberPassword(username, password) {
@@ -56,6 +59,29 @@ export async function resetMemberPassword(username, password) {
   existing.passwordHash = hashPassword(password);
   await store.setJSON(uname, existing, { metadata: { createdAt: existing.createdAt } });
   return { username: uname };
+}
+
+// 수강생 이름 (학생 화면 "아이디(이름)님, 환영해요!") — 비우면 엔보임 수업 기록의 이름을 써요
+export async function setMemberName(username, name) {
+  const uname = normUsername(username);
+  const store = membersStore();
+  const existing = await store.get(uname, { type: 'json' });
+  if (!existing) throw new Error('member_not_found');
+  const nm = cleanName(name);
+  if (nm) existing.name = nm; else delete existing.name;
+  await store.setJSON(uname, existing, { metadata: { createdAt: existing.createdAt } });
+  return { username: uname, name: nm };
+}
+
+// 이름: 관리자가 넣은 이름 → 없으면 엔보임에서 가져온 회차에 적힌 학생 이름
+export async function memberDisplayName(username) {
+  const rec = await getMember(username);
+  if (rec && rec.name) return rec.name;
+  try {
+    const sets = await listSetsFull(username);
+    const s = sets.filter(x => x.source && x.source.name).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+    return s ? cleanName(s.source.name) : '';
+  } catch (e) { return ''; }
 }
 
 export async function deleteMember(username) {

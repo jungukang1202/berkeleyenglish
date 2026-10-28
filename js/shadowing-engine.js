@@ -149,7 +149,8 @@
   let __lastTtsEnd = 0;     // 마지막으로 원어민 음성이 끝난 시각(첫 단어 잘림 방지용)          // stopVoice()가 불릴 때마다 증가 → 진행 중이던 재생이 "중단됨"을 알 수 있게
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
-  const ENGINE_VERSION = '2026-10-16a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  let __activePracticeWrap = null; // 지금 연습 중인 문장 카드 (공부 시간을 피드백/교재로 나눠 재는 데 사용)
+  const ENGINE_VERSION = '2026-10-27b'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -579,8 +580,27 @@
     }
   }
 
+  // 원어민이 '읽을' 영어 문장만 남겨요 (화면에 보이는 문장은 그대로). 교재 문장은 깨끗한 영어라 그대로이고,
+  // 피드백 문장에는 선생님 메모가 섞여 있어서 영어 음성이 이상하게 읽었어요 — 특히 태블릿의 인터넷 음성(구글):
+  // 한글 메모 "(학교에 갔어요)" · 화살표 "I go → I went"(고친 문장만) · 앞 번호/기호 "1." "-" "✓" · HTML 기호(&#39;) · 이모지
+  function speechText(text) {
+    const orig = String(text || '').trim();
+    let t = orig.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&');
+    const parts = t.split(/\s*(?:→|->|=>|⇒|➡️?|➔)\s*/);
+    if (parts.length > 1 && /[A-Za-z]/.test(parts[parts.length - 1])) t = parts[parts.length - 1];
+    t = t.replace(/[(\[{（【][^)\]}）】]*[ᄀ-ᇿ㄰-㆏가-힯][^)\]}）】]*[)\]}）】]/g, ' ') // 한글이 든 괄호 메모
+      .replace(/[ᄀ-ᇿ㄰-㆏가-힯]+[^A-Za-z]*/g, ' ') // 남은 한글
+      .replace(/^\s*(?:[-*•·▶▷✓✔☞※]+|\d+[.)])\s*/, '') // 앞 번호·기호
+      .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+      .replace(/[^\x20-\x7EÀ-ɏ]/g, ' ') // 이모지·특수기호
+      .replace(/\s+/g, ' ').replace(/\s+([,.?!])/g, '$1').trim();
+    return /[A-Za-z]/.test(t) ? t : orig;
+  }
+
   // 문장 하나를 원어민 음성으로 읽어 줍니다(끝나면 resolve). 어떤 방식으로 재생할지는 자동으로 고릅니다.
   async function speakText(text, rate) {
+    text = speechText(text); // 피드백·교재·영상 모두 같은 방식: 영어 문장만 읽어요
     const gen = __voiceGen;
     let withDing = __dingPending; // 버튼을 누른 뒤 첫 재생이면 앞에 '띵동'
     __dingPending = false;
@@ -764,7 +784,20 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   //    연습 문장에 없는 그런 말만 나오면 "목소리가 안 들렸어요"로 처리합니다.
   const __STT_HALLUCINATIONS = /^(thank you( very much)?( for watching)?|thanks( for watching)?|bye( bye)?|you|okay|ok|so|um+|uh+|hmm+|oh|subtitles?.*|.*amara\.org.*)$/i;
   function __sttNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9'\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
-  async function __toWav16k(blob) {
+  // 소리 변환기(OfflineAudioContext)는 처음 한 번 준비하는 데 0.5초 넘게 걸려서, 학생이 말하는 동안 미리 깨워 둬요.
+  let __convertWarm = null;
+  function __warmAudioConvert() {
+    if (__convertWarm) return;
+    try {
+      const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!AC) return;
+      const c = new AC(1, 1600, 16000);
+      const src = c.createBufferSource(); src.buffer = c.createBuffer(1, 1600, 16000); src.connect(c.destination); src.start(0);
+      __convertWarm = Promise.resolve(c.startRendering()).catch(() => {});
+    } catch (e) {}
+  }
+  // boost: 멀리서 말해 작게 녹음된 목소리를 키워요(가장 큰 소리 기준으로 최대 15배, 딸깍 소리 같은 순간 잡음은 무시).
+  async function __toWav16k(blob, boost) {
     const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!AC) return null;
     const ab = await blob.arrayBuffer();
@@ -779,6 +812,15 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     src.buffer = buf; src.connect(ctx.destination); src.start(0);
     const out = await ctx.startRendering();
     const ch = out.getChannelData(0);
+    if (boost && ch.length) {
+      // 소리 크기의 99.5% 지점을 '가장 큰 소리'로 보고 0.7까지 키워요 (너무 조용하면 잡음만 커지니 최대 15배)
+      const step = Math.max(1, Math.floor(ch.length / 20000)), mags = [];
+      for (let i = 0; i < ch.length; i += step) mags.push(Math.abs(ch[i]));
+      mags.sort((a, b) => a - b);
+      const ref = mags[Math.floor(mags.length * 0.995)] || 0;
+      const gain = ref > 0 ? Math.min(15, 0.7 / ref) : 1;
+      if (gain > 1.05) for (let i = 0; i < ch.length; i++) ch[i] *= gain;
+    }
     const bytes = new ArrayBuffer(44 + ch.length * 2), dv = new DataView(bytes);
     const str = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
     str(0, 'RIFF'); dv.setUint32(4, 36 + ch.length * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
@@ -798,9 +840,13 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     }
   }
   async function __serverTranscribe(blob, type, targetText, dbg) {
-    let res = await __postSTT(blob, type);
-    let note = '';
-    if (!res.ok) {
+    // 먼저 목소리를 키운 WAV(16kHz)로 보내요 — 멀리서·작게 말해도 잘 알아듣도록. (바꾸기 실패하면 원래 녹음 그대로)
+    let boosted = null;
+    try { boosted = await __toWav16k(blob, true); } catch (e) {}
+    let res = boosted ? await __postSTT(boosted, 'audio/wav') : await __postSTT(blob, type);
+    let note = boosted ? ' (소리 키움)' : '';
+    if (!res.ok && boosted) { res = await __postSTT(blob, type); note = ' (원래 녹음 재시도)'; }
+    if (!res.ok && !boosted) {
       // 원래 형식이 거부됐거나 업로드가 끊김 → WAV로 바꿔 한 번 더
       const first = res;
       try {
@@ -812,6 +858,8 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         if (!res.ok) return { ok: false, error: 'server-stt-failed', code: first.code, debug: dbg + (STT_DEBUG ? ` / 서버 ${first.code} ${first.detail}${note}` : '') };
       }
     }
+    if (!res.ok) return { ok: false, error: 'server-stt-failed', code: res.code, debug: dbg + (STT_DEBUG ? ` / 서버 ${res.code} ${res.detail}${note}` : '') };
+    if (STT_DEBUG) dbg += note;
     const data = res.data || {};
     const text = (data.text || '').trim();
     const n = __sttNorm(text);
@@ -824,9 +872,13 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
   // ── 말이 끝나면 녹음 일찍 멈추기 ──
   // 예전엔 문장 길이로 정한 시간(예: 6초)을 다 채워 녹음해서 다 말한 뒤에도 기다려야 했어요.
-  // 마이크 소리 크기를 0.1초마다 재서, 말을 시작한 뒤 1초 동안 조용하면 바로 녹음을 끝냅니다.
+  // 마이크 소리 크기를 0.1초마다 재서, 말을 시작한 뒤 0.5초 동안 조용하면 바로 녹음을 끝냅니다.
   // (소리 크기를 못 재는 기기면 아무 일도 안 하고, 예전처럼 정해진 시간까지 녹음해요)
-  function __watchSilence(stream, onSilence, meter) {
+  // 학생 목소리가 멈추고 이만큼 조용하면 '말 끝' → 바로 채점하고 다음으로 (피드백·교재·영상 쉐도잉 모두)
+  // 모든 따라 말하기가 이 함수 하나를 거쳐요(교재·영상 쉐도잉도 같은 엔진) → 교재나 영상을 새로 넣어도 이 기능은 그대로 적용돼요.
+  const SILENCE_MS = 200;
+  function __watchSilence(stream, onSilence, meter, quietLimitMs) {
+    const quietLimit = quietLimitMs || SILENCE_MS;
     let ctx = null, timer = null, stopped = false;
     const stop = () => { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch (e) {} };
     try {
@@ -840,7 +892,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       src.connect(an);
       const data = new Float32Array(an.fftSize);
       const t0 = Date.now();
-      let noise = 0, noiseN = 0, loudFrames = 0, speechAt = 0, quietMs = 0;
+      let noise = 0, noiseN = 0, loudFrames = 0, speechAt = 0, quietMs = 0, level = 0, voicePeak = 0;
       timer = setInterval(() => {
         if (stopped) return;
         an.getFloatTimeDomainData(data);
@@ -848,19 +900,44 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         const rms = Math.sqrt(sum / data.length);
         if (meter) { meter.measured = true; if (rms > meter.peak) meter.peak = rms; }
         const elapsed = Date.now() - t0;
-        if (elapsed < 400) { noise += rms; noiseN++; return; }           // 처음 0.4초: 주변 소음 크기 재기
-        const floor = noiseN ? noise / noiseN : 0;
-        const th = Math.max(0.015, floor * 2.5);
+        // 처음 0.4초: 주변 소음 크기 재기 — 삐 소리 뒤 학생이 곧바로 말을 시작해도 목소리를 소음으로 잘못 재지 않도록 '가장 조용한 순간'을 써요
+        if (elapsed < 400) { noise = noiseN ? Math.min(noise, rms) : rms; noiseN++; return; }
+        // (학생이 삐와 거의 동시에 말을 시작해 목소리가 섞여도 기준이 목소리보다 높아지지 않게 상한을 둬요)
+        const floor = noiseN ? Math.min(noise, 0.008) : 0;
+        // 휴대폰을 조금 멀리 두고 말해도 '말소리'로 알아보도록 기준을 낮게 잡아요 (예전 0.015 · 소음의 2.5배)
+        const th = Math.max(0.006, floor * 1.8);
         if (!speechAt) {
           loudFrames = rms > th ? loudFrames + 1 : 0;
-          if (loudFrames >= 2) speechAt = Date.now();                       // 0.2초 이상 소리가 나면 '말 시작'
+          if (loudFrames >= 4) speechAt = Date.now(); // 0.2초 이상 소리가 나면 '말 시작'
           return;
         }
-        quietMs = rms < th * 0.8 ? quietMs + 100 : 0;
-        if (quietMs >= 1000 && Date.now() - speechAt >= 500) { stop(); onSilence(); }
-      }, 100);
+        // 학생 목소리가 0.5초 동안 들리지 않으면 바로 녹음을 끝내고 다음으로 넘어가요 (예전 1초)
+        // (단어 사이 작은 소리도 '말소리'로 보도록 기준을 낮춰 두어서, 말하는 도중에 끊기지 않아요)
+        // 말하는 동안 학생 목소리 크기(살짝 고르게 한 값)의 최고점을 기억해요.
+        // 목소리가 멈추면 소리가 그 최고점의 1/8 아래로 뚝 떨어져요 → 휴대폰 자동 음량이 주변 소음을 키우거나
+        // 방이 시끄러워서 '완전히 조용'해지지 않아도 사람 목소리가 끊긴 걸 바로 알아채요.
+        level = level * 0.6 + rms * 0.4;
+        if (level > voicePeak) voicePeak = level;
+        quietMs = rms < Math.max(th * 0.7, voicePeak * 0.12) ? quietMs + 50 : 0;
+        if (quietMs >= quietLimit && Date.now() - speechAt >= 500) { stop(); onSilence(); }
+      }, 50); // 0.05초마다 재서 말이 끝난 순간을 더 빨리 알아채요
     } catch (e) { stop(); }
     return stop;
+  }
+
+  // Chrome 내장 인식은 말이 끝난 걸 1초 넘게 늦게 알아채요. 마이크 소리 크기를 따로 재서
+  // 학생 목소리가 멈추고 SILENCE_MS 뒤 바로 인식을 끝내요 (결과는 끝낸 순간까지 들은 말). 돌려주는 함수로 정리해요.
+  function __stopRecognitionOnSilence(recognition, silenceMs) {
+    let stream = null, stopWatch = null, closed = false;
+    const cleanup = () => { closed = true; try { stopWatch && stopWatch(); } catch (e) {} if (stream) stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} }); };
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }).then(st => {
+        if (closed) { st.getTracks().forEach(t => t.stop()); return; }
+        stream = st;
+        stopWatch = __watchSilence(st, () => { try { recognition.stop(); } catch (e) {} }, { peak: 0, measured: false }, silenceMs);
+      }).catch(() => {}); // 따로 못 재면 Chrome이 스스로 끝낼 때까지 기다려요
+    }
+    return cleanup;
   }
 
   function recordAndTranscribe(targetText, onReady, opts) {
@@ -875,13 +952,15 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       const settle = (val) => { if (!settled) { settled = true; cleanup(); resolve(val); } };
       __sttActive = { owner: resolve, abort: () => { aborted = true; try { recorder && recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} settle({ ok: false, error: 'aborted' }); } };
 
-      // 마이크를 켜기 '전에' 삐 소리를 냅니다. 안드로이드는 마이크가 켜지는 순간 소리 출력이 통화 모드로 바뀌어
-      // 그 뒤에 내는 삐 소리는 묻혀서 들리지 않아요.
-      if (!(opts && opts.noBeep)) { await playBeep(); await new Promise(r => setTimeout(r, 80)); }
+      // beepOnReady: 마이크가 켜져 "지금 말씀하세요!"가 뜨는 순간에 삐 (피드백·교재 쉐도잉)
+      // 그 밖에는 예전처럼 마이크를 켜기 '전에' 삐 소리를 냅니다.
+      const beepOnReady = !!(opts && opts.beepOnReady);
+      if (!(opts && opts.noBeep) && !beepOnReady) { await playBeep(); await new Promise(r => setTimeout(r, 80)); }
       if (aborted) return settle({ ok: false, error: 'aborted' });
       try {
         // 에코 제거를 끄면 태블릿이 '통화 모드'로 바뀌지 않아 다음 원어민 음성도 정상적으로 나와요.
-        const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: true };
+        // 자동 음량 조절(autoGainControl)은 켜 두어 작은 목소리를 키우고, 잡음 제거는 끄면 멀리서 말한 목소리가 깎이지 않아요.
+        const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 };
         const dev = __micDevice();
         try { stream = await navigator.mediaDevices.getUserMedia({ audio: dev ? Object.assign({ deviceId: { exact: dev } }, base) : base }); }
         catch (e1) {
@@ -909,17 +988,26 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         const dbg = STT_DEBUG ? `[진단] 녹음 ${(blob.size/1024).toFixed(1)}KB, ${type}` : '';
         if (!blob.size) return settle({ ok: false, error: 'no-speech', debug: dbg });
         // 마이크에 소리가 거의 전혀 안 들어왔으면(헤드셋 마이크가 선택 안 됨·음소거) 서버에 보내지 않고 바로 알려요.
-        if (meter.measured && meter.peak < 0.004) return settle({ ok: false, error: 'mic-silent', debug: dbg });
+        // (멀리서 작게 말한 소리는 서버로 보내서 키워 받아쓰도록, '전혀 없음' 기준을 아주 낮게 잡아요)
+        if (meter.measured && meter.peak < 0.0015) return settle({ ok: false, error: 'mic-silent', debug: dbg });
         settle(await __serverTranscribe(blob, type, targetText, dbg));
       };
 
       const words = targetText.trim().split(/\s+/).filter(Boolean).length;
       const seconds = Math.min(25, 3 + words * 0.65);
       recorder.start();
+      __warmAudioConvert(); // 말하는 동안 소리 변환기를 미리 준비 → 말이 끝나면 바로 채점
       const meter = { peak: 0, measured: false };
-      const stopWatch = __watchSilence(stream, () => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} }, meter);
-      recorder.addEventListener('stop', stopWatch);
+      let stopWatch = () => {};
+      recorder.addEventListener('stop', () => stopWatch());
       if (onReady) onReady();
+      if (beepOnReady) {
+        // "지금 말씀하세요!"와 함께 삐 → 삐 소리가 끝난 뒤부터 학생 목소리를 재요 (삐 소리를 말소리로 착각하지 않게)
+        await ((opts && opts.beepFn) || playBeep)();
+        await new Promise(r => setTimeout(r, 100));
+        if (settled || recorder.state === 'inactive') return;
+      }
+      stopWatch = __watchSilence(stream, () => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} }, meter, opts && opts.silenceMs);
       timer = setTimeout(() => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) { settle({ ok: false, error: 'no-speech' }); } }, seconds * 1000);
     });
   }
@@ -1054,10 +1142,15 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           try { recognition.abort(); } catch (e) {}
           setTimeout(() => settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }), 1000);
         }, 20000);
-        recognition.onstart = () => { if (onReady) onReady(); };
-        recognition.onresult = (event) => { heard = event.results[0][0].transcript; };
+        let stopOnSilence = null;
+        recognition.onstart = async () => {
+          if (onReady) onReady();
+          try { await playBeep(); } catch (e) {} // "지금 말씀하세요!"와 함께 삐 — 삐가 끝난 뒤부터 목소리를 재요
+          if (!settled) stopOnSilence = __stopRecognitionOnSilence(recognition, SILENCE_MS);
+        };
+        recognition.onresult = (event) => { heard = Array.from(event.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim() || heard; };
         recognition.onerror = (event) => { lastError = event.error; };
-        recognition.onend = () => { settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }); };
+        recognition.onend = () => { if (stopOnSilence) stopOnSilence(); settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }); };
         const tryStart = (canRetry) => {
           try { recognition.start(); }
           catch (e) {
@@ -1072,9 +1165,9 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
     // 따라 말하기 한 번: 평소엔 브라우저 내장 음성 인식, 이 기기에서 그게 안 되면 서버 받아쓰기.
     function runOneRecognition(onReady) {
-      if (__sttMode === 'server') return recordAndTranscribe(targetText, onReady); // 녹음 직전에 '삐'
-      // 브라우저 음성 인식도 마이크를 켜기 직전에 '삐' (말할 차례 신호)
-      return playBeep().then(() => (runState.stopped ? { ok: false, error: 'aborted' } : runBrowserRecognition(onReady))).then(result => {
+      // '삐'는 마이크가 켜져 "🗣️ 지금 말씀하세요!"가 뜨는 순간에 나요 ("마이크 준비 중"에는 소리 없음)
+      if (__sttMode === 'server') return recordAndTranscribe(targetText, onReady, { beepOnReady: true });
+      return Promise.resolve(runState.stopped ? { ok: false, error: 'aborted' } : runBrowserRecognition(onReady)).then(result => {
         if (noteBrowserSTTResult(result)) result.switchedToServer = true;
         return result;
       });
@@ -1108,6 +1201,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       // 다른 카드가 재생 중이면 그 카드의 반복을 완전히 멈춘 뒤 시작합니다(두 문장 소리가 겹치지 않게).
       if (__activeShadowStop && __activeShadowStop !== stopThisCard) __activeShadowStop();
       __activeShadowStop = stopThisCard;
+      __activePracticeWrap = wrap;
       stopVoice();
       // 태블릿: 버튼을 누른 바로 이 순간(마이크 권한 대기 등 await 이전)에 음성 재생을 깨워야 소리가 납니다.
       unlockVoice();
@@ -1152,7 +1246,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
             heardEl.style.display = 'block';
             heardEl.textContent = `👂 인식된 발음 (${i}/${count}): "${result.heard}"`;
-            const { score, html } = compareWords(targetText, result.heard);
+            const { score, html } = compareWords(speechText(targetText), result.heard); // 한글 메모는 채점에서 빼요
             compareEl.innerHTML = html;
             scoreBadge.style.display = 'inline-flex';
             scoreBadge.textContent = `일치도 ${score}%`;
@@ -1180,7 +1274,8 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           }
         }
 
-        if (!runState.stopped && i < count) await new Promise(r => setTimeout(r, useMic ? (isMobileDevice ? 900 : 700) : 500)); // 태블릿: 블루투스 이어폰이 통화 모드에서 돌아올 시간
+        // 따라 말하기가 끝나면 바로 다음 원어민 음성으로 넘어가요 (듣기만 할 때는 0.5초 쉬고)
+        if (!runState.stopped && i < count) await new Promise(r => setTimeout(r, useMic ? 100 : 500));
       }
       runState.stopped = true;
       runState.activeRecognition = null;
@@ -1683,7 +1778,26 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   // (관리자 미리보기에서는 넘기지 않으므로 기록되지 않아요.)
   function renderPracticeSet(container, set, options) {
     const log = options && typeof options.onAttempt === 'function' ? options.onAttempt : null;
-    const tag = (type, idx) => (log ? (rec => log(Object.assign({}, rec, { type, idx }))) : undefined);
+    // options.sentenceCounts: { [문장 번호]: 연습한 횟수 } 를 주면 (교재 쉐도잉) 문장마다 '✅ 공부했어요 · 연습 N번 · 🎙️ 마이크 M번'을 보여주고,
+    // 연습할 때마다 바로 올려요. options.sentenceMicCounts: { [문장 번호]: 마이크로 따라 말한 횟수 }
+    const counts = options && options.sentenceCounts ? Object.assign({}, options.sentenceCounts) : null;
+    const micCounts = Object.assign({}, (options && options.sentenceMicCounts) || {});
+    const micLabel = (options && options.micCountLabel) || '🎙️ 마이크'; // 피드백 쉐도잉은 '🗣️ 따라 말하기'
+    const badges = {};
+    const showCount = idx => {
+      const b = badges[idx], n = counts[idx] || 0;
+      if (!b) return;
+      b.classList.toggle('done', n > 0);
+      b.innerHTML = n > 0 ? `✅ 공부했어요 · 연습 <b>${n}번</b> · ${micLabel} <b>${micCounts[idx] || 0}번</b>` : '⬜ 아직 공부하지 않았어요';
+    };
+    const tag = (type, idx) => (log || counts ? (rec => {
+      if (counts && type === 'sentence') {
+        counts[idx] = (counts[idx] || 0) + 1;
+        if (rec && rec.mode === 'mic') micCounts[idx] = (micCounts[idx] || 0) + 1;
+        showCount(idx);
+      }
+      if (log) log(Object.assign({}, rec, { type, idx }));
+    }) : undefined);
     container.innerHTML = '';
     const sentences = (set && set.sentences) || [];
     const words = (set && set.words) || [];
@@ -1709,6 +1823,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           <div class="item-top">
             <div style="flex:1;">
               ${x && !item.hideX ? `<div class="x-line">✗ ${escapeHTML(x)}</div>` : ''}
+              ${counts ? '<div class="study-count"></div>' : ''}
               <div class="o-line">✓ ${escapeHTML(o)}</div>
               <div class="kr-meaning">🇰🇷 뜻: <span class="kr-text">번역 중...</span></div>
               ${explanation ? `<div class="explain-block">🔎 <b>왜 틀렸을까요?</b> ${escapeHTML(explanation)}</div>` : ''}
@@ -1716,6 +1831,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           </div>
         `;
         loadTranslationInto(el.querySelector('.kr-meaning .kr-text'), o);
+        if (counts) { badges[idx] = el.querySelector('.study-count'); showCount(idx); }
         el.appendChild(buildShadowingControls(o, tag('sentence', idx)));
         const variantBlock = buildVariantBlock(o, tag('variant', idx));
         if (variantBlock) el.appendChild(variantBlock);
@@ -1791,18 +1907,26 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   //   Chrome PC는 브라우저 음성 인식, 그게 안 되는 기기(태블릿·이어폰 마이크 등)는 녹음 → 서버 받아쓰기(무음 자동 종료, 지어낸 말 거르기)
   //   반환: { ok:true, heard, score, html } 또는 { ok:false, error, message }
   let __standaloneRec = null, __standaloneActive = null;
-  function __browserRecognizeOnce(onReady) {
+  // opts.beepOnReady: 인식이 시작되는 순간("지금 말하세요") 삐 · opts.silenceMs: 말이 멈추고 그만큼 지나면 바로 끝내고 채점
+  function __browserRecognizeOnce(onReady, opts) {
+    opts = opts || {};
     return new Promise((resolve) => {
       let settled = false, heard = null, lastError = null;
       const settle = (val) => { if (!settled) { settled = true; clearTimeout(hardStop); __standaloneActive = null; resolve(val); } };
-      if (!__standaloneRec) { __standaloneRec = new SpeechRecognitionCtor(); __standaloneRec.lang = 'en-US'; __standaloneRec.interimResults = false; __standaloneRec.maxAlternatives = 1; }
+      if (!__standaloneRec) { __standaloneRec = new SpeechRecognitionCtor(); __standaloneRec.lang = 'en-US'; __standaloneRec.maxAlternatives = 1; }
       const recognition = __standaloneRec;
+      recognition.interimResults = false;
+      let stopOnSilence = null;
       __standaloneActive = () => { try { recognition.abort(); } catch (e) {} settle({ ok: false, error: 'aborted' }); };
       const hardStop = setTimeout(() => { try { recognition.abort(); } catch (e) {} setTimeout(() => settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }), 1000); }, 20000);
-      recognition.onstart = () => { if (onReady) onReady(); };
-      recognition.onresult = (event) => { heard = event.results[0][0].transcript; };
+      recognition.onstart = async () => {
+        if (onReady) onReady();
+        if (opts.beepOnReady) { try { await ((opts.beepFn) || playBeep)(); } catch (e) {} } // 삐가 끝난 뒤부터 목소리를 재요
+        if (!settled) stopOnSilence = __stopRecognitionOnSilence(recognition, opts.silenceMs || SILENCE_MS);
+      };
+      recognition.onresult = (event) => { heard = Array.from(event.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim() || heard; };
       recognition.onerror = (event) => { lastError = event.error; };
-      recognition.onend = () => { settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }); };
+      recognition.onend = () => { if (stopOnSilence) stopOnSilence(); settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }); };
       const tryStart = (canRetry) => {
         try { recognition.start(); }
         catch (e) { if (canRetry) { try { recognition.abort(); } catch (_) {} setTimeout(() => tryStart(false), 700); } else settle({ ok: false, error: 'start-failed' }); }
@@ -1814,10 +1938,10 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     opts = opts || {};
     let result;
     if (__sttMode === 'server' || !SpeechRecognitionCtor) {
-      result = await recordAndTranscribe(targetText, opts.onReady, { noBeep: !!opts.noBeep });
+      result = await recordAndTranscribe(targetText, opts.onReady, { noBeep: !!opts.noBeep, beepOnReady: !!opts.beepOnReady, beepFn: opts.beepFn, silenceMs: opts.silenceMs });
     } else {
-      if (!opts.noBeep) await playBeep();
-      result = await __browserRecognizeOnce(opts.onReady);
+      if (!opts.noBeep && !opts.beepOnReady) await playBeep();
+      result = await __browserRecognizeOnce(opts.onReady, opts);
       if (noteBrowserSTTResult(result)) result.switchedToServer = true;
     }
     if (result.ok) {
@@ -1831,11 +1955,31 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   }
   function stopListening() { try { __standaloneActive && __standaloneActive(); } catch (e) {} try { stopServerSTT(); } catch (e) {} }
 
+  // ── 이미 녹음한 소리로 채점: 영상 쉐도잉처럼 원어민 소리와 '동시에' 말해서 실시간 인식을 할 수 없을 때 ──
+  // 녹음 파일 → 서버 받아쓰기(지어낸 말 거르기) → 원문과 단어별 비교
+  // 반환: { ok:true, heard, score, html } 또는 { ok:false, error, message }
+  async function scoreRecording(blob, targetText) {
+    if (!blob || !blob.size) return { ok: false, error: 'no-speech', message: '녹음된 소리가 없어요. 마이크를 확인해 주세요.' };
+    const type = (blob.type || 'audio/webm').split(';')[0];
+    const result = await __serverTranscribe(blob, type, targetText, '');
+    if (result.ok) {
+      const { score, html } = compareWords(targetText, result.heard);
+      return { ok: true, heard: result.heard, score, html };
+    }
+    const msg = result.error === 'no-speech'
+      ? '🎙️ 목소리가 잘 들리지 않았어요. 원어민 소리와 함께 조금 더 크게 따라 말해 보세요. (이어폰을 끼면 더 정확해요)'
+      : '⚠️ 받아쓰기 서버에 연결하지 못했어요. 잠시 뒤 다시 해 주세요.';
+    return Object.assign({}, result, { message: msg });
+  }
+
   global.ShadowingEngine = {
+    speechText,
     listenAndScore,
     stopListening,
+    scoreRecording,
     VERSION: ENGINE_VERSION,
     isPracticing: () => !!__activeShadowStop, // 연습(반복 재생) 중인지 — 자동 업데이트가 연습 중엔 새로고침하지 않게
+    activePracticeElement: () => (__activeShadowStop ? __activePracticeWrap : null), // 연습 중인 카드 요소 (없으면 null)
     escapeHTML,
     translateText,
     loadTranslationInto,

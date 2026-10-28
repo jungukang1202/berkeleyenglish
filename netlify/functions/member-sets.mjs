@@ -4,7 +4,8 @@
 // GET /api/member-sets?id=yyy       → { set: {...} }                        (세트 상세: 문장/단어 포함)
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { listSets, getSet } from './_lib/store.mjs';
-import { getSummary } from './_lib/practice.mjs';
+import { getSummary, sentenceCounts } from './_lib/practice.mjs';
+import { memberDisplayName } from './_lib/store.mjs';
 
 export default async (req) => {
   const auth = requireAuth(req, 'member');
@@ -18,12 +19,15 @@ export default async (req) => {
   if (id) {
     const set = await getSet(auth.username, id);
     if (!set) return jsonResponse({ error: 'set_not_found' }, 404);
-    return jsonResponse({ set });
+    // 문장마다 '✅ 공부했어요 · 연습 N번 · 🗣️ 따라 말하기 M번'
+    const { counts, mic } = await sentenceCounts(auth.username, id).catch(() => ({ counts: {}, mic: {} }));
+    return jsonResponse({ set, counts, mic });
   }
 
-  const [sets, summary] = await Promise.all([
+  const [sets, summary, name] = await Promise.all([
     listSets(auth.username),
     getSummary(auth.username).catch(() => ({})),
+    memberDisplayName(auth.username).catch(() => ''),
   ]);
   // 회차 선택 목록에 "공부함" 표시를 하기 위해 회차별 연습 기록 요약을 붙여 보냅니다.
   sets.forEach(s => {
@@ -31,7 +35,7 @@ export default async (req) => {
     const count = p ? (p.listen || 0) + (p.spoke || 0) + (p.failed || 0) : 0;
     s.practice = count ? { count, spoke: p.spoke || 0, best: p.best || 0, last: p.last || null } : null;
   });
-  return jsonResponse({ sets });
+  return jsonResponse({ sets, me: { username: auth.username, name } });
 };
 
 export const config = { path: '/api/member-sets' };

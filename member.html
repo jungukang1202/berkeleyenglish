@@ -56,6 +56,9 @@
   .x-line{font-size:0.85rem; color:var(--bad); text-decoration:line-through; opacity:0.8; margin-bottom:6px;}
   .o-line{font-size:1.02rem; margin-bottom:6px; line-height:1.5; color:var(--text); font-weight:600;}
   .word-line{font-size:1.15rem; font-weight:800; margin-bottom:6px; color:var(--text);}
+  .study-count{display:inline-block; margin:0 0 6px; padding:3px 10px; border-radius:999px; font-size:0.82rem; font-weight:800; color:#666; background:#F1F1F1; border:1px solid #DDD;} /* 교재 문장마다 공부했는지 · 몇 번 */
+  .study-count.done{color:#1B5E20; background:#E3F5E1; border-color:#A5D6A7;}
+  .study-count b{color:#0D47A1;}
   .kr-meaning{margin:-2px 0 8px; font-size:0.86rem; color:var(--muted);}
   .explain-block{margin:0 0 10px; font-size:0.84rem; color:var(--body-text); line-height:1.6; background:#FCF6E3; border:1px solid #EFE0AE; border-radius:8px; padding:10px 12px; white-space:pre-line;}
   .kr-text{color:var(--text);}
@@ -82,50 +85,187 @@
   .variant-item{background:var(--bg); border:1px dashed var(--border); border-radius:10px; margin-top:8px; padding:10px 12px;}
   .variant-item .o-line{font-size:0.92rem; margin-bottom:4px;}
   .hidden{display:none !important;}
+  /* 🎬 영상 쉐도잉 목록 */
+  .vlv-tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;}
+  .vlv-tabs button{background:var(--panel); color:var(--text); border:1px solid var(--border); padding:6px 12px; font-size:0.82rem;}
+  .vlv-tabs button.on{background:var(--accent2); border-color:var(--accent2); color:#fff;}
+  .vgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px;}
+  .vitem{display:flex; flex-direction:column; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--input-bg); text-decoration:none; color:inherit; transition:transform .12s ease, box-shadow .12s ease;}
+  .vitem:hover{transform:translateY(-2px); box-shadow:0 10px 22px rgba(27,42,78,0.1);}
+  .vitem .vthumb{aspect-ratio:16/9; background:#2B2B2B center/cover no-repeat; position:relative;}
+  .vitem .vthumb b{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:44px; height:44px; border-radius:50%; background:rgba(201,162,39,0.95); color:#1B1503; display:flex; align-items:center; justify-content:center; font-size:1.1rem;}
+  .vitem .vbody{padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px;}
+  .vitem .vtitle{font-size:0.9rem; font-weight:800; color:var(--text); line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .vitem .vmeta{font-size:0.76rem; color:var(--muted); display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .vitem .vtag{font-size:0.7rem; font-weight:800; padding:1px 7px; border-radius:999px; background:var(--accent2); color:#fff;}
+  .vitem .vtag.kids{background:#F2A93B; color:#3A2400;}
+  .vitem .vprog{height:4px; background:var(--border); border-radius:2px; overflow:hidden;}
+  .vitem .vprog i{display:block; height:100%; background:var(--good);}
+  /* 📖 교재 쉐도잉: 교재마다 문장 카드 배경색을 다르게, 문장·단어는 진한 검은색 */
+  .book-theme .item{border-width:1.5px;}
+  .book-theme .o-line, .book-theme .word-line{color:#000; font-weight:800;}
+  .book-theme[data-book="gp"] .item{background:#EAF3FF; border-color:#B9D4F5;} /* Grammar Points: 파랑 */
+  .book-theme[data-book="gn"] .item{background:#E8F6EC; border-color:#B5DEC1;} /* Grammar N Step 1: 초록 */
+  .book-theme[data-book="gn2"] .item{background:#FFF1DE; border-color:#F2CF9C;} /* Grammar N Step 2: 주황 */
+  .book-theme[data-book="gn3"] .item{background:#FDEBF1; border-color:#F2BFD0;} /* Grammar N Step 3: 분홍 */
+  .book-theme[data-book="dn"] .item{background:#F4EAFB; border-color:#D8C1EC;} /* Daily Nvoim: 보라 */
+  .book-theme[data-book="fft"] .item{background:#E4F6F4; border-color:#A8DCD6;} /* Fun Fun Trip: 청록 */
+  .book-theme[data-book="rc12"] .item{background:#FFF8DC; border-color:#EED88F;} /* Regular Course Level 1-2: 노랑 */
+  .book-theme[data-book="rc2"] .item{background:#F1F8E4; border-color:#C8E09A;} /* Level 2: 연두 */
+  .book-theme[data-book="rc3"] .item{background:#EEF0FB; border-color:#C3C8EE;} /* Level 3: 연보라 */
+  .book-theme[data-book="rc4"] .item{background:#FFEFE6; border-color:#F5C4A8;} /* Level 4: 살구 */
+  .book-theme[data-book="rc5"] .item{background:#E8F4FD; border-color:#A9D2F0;} /* Level 5: 하늘 */
+  .book-theme[data-book="rc6"] .item{background:#F7ECF8; border-color:#DDB8E2;} /* Level 6: 연자주 */
+  .book-theme[data-book="rc7"] .item{background:#EDF5EE; border-color:#B3D6B8;} /* Level 7: 연초록 */
+  .book-theme[data-book="nt6"] .item{background:#F0EEFB; border-color:#C9C2EC;} /* N·times Set 6: 연보라 */
+  .book-theme[data-book="nt7"] .item{background:#E6F4F8; border-color:#A9D4E2;} /* N·times Set 7: 연한 청록 */
+  .book-theme[data-book="nt"] .item{background:#EAF1FB; border-color:#B4C8EA;} /* N·times: 연한 남색 */
+  .book-theme[data-book="tsb"] .item{background:#EAF7E3; border-color:#B4DE9F;} /* Toeic Speaking Beginner: 연두 */
+  .book-theme[data-book="ict"] .item{background:#FFEFD9; border-color:#F2C48A;} /* I Can Talk: 연한 주황 */
+  .book-theme[data-book="nl1"] .item{background:#FFF3E8; border-color:#F3C7A2;} /* Nlife Step 1: 살구 */
+  .book-theme[data-book="nl2"] .item{background:#F3EEFA; border-color:#CDBDE8;} /* Nlife Step 2: 연보라 */
+  .book-theme[data-book="nl3"] .item{background:#E9F4FB; border-color:#AFD1EA;} /* Nlife Step 3: 하늘 */
+  .book-theme .variant-item{background:rgba(255,255,255,0.7);}
+  /* 교재 표지 카드 */
+  .book-shelf{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:12px;}
+  .book-tile{display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px 10px 12px; border:2px solid var(--border); border-radius:14px; background:var(--panel); cursor:pointer; font:inherit; color:var(--text); text-align:center; transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;}
+  .book-tile:hover{transform:translateY(-2px); box-shadow:0 10px 22px rgba(27,42,78,0.12);}
+  .book-tile .cover{width:100%; aspect-ratio:3/4; display:flex; align-items:center; justify-content:center; background:#fff; border-radius:10px; overflow:hidden; position:relative;}
+  .book-tile .cover img{max-width:100%; max-height:100%; object-fit:contain; display:block;}
+  .book-tile .cover .step{position:absolute; right:6px; top:6px; background:#1B2A4E; color:#fff; font-size:0.72rem; font-weight:800; padding:2px 8px; border-radius:999px;}
+  .book-tile .name{font-weight:800; font-size:0.92rem; color:#000; line-height:1.3;}
+  .book-tile .meta{font-size:0.75rem; color:var(--muted);}
+  .study-pct{width:100%; display:flex; flex-direction:column; gap:3px; align-items:center;}
+  .study-pct b{font-size:0.78rem; font-weight:800; color:#1B2A4E;}
+  .study-bar{width:100%; height:7px; background:rgba(27,42,78,0.12); border-radius:999px; overflow:hidden;}
+  .study-bar i{display:block; height:100%; background:linear-gradient(90deg, #2E9E6B, #6BCB77); border-radius:999px; transition:width .4s ease;}
+  .book-tile[data-book="gp"]{background:#EAF3FF; border-color:#B9D4F5;}
+  .book-tile[data-book="gn"]{background:#E8F6EC; border-color:#B5DEC1;}
+  .book-tile[data-book="gn2"]{background:#FFF1DE; border-color:#F2CF9C;}
+  .book-tile[data-book="gn3"]{background:#FDEBF1; border-color:#F2BFD0;}
+  .book-tile[data-book="dn"]{background:#F4EAFB; border-color:#D8C1EC;}
+  .book-tile[data-book="fft"]{background:#E4F6F4; border-color:#A8DCD6;}
+  .book-tile[data-book="rc12"]{background:#FFF8DC; border-color:#EED88F;}
+  .book-tile[data-book="rc2"]{background:#F1F8E4; border-color:#C8E09A;}
+  .book-tile[data-book="rc3"]{background:#EEF0FB; border-color:#C3C8EE;}
+  .book-tile[data-book="rc4"]{background:#FFEFE6; border-color:#F5C4A8;}
+  .book-tile[data-book="rc5"]{background:#E8F4FD; border-color:#A9D2F0;}
+  .book-tile[data-book="rc6"]{background:#F7ECF8; border-color:#DDB8E2;}
+  .book-tile[data-book="rc7"]{background:#EDF5EE; border-color:#B3D6B8;}
+  .book-tile[data-book="nt6"]{background:#F0EEFB; border-color:#C9C2EC;}
+  .book-tile[data-book="nt7"]{background:#E6F4F8; border-color:#A9D4E2;}
+  .book-tile[data-book="nt"]{background:#EAF1FB; border-color:#B4C8EA;}
+  .book-tile[data-book="tsb"]{background:#EAF7E3; border-color:#B4DE9F;}
+  .book-tile[data-book="ict"]{background:#FFEFD9; border-color:#F2C48A;}
+  .book-tile[data-book="nl1"]{background:#FFF3E8; border-color:#F3C7A2;}
+  .book-tile[data-book="nl2"]{background:#F3EEFA; border-color:#CDBDE8;}
+  .book-tile[data-book="nl3"]{background:#E9F4FB; border-color:#AFD1EA;}
+  .book-tile.on{border-color:#1B2A4E; box-shadow:0 0 0 3px rgba(27,42,78,0.18);}
+  body.book-window #bookShelf{display:none;} /* 교재 새 창: 고른 교재만 보여요 */
+  .book-picked{font-weight:800; color:#000; margin:4px 0 8px; background:#FDEBF1; border:1px solid #F2BFD0; border-radius:10px; padding:10px 12px;}
+  /* 영상·교재·피드백 쉐도잉 설명 글은 진하게 */
+  #videoCard .card-desc, #bookCard .card-desc, #feedbackCard .card-desc{color:#111; font-weight:700;}
+  /* 교재 유닛 상자: 연한 분홍 / 피드백 회차(날짜별 수업 피드백) 상자: 연한 하늘색 */
+  #bookSelect{background:#FDEBF1; border-color:#F2BFD0; color:#000; font-weight:700;}
+  #setSelect{background:#E3F2FD; border-color:#B3D9F5; color:#000; font-weight:700;}
+  /* 동기부여 배너 — 크고 눈에 띄게 */
+  .goal-banner{margin-top:16px; border-radius:20px; padding:22px 22px 20px; color:#fff; background:linear-gradient(135deg, #FF5F6D 0%, #FF8A3D 45%, #FFC23D 100%); box-shadow:0 10px 26px rgba(255,95,109,0.32); position:relative; overflow:hidden;}
+  .goal-banner::after{content:'1000'; position:absolute; right:-8px; bottom:-26px; font-size:7rem; font-weight:900; color:rgba(255,255,255,0.16); letter-spacing:-0.04em; pointer-events:none;}
+  .goal-main{display:flex; flex-direction:column; gap:4px; position:relative; z-index:1;}
+  .goal-line{font-size:1.55rem; font-weight:900; line-height:1.3; letter-spacing:-0.02em; text-shadow:0 2px 6px rgba(120,20,0,0.25);}
+  .goal-line b{color:#FFF6B3;}
+  .goal-hot{display:inline-block; background:#fff; color:#FF4B2B !important; border-radius:10px; padding:0 8px; text-shadow:none;}
+  .goal-stop{align-self:flex-start; margin-top:8px; font-size:1.9rem; font-weight:900; background:#1B2A4E; color:#fff; border-radius:14px; padding:4px 16px; animation:goalPulse 1.6s ease-in-out infinite;}
+  @keyframes goalPulse{0%,100%{transform:scale(1);} 50%{transform:scale(1.06);}}
+  @media (prefers-reduced-motion:reduce){ .goal-stop{animation:none;} }
+  .goal-me{position:relative; z-index:1; margin-top:16px; background:rgba(255,255,255,0.94); color:#1B2A4E; border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:8px;}
+  .goal-row{display:flex; align-items:center; gap:10px;}
+  .goal-lbl{flex:0 0 auto; min-width:118px; white-space:nowrap; font-weight:900; font-size:0.95rem;}
+  .goal-bar{flex:1; height:14px; background:#FFE3D3; border-radius:999px; overflow:hidden;}
+  .goal-bar i{display:block; height:100%; width:0; background:linear-gradient(90deg, #FF5F6D, #FF8A3D); border-radius:999px; transition:width .6s ease;}
+  .goal-num{flex:0 0 auto; font-weight:900; font-size:0.95rem; min-width:88px; text-align:right;}
+  .goal-cheer{font-weight:900; font-size:1rem; color:#E8452C;}
+  @media (max-width:640px){
+    .goal-banner{padding:18px 16px;}
+    .goal-line{font-size:1.25rem;}
+    .goal-stop{font-size:1.5rem;}
+    .goal-lbl{min-width:96px; font-size:0.85rem;}
+    .goal-num{min-width:74px; font-size:0.85rem;}
+  }
+  /* 처음 화면 글상자 — 피드백(하늘) · 교재(분홍) · 영상(노랑) */
+  /* 글상자 세 개 + 오늘 쉐도잉한 시간: 공부하는 동안 화면 위에 함께 고정 */
+  .hub-sticky{background:var(--bg); padding:8px 0 4px; margin:0 0 12px;}
+  .hub-sticky.compact{position:sticky; top:0; z-index:20; box-shadow:0 6px 8px -6px rgba(27,42,78,0.25);}
+  .hub{display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin:0;}
+  /* 쉐도잉 화면에서는 오늘 시간만 한 줄로 작게 (이번 달 누적은 처음 화면에서) */
+  .hub-sticky.compact .study-today{margin:8px 0 0;}
+  .hub-sticky.compact .st-month{display:none;}
+  .hub-sticky.compact .st-day{font-size:0.95rem; padding:6px 10px; border-radius:12px;}
+  .hub-sticky.compact .st-day .st-parts{display:inline; font-size:0.85rem; margin:0 0 0 6px;}
+  .hub-tile.on{border-color:#1B2A4E !important; box-shadow:0 0 0 3px rgba(27,42,78,0.2);}
+  .hub.compact .hub-desc{display:none;}
+  .hub.compact .hub-tile{padding:12px 14px;}
+  .hub-tile{display:flex; flex-direction:column; gap:6px; padding:18px 16px; border-radius:16px; border:3px solid; text-decoration:none; color:#111; box-shadow:0 2px 8px rgba(27,42,78,0.06); transition:transform .12s ease, box-shadow .12s ease;}
+  .hub-tile:hover{transform:translateY(-2px); box-shadow:0 6px 16px rgba(27,42,78,0.12);}
+  /* 쉐도잉 글상자 세 개: 진한 테두리 · 조금 더 진한 배경 */
+  .hub-tile[data-hub="feedback"]{background:#BBDEFB; border-color:#1565C0;}
+  .hub-tile[data-hub="book"]{background:#F8BBD0; border-color:#C2185B;}
+  .hub-tile[data-hub="video"]{background:#FFE082; border-color:#E65100;}
+  .hub-icon{font-size:1.8rem; line-height:1;}
+  .hub-name{font-size:1.08rem; font-weight:800; color:#000;}
+  .hub-desc{font-size:0.86rem; font-weight:700; color:#222; line-height:1.45;}
+  .hub-meta{margin-top:auto; font-size:0.8rem; font-weight:700; color:#1B2A4E; background:rgba(255,255,255,0.7); border-radius:999px; padding:3px 10px; align-self:flex-start;}
+  .hub-time{font-size:0.78rem; font-weight:800; color:#1B2A4E; align-self:flex-start;} /* 오늘 공부한 시간 */
+  /* 쉐도잉 시간: 위에 이번 달 누적(진한 연보라), 아래에 오늘(연두) — 글상자 두 개 */
+  .study-today{display:flex; flex-direction:column; gap:8px; margin:12px 0 14px;}
+  .study-today .st-box{padding:12px 18px; border-radius:16px; border:2px solid; font-size:1.2rem; font-weight:900; line-height:1.5; text-align:center; box-shadow:0 2px 8px rgba(27,42,78,0.12);}
+  .study-today .st-month{background:#CDB8F2; border-color:#7E57C2; color:#2A1259;}
+  .study-today .st-day{background:#B9F0C9; border-color:#2E7D32; color:#0F3D1A;}
+  .study-today .st-parts{display:block; font-size:1.02rem; font-weight:800; margin-top:2px;}
+  .hub-back{display:inline-block; margin:0 0 12px; font-weight:800; color:var(--text); text-decoration:none; background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:7px 14px; font-size:0.88rem;}
+  .hub-back.hidden{display:none;}
+  /* 휴대폰(좁은 화면): 글상자 세 개를 한 줄에 작게 — 기본 모양보다 뒤에 있어야 적용돼요 */
+  @media (max-width:640px){
+    .hub{gap:6px;}
+    .study-today .st-box{font-size:1.05rem; padding:10px 12px;}
+    .hub-sticky.compact .st-day{font-size:0.88rem; padding:5px 8px;}
+    .hub-sticky.compact .st-day .st-parts{display:block; margin:0; font-size:0.76rem;}
+    .study-count{font-size:0.72rem; padding:3px 8px; letter-spacing:-0.02em;} /* 문장마다 공부 표시가 한 줄에 */
+    .study-today .st-parts{font-size:0.9rem;}
+    .hub-desc{display:none;}
+    .hub-tile{padding:10px 6px; gap:3px; align-items:center; text-align:center;}
+    .hub-icon{font-size:1.4rem;}
+    .hub-name{font-size:0.8rem; white-space:nowrap; letter-spacing:-0.03em;} /* '피드백쉐도잉'이 한 줄에 */
+    .hub-meta{align-self:center; font-size:0.68rem; padding:2px 6px;}
+    .hub-time{align-self:center; font-size:0.7rem;}
+    header .sub{color:#000; font-weight:800;} /* 맨 위 안내 글을 검은색·진하게 */
+  }
+  .sub.welcome, .sub.welcome b{color:#1565C0; font-weight:800;} /* "아이디(이름)님, 환영해요!" 파란색 */
   .top-bar{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
   .status{font-size:0.82rem; color:var(--muted); margin-top:8px;}
   .status.error{color:var(--bad); font-weight:700;}
-  /* 쉐도잉 종류 카드 (오늘 공부 시간) */
-  .cat-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:12px;}
-  .cat-card{display:flex; flex-direction:column; gap:6px; padding:16px 18px; border-radius:16px; border:2px solid; text-decoration:none; color:#1B2A4E; transition:transform .12s ease, box-shadow .12s ease;}
-  .cat-card:hover{transform:translateY(-2px); box-shadow:0 10px 22px rgba(27,42,78,0.12);}
-  .cat-card .ci{font-size:1.7rem; line-height:1;}
-  .cat-card b{font-size:1.05rem;}
-  .cat-card .cd{font-size:0.85rem; color:#4A5568; line-height:1.45;}
-  .cat-card .ct{margin-top:2px; font-size:0.85rem; font-weight:800;}
-  .cat-card.c-blue{background:#DCEBFF; border-color:#3B82C4;}
-  .cat-card.c-yellow{background:#FFEFB0; border-color:#E0A21B;}
-  .cat-card.c-pink{background:#FFDCE7; border-color:#D9578A;}
-  .cat-card.on{box-shadow:0 0 0 3px #1B2A4E inset, 0 10px 22px rgba(27,42,78,0.14);}
-  .cat-card .cc{display:inline-block; margin-right:8px; padding:1px 8px; border-radius:999px; background:rgba(255,255,255,0.7); font-weight:800;}
-  /* 📖 교재 */
-  .book-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px;}
-  .book{display:flex; flex-direction:column; gap:6px; padding:10px; border-radius:16px; border:2px solid var(--border); background:#fff; cursor:pointer; text-align:center; font:inherit; color:var(--text); transition:transform .12s ease, box-shadow .12s ease;}
-  .book:hover{transform:translateY(-2px); box-shadow:0 10px 22px rgba(27,42,78,0.12);}
-  .book .cover{aspect-ratio:3/4; border-radius:10px; overflow:hidden; background:#EEE center/cover no-repeat; display:flex; align-items:center; justify-content:center; padding:10px; color:#fff; font-weight:900; font-size:1.05rem; line-height:1.3; word-break:keep-all; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05);}
-  .book .cover img{width:100%; height:100%; object-fit:cover; display:block;}
-  .book .cover.img{padding:0; background:#fff;}
-  .book b{font-size:0.92rem;}
-  .book .bm{font-size:0.76rem; color:var(--muted);}
-  .book .pbar{height:6px; border-radius:4px; background:var(--border); overflow:hidden;}
-  .book .pbar i{display:block; height:100%; background:var(--good);}
-  .book .pp{font-size:0.78rem; font-weight:800; color:var(--text);}
-  .book-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
-  .unit-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:8px;}
-  .unit{display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:left; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:var(--panel); cursor:pointer; font:inherit; color:var(--text);}
-  .unit:hover{border-color:#D9578A;}
-  .unit.on{border:2px solid #D9578A; background:#FFF0F5;}
-  .unit .ut{font-weight:800; font-size:0.88rem;}
-  .unit .um{font-size:0.75rem; color:var(--muted);}
-  .unit .um.done{color:var(--good); font-weight:700;}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap" style="padding:0 16px;">
-    <a href="index.html" class="home-link"><span class="home-icon">🏠</span> 버클리원어민영어회화 홈으로</a>
+    <a class='home-link' href='/'><span class="home-icon">🏠</span> 버클리원어민영어회화 홈으로</a>
     <h1>🗣️ 내 쉐도잉 연습</h1>
     <div class="sub">선생님이 등록해준 문장/단어로 듣기(TTS)와 따라 말하기(음성 인식)로 연습하세요. (마이크 권한 필요)</div>
+
+    <!-- 동기부여 배너: 듣기 1000번 · 따라 말하기 1000번 (로그인하면 내 횟수가 채워져요) -->
+    <div class="goal-banner" id="goalBanner">
+      <div class="goal-main">
+        <span class="goal-line">🎧 듣기 <b>1000번</b>, 🗣️ 따라 말하기 <b>1000번</b>.</span>
+        <span class="goal-line">그래야 <b class="goal-hot">0.1초</b> 만에 입이 열린다.</span>
+        <span class="goal-stop">🔥 멈추지 마!</span>
+      </div>
+      <div class="goal-me hidden" id="goalMe">
+        <div class="goal-row"><span class="goal-lbl">🎧 듣기</span><div class="goal-bar"><i id="goalListenBar"></i></div><span class="goal-num" id="goalListenNum">0 / 1000</span></div>
+        <div class="goal-row"><span class="goal-lbl">🗣️ 따라 말하기</span><div class="goal-bar"><i id="goalSpeakBar"></i></div><span class="goal-num" id="goalSpeakNum">0 / 1000</span></div>
+        <div class="goal-cheer" id="goalCheer"></div>
+      </div>
+    </div>
   </div>
 </header>
 <div class="wrap">
@@ -156,55 +296,40 @@
   <!-- ============ 연습 화면 ============ -->
   <div id="practiceArea" class="hidden">
     <div class="top-bar">
-      <div class="sub" style="margin:0;"><b id="welcomeUsername"></b>님, 환영해요!</div>
+      <div class="sub welcome" style="margin:0;"><b id="welcomeUsername"></b>님, 환영해요!</div>
       <button class="btn-ghost btn-small" id="logoutBtn">로그아웃</button>
     </div>
 
-    <!-- 듣기·따라 말하기 1000번 목표 -->
-    <div id="stGoal"></div>
-
-    <!-- 쉐도잉 종류 + 오늘 공부 시간 -->
-    <div class="cat-cards">
-      <a href="?view=feedback" class="cat-card c-blue" data-view="feedback">
-        <span class="ci">💬</span><b>피드백 쉐도잉</b>
-        <span class="cd">수업에서 교정받은 문장을 한 문장씩 듣고 따라 말해요.</span>
-        <span class="ct">⏱ 오늘 <span id="stTodayFb">0초</span></span>
+    <!-- 처음 화면: 글상자를 누르면 그 쉐도잉만 있는 화면(member.html?view=…)이 열려요 -->
+    <div class="hub-sticky" id="hubSticky">
+    <div class="hub" id="hubTiles">
+      <a class='hub-tile' data-hub='feedback' href='/member?view=feedback'>
+        <span class="hub-icon">💬</span><b class="hub-name">피드백쉐도잉</b>
+        <span class="hub-desc">수업 피드백에서 교정받은 문장을 한 문장씩 듣고 따라 말해요.</span>
+        <span class="hub-meta" id="hubMetaFeedback">불러오는 중...</span>
+        <span class="hub-time" id="hubTimeFeedback">⏱ 오늘 0초</span>
       </a>
-      <a href="?view=book" class="cat-card c-pink" data-view="book">
-        <span class="ci">📖</span><b>교재 쉐도잉</b>
-        <span class="cd">선생님이 넣어 준 교재의 문장을 유닛별로 쉐도잉해요.</span>
-        <span class="ct"><span class="cc" id="bookCount"></span>⏱ 오늘 <span id="stTodayBook">0초</span></span>
+      <a class='hub-tile' data-hub='book' href='/member?view=book'>
+        <span class="hub-icon">📖</span><b class="hub-name">교재 쉐도잉</b>
+        <span class="hub-desc">선생님이 넣어 준 교재의 문장을 유닛별로 쉐도잉해요.</span>
+        <span class="hub-meta" id="hubMetaBook">불러오는 중...</span>
+        <span class="hub-time" id="hubTimeBook">⏱ 오늘 0초</span>
       </a>
-      <a href="video.html" class="cat-card c-yellow">
-        <span class="ci">🎬</span><b>영상 쉐도잉</b>
-        <span class="cd">선생님이 넣어 준 영어 영상으로 듣기 · 쉐도잉 · 에코잉을 해요.</span>
-        <span class="ct">⏱ 오늘 <span id="stTodayVid">0초</span></span>
+      <a class='hub-tile' data-hub='video' href='/member?view=video'>
+        <span class="hub-icon">🎬</span><b class="hub-name">영상 쉐도잉</b>
+        <span class="hub-desc">선생님이 넣어 준 영어 영상으로 듣기 · 쉐도잉 · 에코잉을 해요.</span>
+        <span class="hub-meta" id="hubMetaVideo">불러오는 중...</span>
+        <span class="hub-time" id="hubTimeVideo">⏱ 오늘 0초</span>
       </a>
     </div>
-    <div id="stBar" style="margin-bottom:16px;"></div>
-
-    <!-- ===== 📖 교재 쉐도잉 ===== -->
-    <div id="bookView" class="hidden">
-      <div class="card" id="bookListCard">
-        <h2>📖 교재 쉐도잉</h2>
-        <div class="card-desc">선생님이 넣어 준 교재가 보여요. 교재를 누르고 유닛을 고르면 문장을 하나씩 듣고 따라 말할 수 있어요. (피드백 쉐도잉과 같은 방식)</div>
-        <div class="book-grid" id="bookGrid"><div class="empty">불러오는 중...</div></div>
-      </div>
-      <div class="card hidden" id="bookDetailCard">
-        <div class="book-head">
-          <button class="btn-ghost btn-small" id="bookBackBtn">← 교재 목록</button>
-          <h2 id="bookTitle" style="margin:0;"></h2>
-        </div>
-        <div class="card-desc" id="bookDesc"></div>
-        <div class="unit-list" id="unitList"></div>
-      </div>
-      <div id="bookContent"></div>
+    <div class="study-today" id="studyToday"><div class="st-box st-day">⏱ 오늘 쉐도잉한 시간 0초</div></div>
     </div>
+    <a class='hub-back hidden' href='/member' id='hubBack'>← 내 쉐도잉 처음으로</a>
 
-    <div id="feedbackView">
-    <div class="card" id="setCard">
-      <h2>🗂️ 회차 선택</h2>
-      <div class="card-desc">선생님이 등록해준 수업 회차 중 연습할 회차를 골라주세요. (최신 회차가 먼저 보여요)</div>
+    <div data-view="feedback">
+    <div class="card" id="feedbackCard">
+      <h2>💬 피드백쉐도잉</h2>
+      <div class="card-desc">수업 피드백에서 교정받은 문장을 하나씩 듣고 따라 말해요. 연습할 수업 회차를 골라 주세요. (최신 회차가 먼저 보여요)</div>
       <select class="full" id="setSelect"></select>
       <div class="status" id="setStatus"></div>
     </div>
@@ -212,7 +337,38 @@
     <div id="contentArea"></div>
     </div>
 
-    <div class="card" id="reportCard">
+    <div data-view="book">
+    <div class="card" id="bookCard">
+      <h2>📖 교재 쉐도잉</h2>
+      <div class="card-desc">선생님이 넣어 준 교재가 보여요. 공부할 교재 표지를 누르면 그 교재가 <b>새 창</b>으로 열려요. 유닛을 골라 문장을 하나씩 듣고 따라 말할 수 있어요. 피드백 문장 쉐도잉과 같은 방식으로 연습해요.</div>
+      <div class="book-shelf" id="bookShelf"><div class="empty">불러오는 중...</div></div>
+      <div id="bookUnitPicker" class="hidden">
+        <div class="book-picked" id="bookPicked"></div>
+        <select class="full" id="bookSelect"></select>
+        <div class="status" id="bookStatus"></div>
+      </div>
+    </div>
+
+    <div id="bookContentArea"></div>
+    </div>
+
+    <div data-view="video">
+    <div class="card" id="videoCard">
+      <h2>🎬 영상 쉐도잉</h2>
+      <div class="card-desc">선생님이 넣어 준 영어 영상으로 문장별 듣기 · 쉐도잉 · 에코잉을 연습해요. 영상을 누르면 연습 화면이 열려요.</div>
+      <div class="vlv-tabs" id="vLvTabs">
+        <button data-lv="all">전체</button>
+        <button data-lv="kids">👶 유아</button>
+        <button data-lv="1-2">Lv 1-2</button>
+        <button data-lv="3-4">Lv 3-4</button>
+        <button data-lv="5-6">Lv 5-6</button>
+        <button data-lv="7-9">Lv 7-9</button>
+      </div>
+      <div class="vgrid" id="videoList"><div class="empty">불러오는 중...</div></div>
+    </div>
+    </div>
+
+    <div class="card" id="reportCard" data-view="home">
       <h2>📊 나의 학습 리포트</h2>
       <div class="card-desc">수업 횟수 · 출결 · 쉐도잉 평균 일치도 · 공부한 문장과 단어를 그래프로 정리해 드려요. 매달 1일에 지난달 리포트가 자동으로 만들어져요.</div>
       <div id="reportArrived" class="hidden" style="background:#FFFBEF; border:1px solid #F0E2B4; border-radius:12px; padding:10px 12px; margin-bottom:12px; font-size:0.9rem; color:var(--text); display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
@@ -245,17 +401,24 @@
   </footer>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261016a"></script>
-<script src="js/study-time.js?v=20261023b"></script>
-<script src="js/learning-report.js?v=20261019a"></script>
+<script src="js/shadowing-engine.js?v=20261027b"></script>
+<script src="js/study-time.js?v=20261023c"></script>
+<script src="js/learning-report.js?v=20261023a"></script>
 <script>
-const API = { login: '/api/member-login', sets: '/api/member-sets', report: '/api/member-insight', practice: '/api/member-practice' };
+const API = { login: '/api/member-login', sets: '/api/member-sets', report: '/api/member-insight', practice: '/api/member-practice', textbooks: '/api/member-textbooks' };
 const TOKEN_KEY = 'shadowing_member_token';
 const USERNAME_KEY = 'shadowing_member_username';
 
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
-function setSession(token, username) { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(USERNAME_KEY, username); }
-function clearSession() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERNAME_KEY); }
+function setSession(token, username) { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(USERNAME_KEY, username); localStorage.removeItem(NAME_KEY); }
+function clearSession() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERNAME_KEY); localStorage.removeItem(NAME_KEY); }
+// "you1203(임소유)님, 환영해요!" — 이름은 서버(관리자가 넣은 이름 또는 엔보임 수업 기록)에서 받아 이 기기에 기억해 둬요
+const NAME_KEY = 'shadowing_member_name';
+function renderWelcome() {
+  const id = localStorage.getItem(USERNAME_KEY) || '';
+  const name = localStorage.getItem(NAME_KEY) || '';
+  document.getElementById('welcomeUsername').textContent = name ? `${id}(${name})` : id;
+}
 
 async function apiFetch(url, opts = {}) {
   const token = getToken();
@@ -276,111 +439,115 @@ async function apiFetch(url, opts = {}) {
 function showLogin() {
   document.getElementById('loginCard').classList.remove('hidden');
   document.getElementById('practiceArea').classList.add('hidden');
+  document.getElementById('goalMe').classList.add('hidden');
 }
+// ?view=feedback|book|video → 그 쉐도잉만 보여요. 없으면 처음 화면(글상자 세 개 + 학습 리포트)
+const VIEWS = { feedback: '💬 피드백쉐도잉', book: '📖 교재 쉐도잉', video: '🎬 영상 쉐도잉' };
+const viewFromUrl = () => { const v = new URLSearchParams(location.search).get('view'); return VIEWS[v] ? v : 'home'; };
+let VIEW = viewFromUrl();
+const HOME_H1 = document.querySelector('header h1').textContent, HOME_TITLE = document.title;
+// 글상자 세 개는 어느 화면에서나 늘 보여요(위에 고정). 고른 쉐도잉만 아래에 열려요.
+function applyView() {
+  document.querySelectorAll('#practiceArea [data-view]').forEach(el => el.classList.toggle('hidden', el.dataset.view !== VIEW));
+  document.querySelectorAll('#hubTiles .hub-tile').forEach(t => t.classList.toggle('on', t.dataset.hub === VIEW));
+  document.getElementById('hubTiles').classList.toggle('compact', VIEW !== 'home');
+  document.getElementById('hubSticky').classList.toggle('compact', VIEW !== 'home');
+  document.getElementById('hubBack').classList.toggle('hidden', VIEW === 'home');
+  document.querySelector('header h1').textContent = VIEW === 'home' ? HOME_H1 : VIEWS[VIEW];
+  document.title = VIEW === 'home' ? HOME_TITLE : VIEWS[VIEW].replace(/^\S+\s/u, '') + ' | 버클리원어민영어회화';
+}
+// 글상자를 누르면 페이지를 새로 불러오지 않고 그 자리에서 화면만 바꿔요 (주소는 member.html?view=… 로 바뀌어 뒤로 가기도 돼요)
+function goView(v) {
+  VIEW = VIEWS[v] ? v : 'home';
+  history.pushState(null, '', VIEW === 'home' ? 'member.html' : 'member.html?view=' + VIEW);
+  applyView();
+  document.getElementById('hubTiles').scrollIntoView({ block: 'start' });
+}
+document.getElementById('hubTiles').addEventListener('click', e => {
+  const t = e.target.closest('.hub-tile'); if (!t) return;
+  e.preventDefault(); goView(t.dataset.hub);
+});
+document.getElementById('hubBack').addEventListener('click', e => { e.preventDefault(); goView('home'); });
+window.addEventListener('popstate', () => { VIEW = viewFromUrl(); applyView(); });
+applyView();
+function setHubMeta(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+
+/* ===================== 🔥 듣기 1000번 · 따라 말하기 1000번 배너 ===================== */
+// 지금까지의 연습 횟수를 불러와 막대로 보여주고, 연습할 때마다 바로 늘려요. 1000번을 넘기면 다음 1000번에 도전!
+const GOAL = 1000;
+const goal = { listen: 0, speak: 0 };
+function goalCheer() {
+  const pct = Math.min(goal.listen, goal.speak) / GOAL;
+  const done = Math.floor(Math.min(goal.listen, goal.speak) / GOAL);
+  if (done >= 1) return `🎉 ${done * GOAL}번 달성! 입이 열리고 있어요. 다음 ${(done + 1) * GOAL}번까지 멈추지 마!`;
+  if (goal.listen + goal.speak === 0) return '💪 오늘 첫 문장부터 시작해요. 한 번 듣고, 한 번 따라 말하기!';
+  if (pct >= 0.8) return '🚀 거의 다 왔어요! 지금 멈추면 아까워요. 끝까지 가요!';
+  if (pct >= 0.5) return '🌟 절반을 넘었어요! 입이 점점 빨라지고 있어요.';
+  if (pct >= 0.2) return '👍 잘하고 있어요! 매일 조금씩, 꾸준함이 실력이에요.';
+  return '🔥 시작이 반! 오늘도 한 문장 더 듣고 따라 말해 봐요.';
+}
+function renderGoal() {
+  document.getElementById('goalMe').classList.remove('hidden');
+  const show = (key, bar, num) => {
+    const n = goal[key], round = Math.max(1, Math.ceil((n + 1) / GOAL)); // 1000번을 넘기면 2000번 목표로
+    document.getElementById(bar).style.width = Math.min(100, (n - (round - 1) * GOAL) / GOAL * 100) + '%';
+    document.getElementById(num).textContent = `${n.toLocaleString()} / ${(round * GOAL).toLocaleString()}`;
+  };
+  show('listen', 'goalListenBar', 'goalListenNum');
+  show('speak', 'goalSpeakBar', 'goalSpeakNum');
+  document.getElementById('goalCheer').textContent = goalCheer();
+}
+async function loadGoal() {
+  try { Object.assign(goal, await apiFetch(API.practice)); renderGoal(); } catch (e) {}
+}
+function countGoal(rec) {
+  if (!rec || !document.getElementById('goalMe') || document.getElementById('goalMe').classList.contains('hidden')) return;
+  // 따라 말하기도 원어민 문장을 먼저 들은 뒤라서 듣기 횟수도 함께 올려요
+  if (rec.mode === 'listen') goal.listen++; else if (rec.mode === 'mic') { goal.listen++; goal.speak++; } else return;
+  renderGoal();
+}
+
+/* ===================== ⏱ 하루 쉐도잉 공부 시간 ===================== */
+// 피드백 · 교재 쉐도잉에서 ▶ 연습 중일 때 시간을 재고(영상 쉐도잉은 video.html에서 재요), 오늘 공부한 시간과 이번 달 누적 시간을 글상자에 보여줘요.
+function renderStudyTime(t, m) {
+  m = m || StudyTime.monthTotals();
+  const f = StudyTime.format;
+  document.getElementById('hubTimeFeedback').textContent = `⏱ 오늘 ${f(t.feedback)}`;
+  document.getElementById('hubTimeBook').textContent = `⏱ 오늘 ${f(t.book)}`;
+  document.getElementById('hubTimeVideo').textContent = `⏱ 오늘 ${f(t.video)}`;
+  const total = (t.feedback || 0) + (t.book || 0) + (t.video || 0);
+  const mTotal = (m.feedback || 0) + (m.book || 0) + (m.video || 0);
+  document.getElementById('studyToday').innerHTML =
+    `<div class="st-box st-month">📅 ${new Date(Date.now() + 9 * 3600e3).getUTCMonth() + 1}월 누적 ${f(mTotal)}<span class="st-parts">피드백 ${f(m.feedback)} · 교재 ${f(m.book)} · 영상 ${f(m.video)}</span></div>`
+    + `<div class="st-box st-day">⏱ 오늘 쉐도잉한 시간 ${f(total)}<span class="st-parts">피드백 ${f(t.feedback)} · 교재 ${f(t.book)} · 영상 ${f(t.video)}</span></div>`;
+}
+function startStudyTime() {
+  if (!window.StudyTime) return;
+  StudyTime.start({
+    getToken: () => localStorage.getItem(TOKEN_KEY),
+    getKind: () => {
+      const el = ShadowingEngine.activePracticeElement && ShadowingEngine.activePracticeElement();
+      if (!el) return null;
+      if (document.getElementById('contentArea').contains(el)) return 'feedback';
+      if (document.getElementById('bookContentArea').contains(el)) return 'book';
+      return null;
+    },
+    onChange: renderStudyTime,
+  });
+  StudyTime.reload(); // 다른 화면(영상 쉐도잉)에서 공부한 시간까지 다시 불러와요
+}
+
 function showPractice() {
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('practiceArea').classList.remove('hidden');
-  document.getElementById('welcomeUsername').textContent = localStorage.getItem(USERNAME_KEY) || '';
+  renderWelcome();
   loadSets();
+  loadVideos();
+  loadBooks();
   loadReportMonths();
-  StudyTime.load();
-  showView(new URLSearchParams(location.search).get('view') === 'book' ? 'book' : 'feedback', false);
-  if (currentView !== 'book') loadBooks(); // 교재 카드의 '교재 N권'
+  loadGoal();
+  startStudyTime();
 }
-
-/* ===================== 공부 시간 · 1000번 목표 ===================== */
-// 피드백 쉐도잉: 연습이 돌아가는 중이거나, 회차를 열어 두고 최근 60초 안에 화면을 누른 경우만 공부 시간으로 세요.
-// 지금 보고 있는 쪽(피드백 / 교재)으로 공부 시간을 나눠 세요.
-function studyActive() {
-  if (document.getElementById('practiceArea').classList.contains('hidden')) return false;
-  let practicing = false; try { practicing = ShadowingEngine.isPracticing(); } catch (e) {}
-  const box = currentView === 'book' ? document.getElementById('bookContent') : contentArea;
-  return practicing || (box.children.length > 0 && StudyTime.recent(60000));
-}
-StudyTime.track('feedback', studyActive);
-function renderStudyTime() {
-  document.getElementById('stGoal').innerHTML = StudyTime.data ? StudyTime.goalHtml() : '';
-  document.getElementById('stBar').innerHTML = StudyTime.barHtml();
-  document.getElementById('stTodayFb').textContent = StudyTime.fmt(StudyTime.today('feedback'));
-  document.getElementById('stTodayVid').textContent = StudyTime.fmt(StudyTime.today('video'));
-  document.getElementById('stTodayBook').textContent = StudyTime.fmt(StudyTime.today('book'));
-}
-
-/* ===================== 💬 피드백 / 📖 교재 화면 바꾸기 ===================== */
-let currentView = 'feedback';
-function showView(view, push) {
-  currentView = view === 'book' ? 'book' : 'feedback';
-  document.getElementById('feedbackView').classList.toggle('hidden', currentView !== 'feedback');
-  document.getElementById('bookView').classList.toggle('hidden', currentView !== 'book');
-  document.querySelectorAll('.cat-card[data-view]').forEach(c => c.classList.toggle('on', c.dataset.view === currentView));
-  StudyTime.track(currentView === 'book' ? 'book' : 'feedback', studyActive);
-  if (push !== false) { try { history.replaceState(null, '', currentView === 'book' ? '?view=book' : location.pathname); } catch (e) {} }
-  if (currentView === 'book') loadBooks();
-}
-document.querySelectorAll('.cat-card[data-view]').forEach(c => c.addEventListener('click', e => { e.preventDefault(); showView(c.dataset.view); }));
-
-/* ===================== 📖 교재 쉐도잉 ===================== */
-const BOOK_COLORS = ['#3B82C4', '#2E9E6B', '#E08A00', '#D9578A', '#7A5AF8', '#0E9AA7', '#C2410C', '#4F46E5'];
-let booksCache = null, openBook = null;
-const escB = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function coverHtml(b, k) {
-  if (b.cover) return `<div class="cover img"><img src="${b.cover}" alt="" loading="lazy"></div>`;
-  return `<div class="cover" style="background:${b.color || BOOK_COLORS[k % BOOK_COLORS.length]}">${escB(b.title)}</div>`;
-}
-async function loadBooks(force) {
-  const grid = document.getElementById('bookGrid');
-  if (!booksCache || force) {
-    try { booksCache = (await apiFetch('/api/member-books')).books || []; }
-    catch (e) { grid.innerHTML = `<div class="empty">⚠️ ${escB(e.message)}</div>`; return; }
-  }
-  document.getElementById('bookCount').textContent = `교재 ${booksCache.length}권`;
-  grid.innerHTML = booksCache.length ? booksCache.map((b, k) => `
-    <button class="book" data-book="${escB(b.id)}">
-      ${coverHtml(b, k)}
-      <b>${escB(b.title)}</b>
-      <span class="bm">${b.unitCount}유닛${b.studiedUnits ? ` · ✅ ${b.studiedUnits}유닛 공부함` : ''}</span>
-      <span class="pbar"><i style="width:${b.pct}%"></i></span>
-      <span class="pp">📈 공부한 양 ${b.pct}%</span>
-    </button>`).join('') : '<div class="empty">아직 선생님이 넣어 준 교재가 없어요.</div>';
-}
-document.getElementById('bookGrid').addEventListener('click', e => { const b = e.target.closest('[data-book]'); if (b) openBookDetail(b.dataset.book); });
-async function openBookDetail(id, unit) {
-  const card = document.getElementById('bookDetailCard');
-  document.getElementById('bookListCard').classList.add('hidden'); card.classList.remove('hidden');
-  document.getElementById('unitList').innerHTML = '<div class="empty">불러오는 중...</div>';
-  document.getElementById('bookContent').innerHTML = '';
-  try { openBook = (await apiFetch('/api/member-books?id=' + encodeURIComponent(id))).book; }
-  catch (e) { document.getElementById('unitList').innerHTML = `<div class="empty">⚠️ ${escB(e.message)}</div>`; return; }
-  document.getElementById('bookTitle').textContent = '📖 ' + openBook.title;
-  document.getElementById('bookDesc').textContent = openBook.desc || '유닛을 고르면 아래에서 문장을 하나씩 듣고 따라 말할 수 있어요.';
-  renderUnits(unit);
-  if (unit != null) openUnit(unit);
-}
-function renderUnits(active) {
-  document.getElementById('unitList').innerHTML = openBook.units.map((u, k) => `
-    <button class="unit${k === active ? ' on' : ''}" data-unit="${k}">
-      <span class="ut">${escB(u.title)}</span>
-      <span class="um${u.reps ? ' done' : ''}">${u.sentences.length}문장${u.reps ? ` · ✅ ${u.reps}번 연습${u.avg != null ? ' · 평균 ' + u.avg + '%' : ''}` : ''}</span>
-    </button>`).join('');
-}
-document.getElementById('unitList').addEventListener('click', e => { const u = e.target.closest('[data-unit]'); if (u) openUnit(Number(u.dataset.unit)); });
-function openUnit(k) {
-  const u = openBook && openBook.units[k]; if (!u) return;
-  renderUnits(k);
-  const setId = `book-${openBook.id}-u${k}`;
-  const box = document.getElementById('bookContent');
-  // 피드백 쉐도잉과 같은 연습 화면 (듣기 · 따라 말하기 · 채점 · 비슷한 표현)
-  ShadowingEngine.renderPracticeSet(box, { id: setId, title: u.title, sentences: u.sentences.map(x => ({ o: x.o })), words: [] }, {
-    onAttempt: rec => { queuePractice(setId, rec); u.reps = (u.reps || 0) + 1; },
-  });
-  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-document.getElementById('bookBackBtn').addEventListener('click', () => {
-  openBook = null; document.getElementById('bookContent').innerHTML = '';
-  document.getElementById('bookDetailCard').classList.add('hidden'); document.getElementById('bookListCard').classList.remove('hidden');
-  loadBooks(true);
-});
-StudyTime.onChange(renderStudyTime);
 
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const username = document.getElementById('usernameInput').value.trim();
@@ -406,7 +573,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 [document.getElementById('usernameInput'), document.getElementById('passwordInput')].forEach(el => {
   el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginBtn').click(); });
 });
-document.getElementById('logoutBtn').addEventListener('click', async () => { try { await flushPractice(); } catch (e) {} try { StudyTime.flush(); } catch (e) {} clearSession(); showLogin(); });
+document.getElementById('logoutBtn').addEventListener('click', async () => { try { await flushPractice(); } catch (e) {} clearSession(); showLogin(); });
 
 /* ===================== 회차 목록/내용 ===================== */
 
@@ -418,7 +585,9 @@ async function loadSets() {
   statusEl.textContent = '불러오는 중...'; statusEl.className = 'status';
   try {
     const data = await apiFetch(API.sets);
+    if (data.me) { try { if (data.me.name) localStorage.setItem(NAME_KEY, data.me.name); else localStorage.removeItem(NAME_KEY); } catch (e) {} renderWelcome(); }
     const sets = data.sets || [];
+    setHubMeta('hubMetaFeedback', sets.length ? `수업 회차 ${sets.length}개` : '아직 등록된 회차가 없어요');
     setSelect.innerHTML = '';
     if (!sets.length) {
       setSelect.innerHTML = '<option value="">등록된 회차가 아직 없어요</option>';
@@ -493,18 +662,272 @@ async function loadSetContent(id) {
   contentArea.innerHTML = '<div class="empty">불러오는 중...</div>';
   try {
     const data = await apiFetch(`${API.sets}?id=${encodeURIComponent(id)}`);
-    renderSet(data.set);
+    renderSet(data.set, data);
   } catch (e) {
     contentArea.innerHTML = `<div class="empty">⚠️ ${e.message}</div>`;
   }
 }
 
-function renderSet(set) {
+function renderSet(set, counts) {
   // 카드 렌더링(문장/단어/요약)은 admin.html의 미리보기와 완전히 같은 화면을 쓰도록
   // js/shadowing-engine.js의 renderPracticeSet()으로 공용화했습니다.
   // 연습 반복 한 번마다 기록을 모아 두었다가 서버로 보내요(관리자 페이지 "📊 연습 기록"에서 확인).
-  ShadowingEngine.renderPracticeSet(contentArea, set, { onAttempt: rec => { queuePractice(set.id, rec); markSetStudied(set.id, rec); } });
+  // 문장마다 '✅ 공부했어요 · 연습 N번 · 🗣️ 따라 말하기 M번' (서버가 모아 준 횟수에서 시작해 연습할 때마다 올라가요)
+  ShadowingEngine.renderPracticeSet(contentArea, set, {
+    sentenceCounts: (counts && counts.counts) || {}, sentenceMicCounts: (counts && counts.mic) || {}, micCountLabel: '🗣️ 따라 말하기',
+    onAttempt: rec => { queuePractice(set.id, rec); markSetStudied(set.id, rec); },
+  });
 }
+
+/* ===================== 영상 쉐도잉 목록 ===================== */
+// video.html과 같은 목록(/api/member-videos)을 여기서도 보여주고, 누르면 그 영상의 연습 화면(video.html?id=)으로 가요.
+// 고른 레벨은 video.html과 같은 저장값(vs:level)을 써서 두 화면이 같은 레벨을 보여줘요.
+
+let videosCache = [];
+let videoProgress = {};
+const fmtLen = t => { t = Math.max(0, Math.round(t || 0)); const m = Math.floor(t / 60), s = t % 60; return `${m}:${String(s).padStart(2, '0')}`; };
+function getVideoLevel() { try { return JSON.parse(localStorage.getItem('vs:level')) || 'all'; } catch (e) { return 'all'; } }
+function setVideoLevel(lv) { try { localStorage.setItem('vs:level', JSON.stringify(lv)); } catch (e) {} }
+
+async function loadVideos() {
+  const box = document.getElementById('videoList');
+  try {
+    const d = await apiFetch('/api/member-videos');
+    videosCache = d.lessons || [];
+    setHubMeta('hubMetaVideo', videosCache.length ? `영상 ${videosCache.length}개` : '넣어 준 영상이 아직 없어요');
+    videoProgress = d.progress || {};
+    renderVideos();
+  } catch (e) {
+    box.innerHTML = `<div class="empty">⚠️ ${ShadowingEngine.escapeHTML(e.message)}</div>`;
+  }
+}
+
+function renderVideos() {
+  const esc = ShadowingEngine.escapeHTML;
+  const lv = getVideoLevel();
+  document.querySelectorAll('#vLvTabs [data-lv]').forEach(b => b.classList.toggle('on', b.dataset.lv === lv));
+  // 전체: 레벨 순서(👶 유아 → Lv 1-2 → 3-4 → 5-6 → 7-9 → 레벨 없음)로, 같은 레벨 안에서는 원래 순서 그대로
+  const LV_ORDER = ['kids', '1-2', '3-4', '5-6', '7-9'];
+  const lvRank = v => { const i = LV_ORDER.indexOf(v.level || ''); return i < 0 ? LV_ORDER.length : i; };
+  const list = lv === 'all' ? videosCache.slice().sort((a, b) => lvRank(a) - lvRank(b)) : videosCache.filter(v => v.level === lv);
+  const box = document.getElementById('videoList');
+  document.getElementById('vLvTabs').classList.toggle('hidden', !videosCache.length); // 넣어 준 영상이 없으면 레벨 탭도 숨겨요
+  if (!list.length) {
+    box.innerHTML = `<div class="empty">${videosCache.length ? '이 레벨 영상은 아직 없어요. 다른 레벨을 눌러 보세요.' : '선생님이 넣어 준 영상이 아직 없어요. 선생님께 말씀해 주세요.'}</div>`;
+    return;
+  }
+  box.innerHTML = list.map(v => {
+    const thumb = v.youtubeId ? `style="background-image:url('https://i.ytimg.com/vi/${encodeURIComponent(v.youtubeId)}/mqdefault.jpg')"` : '';
+    const p = videoProgress[v.id];
+    const pct = !v.watchOnly && v.sentenceCount && p ? Math.min(100, Math.round(p.done / v.sentenceCount * 100)) : 0;
+    const len = (v.clipEnd || v.duration || 0) - (v.clipStart || 0);
+    const tag = v.level === 'kids' ? '<span class="vtag kids">👶 유아</span>' : v.level ? `<span class="vtag">Lv ${esc(v.level)}</span>` : '';
+    const info = v.watchOnly ? '📺 영상 보기' : `💬 ${v.sentenceCount}문장${pct ? ` · ✓ ${pct}%` : ''}${p && p.last != null ? ' · 🔖 이어서' : ''}`;
+    return `<a class="vitem" href="video.html?id=${encodeURIComponent(v.id)}">
+      <div class="vthumb" ${thumb}><b>▶</b></div>
+      <div class="vbody">
+        <div class="vtitle">${esc(v.title)}</div>
+        ${v.watchOnly ? '' : `<div class="vprog"><i style="width:${pct}%"></i></div>`}
+        <div class="vmeta">${tag}${len > 0 ? `<span>⏱ ${fmtLen(len)}</span>` : ''}<span>${info}</span></div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+document.getElementById('vLvTabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-lv]'); if (!b) return;
+  setVideoLevel(b.dataset.lv);
+  renderVideos();
+});
+
+/* ===================== 교재 쉐도잉 ===================== */
+// 교재 유닛은 피드백 회차와 같은 모양이라 같은 화면(renderPracticeSet)과 같은 연습 기록으로 연습해요.
+
+const bookSelect = document.getElementById('bookSelect');
+const bookContentArea = document.getElementById('bookContentArea');
+let unitsById = {};
+
+function unitOptionLabel(u) {
+  const base = `${u.title} · 문장 ${u.sentenceCount}`;
+  if (!u.practice) return `⬜ ${base}`;
+  return `✅ ${base} · 공부함${u.practice.last ? ' (' + shortDate(u.practice.last) + ')' : ''}`;
+}
+
+// 교재 표지 (Grammar N은 Step 1·2가 같은 표지를 써요)
+const BOOK_COVERS = {
+  gp: { img: 'images/textbooks/grammar-points.png' },
+  gn: { img: 'images/textbooks/grammar-n.png', step: 'Step 1' },
+  gn2: { img: 'images/textbooks/grammar-n.png', step: 'Step 2' },
+  gn3: { img: 'images/textbooks/grammar-n.png', step: 'Step 3' },
+  dn: { img: 'images/textbooks/daily-nvoim.png' },
+  fft: { img: 'images/textbooks/fun-fun-trip.png' },
+  rc12: { img: 'images/textbooks/regular-course.png', step: 'Level 1-2' },
+  rc2: { img: 'images/textbooks/regular-course.png', step: 'Level 2' },
+  rc3: { img: 'images/textbooks/regular-course.png', step: 'Level 3' },
+  rc4: { img: 'images/textbooks/regular-course.png', step: 'Level 4' },
+  rc5: { img: 'images/textbooks/regular-course.png', step: 'Level 5' },
+  rc6: { img: 'images/textbooks/regular-course.png', step: 'Level 6' },
+  rc7: { img: 'images/textbooks/regular-course.png', step: 'Level 7' },
+  nt6: { img: 'images/textbooks/ntimes.png', step: 'Set 6' },
+  nt7: { img: 'images/textbooks/ntimes.png', step: 'Set 7' },
+  nt: { img: 'images/textbooks/ntimes.png', step: 'Set 8' },
+  tsb: { img: 'images/textbooks/toeic-speaking.png' },
+  ict: { img: 'images/textbooks/i-can-talk.png' },
+  nl1: { img: 'images/textbooks/nlife.png', step: 'Step 1' },
+  nl2: { img: 'images/textbooks/nlife.png', step: 'Step 2' },
+  nl3: { img: 'images/textbooks/nlife.png', step: 'Step 3' },
+};
+let booksList = [];
+let selectedBook = null;
+// 교재 표지를 누르면 그 교재만 있는 새 창(member.html?view=book&book=교재ID)이 열려요. 이 값이 있으면 지금이 그 새 창이에요.
+const BOOK_WINDOW = VIEW === 'book' ? new URLSearchParams(location.search).get('book') : null;
+if (BOOK_WINDOW) document.body.classList.add('book-window');
+const unitsOfBook = id => ((booksList.find(b => b.id === id) || {}).units || []);
+
+function renderBookShelf() {
+  const esc = ShadowingEngine.escapeHTML;
+  document.getElementById('bookShelf').innerHTML = booksList.map(b => {
+    const c = BOOK_COVERS[b.id] || (b.cover ? { img: b.cover } : {}); // 직접 만든 교재는 올린 표지 그림
+    const done = b.units.filter(u => unitsById[u.id] && unitsById[u.id].practice).length;
+    const pct = bookStudyPercent(b);
+    return `<button type="button" class="book-tile${b.id === selectedBook ? ' on' : ''}" data-book="${esc(b.id)}">
+      <div class="cover">${c.img ? `<img src="${c.img}" alt="${esc(b.title)} 표지" loading="lazy">` : '📘'}${c.step ? `<span class="step">${c.step}</span>` : ''}</div>
+      <div class="name">${esc(b.title)}</div>
+      <div class="meta">${b.units.length}유닛${done ? ` · ✅ ${done}유닛 공부함` : ''}</div>
+      <div class="study-pct" title="이 교재의 문장 중 한 번이라도 연습한 문장의 비율">
+        <div class="study-bar"><i style="width:${pct}%"></i></div>
+        <b>📈 공부한 양 ${pct}%</b>
+      </div>
+    </button>`;
+  }).join('') || '<div class="empty">선생님이 넣어 준 교재가 아직 없어요. 선생님께 말씀해 주세요.</div>';
+}
+
+// 교재 표지를 누르면: 그 교재의 유닛만 고를 수 있게 보여주고, 마지막에 공부한 유닛(없으면 첫 유닛)을 열어요
+function selectBook(bookId) {
+  const book = booksList.find(b => b.id === bookId);
+  if (!book) return;
+  selectedBook = bookId;
+  renderBookShelf();
+  document.getElementById('bookUnitPicker').classList.remove('hidden');
+  document.getElementById('bookPicked').textContent = `📘 ${book.title}${(BOOK_COVERS[bookId] || {}).step && !book.title.includes(BOOK_COVERS[bookId].step) ? ' ' + BOOK_COVERS[bookId].step : ''} — 유닛을 골라 주세요`;
+  bookSelect.innerHTML = book.units.map(u => `<option value="${u.id}">${ShadowingEngine.escapeHTML(unitOptionLabel(unitsById[u.id]))}</option>`).join('');
+  let last = null; try { last = localStorage.getItem('textbook_unit_' + bookId); } catch (e) {}
+  if (last && book.units.some(u => u.id === last)) bookSelect.value = last;
+  updateBookStatus();
+  loadBookUnit(bookSelect.value);
+}
+
+document.getElementById('bookShelf').addEventListener('click', e => {
+  const t = e.target.closest('.book-tile'); if (!t) return;
+  if (!BOOK_WINDOW) {
+    // 새 창으로 열기 (교재마다 창 이름이 같아서, 같은 교재를 다시 누르면 열려 있던 그 창으로 가요)
+    const w = window.open(`member.html?view=book&book=${encodeURIComponent(t.dataset.book)}`, 'berkeley_book_' + t.dataset.book);
+    if (w) { try { w.focus(); } catch (err) {} return; }
+    // 새 창이 막혀 있으면(팝업 차단) 예전처럼 이 화면 아래에 열어요
+  }
+  if (t.dataset.book === selectedBook) { closeBook(); return; } // 열린 교재를 다시 누르면 닫아요
+  selectBook(t.dataset.book);
+  document.getElementById('bookUnitPicker').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+function closeBook() {
+  selectedBook = null;
+  renderBookShelf();
+  document.getElementById('bookUnitPicker').classList.add('hidden');
+  bookContentArea.innerHTML = '';
+}
+
+function updateBookStatus() {
+  const statusEl = document.getElementById('bookStatus');
+  const u = unitsById[bookSelect.value];
+  if (!u) { statusEl.textContent = ''; return; }
+  const units = unitsOfBook(selectedBook);
+  const total = units.length;
+  const done = units.filter(x => unitsById[x.id] && unitsById[x.id].practice).length;
+  const summary = `이 교재 ${total}유닛 중 ${done}유닛 공부했어요.`;
+  if (u.practice) {
+    const p = u.practice;
+    statusEl.innerHTML = `<b style="color:var(--good);">✅ 이 유닛은 공부했어요</b> · 연습 ${p.count}번${p.best ? ` · 최고 일치도 ${p.best}%` : ''}${p.last ? ` · 마지막 ${shortDate(p.last)}` : ''}<br>${summary}`;
+  } else {
+    statusEl.innerHTML = `⬜ 아직 공부하지 않은 유닛이에요. · ${summary}`;
+  }
+  statusEl.className = 'status';
+}
+
+async function loadBooks() {
+  const statusEl = document.getElementById('bookStatus');
+  try {
+    const { books } = await apiFetch(API.textbooks);
+    booksList = books || [];
+    setHubMeta('hubMetaBook', booksList.length ? `교재 ${booksList.length}권` : '넣어 준 교재가 아직 없어요');
+    unitsById = {};
+    booksList.forEach(b => b.units.forEach(u => { unitsById[u.id] = u; }));
+    renderBookShelf();
+    // 처음에는 교재 표지만 보여줘요. 표지를 누르면 그 교재가 새 창으로 열려요.
+    // 새 창이면: 고른 교재를 바로 열고 제목도 교재 이름으로 바꿔요
+    if (BOOK_WINDOW) {
+      const book = booksList.find(b => b.id === BOOK_WINDOW);
+      if (book) {
+        selectBook(BOOK_WINDOW);
+        document.querySelector('header h1').textContent = `📖 ${book.title}`;
+        document.title = `${book.title} | 버클리원어민영어회화`;
+      } else {
+        statusEl.textContent = '⚠️ 이 교재는 아직 넣어 주지 않았어요. 선생님께 말씀해 주세요.';
+        statusEl.className = 'status error';
+      }
+    }
+  } catch (e) {
+    statusEl.textContent = '⚠️ ' + e.message;
+    statusEl.className = 'status error';
+  }
+}
+
+async function loadBookUnit(id) {
+  bookContentArea.innerHTML = '';
+  if (!id) return;
+  bookContentArea.innerHTML = '<div class="empty">불러오는 중...</div>';
+  try {
+    const { set, counts, mic } = await apiFetch(`${API.textbooks}?id=${encodeURIComponent(id)}`);
+    bookContentArea.classList.add('book-theme');
+    bookContentArea.dataset.book = set.book || '';
+    ShadowingEngine.renderPracticeSet(bookContentArea, set, { sentenceCounts: counts || {}, sentenceMicCounts: mic || {}, onAttempt: rec => { queuePractice(set.id, rec); markUnitStudied(set.id, rec); } });
+  } catch (e) {
+    bookContentArea.innerHTML = `<div class="empty">⚠️ ${e.message}</div>`;
+  }
+}
+
+// 교재 공부한 양(%) = 한 번이라도 연습한 문장 수 ÷ 교재 전체 문장 수 (유닛마다 연습한 문장 번호를 서버가 모아 줘요)
+function bookStudyPercent(b) {
+  let total = 0, studied = 0;
+  b.units.forEach(x => { const u = unitsById[x.id] || x; total += u.sentenceCount || 0; studied += Math.min((u.studied || []).length, u.sentenceCount || 0); });
+  if (!total || !studied) return 0;
+  return Math.max(1, Math.floor(studied / total * 100)); // 조금이라도 공부했으면 1% 이상
+}
+let shelfTimer = null;
+function markUnitStudied(id, rec) {
+  const u = unitsById[id];
+  if (!u) return;
+  // 연습한 문장 번호를 바로 더해서 표지의 '공부한 양 %'를 그 자리에서 고쳐요
+  if (rec && rec.type === 'sentence' && Number.isInteger(rec.idx) && rec.idx >= 0) {
+    u.studied = u.studied || [];
+    if (!u.studied.includes(rec.idx)) { u.studied.push(rec.idx); clearTimeout(shelfTimer); shelfTimer = setTimeout(renderBookShelf, 300); }
+  }
+  const firstTime = !u.practice;
+  const p = u.practice || { count: 0, spoke: 0, best: 0, last: null };
+  p.count++;
+  if (rec && rec.mode === 'mic' && rec.ok) { p.spoke++; if (rec.score > p.best) p.best = Math.round(rec.score); }
+  p.last = (rec && rec.at) || new Date().toISOString();
+  u.practice = p;
+  const opt = Array.from(bookSelect.options).find(o => o.value === id);
+  if (opt) opt.textContent = unitOptionLabel(u);
+  if (bookSelect.value === id) updateBookStatus();
+  if (firstTime) renderBookShelf(); // 표지 카드의 「✅ N유닛 공부함」도 바로 바꿔요
+}
+
+bookSelect.addEventListener('change', () => {
+  try { localStorage.setItem('textbook_unit_' + selectedBook, bookSelect.value); } catch (e) {}
+  updateBookStatus(); loadBookUnit(bookSelect.value);
+});
 
 /* ===================== 연습 기록 보내기 ===================== */
 // 반복할 때마다 바로 보내지 않고 몇 초 모아서 한 번에 보냅니다. 화면을 닫거나 다른 앱으로 넘어가도 남은 기록을 보내요.
@@ -514,6 +937,7 @@ let practiceSending = false;
 
 function queuePractice(setId, rec) {
   if (!setId) return;
+  countGoal(rec);
   practiceQueue.push(Object.assign({ setId }, rec));
   if (practiceQueue.length >= 20) { flushPractice(); return; }
   clearTimeout(practiceTimer);

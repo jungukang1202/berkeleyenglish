@@ -9,7 +9,7 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const API = '/api/admin-books';
   const COLORS = ['#3B82C4', '#2E9E6B', '#E08A00', '#D9578A', '#7A5AF8', '#0E9AA7', '#C2410C', '#4F46E5'];
-  const VIS = { members: '👥 모든 회원', assigned: '🎯 선택한 학생만', draft: '🔒 비공개' };
+  const VIS = { members: '👥 모든 회원', assigned: '🎁 넣어 준 학생만', draft: '🔒 비공개' };
   const members = () => { try { return membersCache || []; } catch (e) { return []; } };
   let books = [], editing = null, cover = '';
 
@@ -85,7 +85,7 @@
           <div class="cv" style="${b.cover ? `background-image:url('${b.cover}')` : `background:${b.color || COLORS[k % COLORS.length]}`}">${b.cover ? '' : esc(b.title)}</div>
           <b>${esc(b.title)}</b>
           <span class="m">${b.unitCount}유닛 · 문장 ${b.sentenceCount}개${b.level ? ' · ' + esc(b.level) : ''}</span>
-          <span class="m">${VIS[b.visibility] || ''}${b.visibility === 'assigned' ? ` (${b.assigned.length}명)` : ''}</span>
+          <span class="m">${VIS[b.visibility] || ''}</span>
           <button class="btn-ghost btn-small" data-edit="${esc(b.id)}">✏️ 고치기</button>
         </div>`).join('') : '<div class="empty">아직 교재가 없어요. 「➕ 새 교재 만들기」로 시작하세요.</div>';
     } catch (e) { $('bookList').innerHTML = `<div class="empty">⚠️ ${esc(e.message)}</div>`; }
@@ -98,7 +98,7 @@
     $('bkTitle').value = (book && book.title) || '';
     $('bkLevel').value = (book && book.level) || '';
     $('bkDesc').value = (book && book.desc) || '';
-    $('bkVis').value = (book && book.visibility) || 'members';
+    $('bkVis').value = (book && book.visibility) || 'assigned';
     $('bkColor').value = (book && book.color) || COLORS[books.length % COLORS.length];
     $('bkCoverFile').value = '';
     $('bkUnits').value = book ? unitsToText(book.units) : '';
@@ -130,13 +130,13 @@
       }) });
       status(`✅ "${d.book.title}" 저장했어요 — 유닛 ${d.book.unitCount}개 · 문장 ${d.book.sentenceCount}개`, 'success');
       $('bookForm').classList.add('hidden'); editing = null;
-      await loadBooks(); loadRecords();
+      await loadBooks(); loadRecords(); if (window.onBooksChanged) window.onBooksChanged();
     } catch (e) { status('⚠️ ' + e.message, 'error'); }
     btn.disabled = false;
   });
   $('bkDelete').addEventListener('click', async () => {
     if (!editing || !confirm(`"${editing.title}" 교재를 삭제할까요? 되돌릴 수 없어요. (학생 연습 기록은 남아요)`)) return;
-    try { await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'delete', id: editing.id }) }); $('bookForm').classList.add('hidden'); editing = null; status('삭제했어요.'); loadBooks(); }
+    try { await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'delete', id: editing.id }) }); $('bookForm').classList.add('hidden'); editing = null; status('삭제했어요.'); loadBooks(); if (window.onBooksChanged) window.onBooksChanged(); }
     catch (e) { alert(e.message); }
   });
 
