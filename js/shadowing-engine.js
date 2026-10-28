@@ -150,7 +150,7 @@
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
   let __activePracticeWrap = null; // 지금 연습 중인 문장 카드 (공부 시간을 피드백/교재로 나눠 재는 데 사용)
-  const ENGINE_VERSION = '2026-10-28c'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-10-28d'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -594,6 +594,7 @@
       .replace(/^\s*(?:[-*•·▶▷✓✔☞※]+|\d+[.)])\s*/, '') // 앞 번호·기호
       .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
       .replace(/[^\x20-\x7EÀ-ɏ]/g, ' ') // 이모지·특수기호
+      .replace(/-+>|=+>|<-+/g, ' ').replace(/[*#~_|<>=+^\\\/\[\]{}"]/g, ' ').replace(/(^|\s)[-–—]+(?=\s|$)/g, ' ') // 화살표·별표 같은 기호는 읽지 않아요
       .replace(/\s+/g, ' ').replace(/\s+([,.?!])/g, '$1').trim();
     return /[A-Za-z]/.test(t) ? t : orig;
   }
@@ -1369,16 +1370,38 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   const X_PREFIX_RE = /^(?:\[x\]\s*|x\s*(?:[:：\-－]\s*|\s+))/i;
   const O_PREFIX_RE = /^(?:\[o\]\s*|o\s*(?:[:：\-－]\s*|\s+))/i;
   const W_PREFIX_RE = /^(?:\[w\]\s*|w\s*(?:[:：\-－]\s*|\s+))/i;
+  const ARROW_LEAD_RE = /^(?:-+>|=+>|→|⇒|➡️?|➔|➜|⟶)\s*/; // 줄 맨 앞 화살표
+  const ARROW_MID_RE = /\s*(?:-+>|=+>|→|⇒|➡️?|➔|➜|⟶)\s*/;      // 줄 가운데 화살표
 
   function parseFeedbackBlock(text, pairMode) {
     const lines = text.split('\n');
     const newSentences = [];
     const newWords = [];
     let pendingX = '';
+    let lastPlain = null; // 짝 모드가 꺼져 있을 때: 바로 위의 그냥 문장 줄 (다음 줄이 화살표면 그 줄을 고친 것)
     let pendingPairX = null;
     lines.forEach(raw => {
       const line = raw.trim();
       if (!line || line.startsWith('#')) return;
+      const prevPlain = lastPlain; lastPlain = null;
+      // 화살표 줄 "-> I'm happy." = 바로 위 줄(교정 전)을 고친 문장. 한 줄 "happy -> I'm happy."도 같은 한 세트예요. 화살표는 지워요.
+      if (ARROW_LEAD_RE.test(line) && !X_PREFIX_RE.test(line) && !O_PREFIX_RE.test(line)) {
+        const o = line.replace(ARROW_LEAD_RE, '').trim();
+        const x = pendingPairX !== null ? pendingPairX : pendingX;
+        if (!x && prevPlain && o) { prevPlain.x = prevPlain.o; prevPlain.o = o; return; } // 짝 모드가 꺼져 있어도 바로 위 줄과 한 세트
+        if (o) newSentences.push(x ? { x, o, hideX: !!pairMode } : { x: '', o });
+        else if (x) newSentences.push({ x: '', o: x });
+        pendingPairX = null; pendingX = '';
+        return;
+      }
+      if (ARROW_MID_RE.test(line) && !X_PREFIX_RE.test(line) && !O_PREFIX_RE.test(line) && !W_PREFIX_RE.test(line)) {
+        if (pendingPairX !== null) { newSentences.push({ x: '', o: pendingPairX }); pendingPairX = null; }
+        const parts = line.split(ARROW_MID_RE).map(s => s.trim()).filter(Boolean);
+        const o = parts[parts.length - 1] || '', x = parts.length > 1 ? parts[0] : '';
+        if (o) newSentences.push(x ? { x, o, hideX: !!pairMode } : { x: '', o });
+        pendingX = '';
+        return;
+      }
       if (X_PREFIX_RE.test(line)) {
         pendingX = line.replace(X_PREFIX_RE, '');
       } else if (O_PREFIX_RE.test(line)) {
@@ -1396,7 +1419,9 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
           pendingPairX = null;
         }
       } else {
-        newSentences.push({ x: pendingX, o: line });
+        const item = { x: pendingX, o: line };
+        newSentences.push(item);
+        if (!pendingX) lastPlain = item;
         pendingX = '';
       }
     });
@@ -1410,7 +1435,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   // 화면에 보여줄 때는 항상 깔끔하게 지워서 보여줍니다(과거에 저장된 데이터도 자동으로 교정됨).
   function stripLeadingLabel(text) {
     if (!text) return text;
-    return String(text).trim().replace(X_PREFIX_RE, '').replace(O_PREFIX_RE, '').replace(W_PREFIX_RE, '').trim();
+    return String(text).trim().replace(ARROW_LEAD_RE, '').replace(X_PREFIX_RE, '').replace(O_PREFIX_RE, '').replace(W_PREFIX_RE, '').replace(ARROW_LEAD_RE, '').trim();
   }
 
   function parseWordsBlock(text) {

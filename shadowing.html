@@ -393,7 +393,7 @@ let __voiceGen = 0;
 let __lastTtsEnd = 0;
 // 지금 재생 중인 카드의 '멈춤' 함수. 다른 카드를 누르면 이걸 불러서 앞 카드의 반복을 완전히 멈춥니다(소리 겹침 방지).
 let __activeShadowStop = null;
-const ENGINE_VERSION = '2026-10-28c'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+const ENGINE_VERSION = '2026-10-28d'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
 // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
 const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
 function __dbg(msg) {
@@ -804,7 +804,24 @@ async function __speakViaAudio(text, rate, gen, withDing) {
 }
 
 // 문장 하나를 원어민 음성으로 읽어 줍니다(끝나면 resolve). 어떤 방식으로 재생할지는 자동으로 고릅니다.
+// 읽을 때는 영어 문장만: 화살표(->)·별표 같은 기호, 한글 메모, 앞 번호는 읽지 않아요 (js/shadowing-engine.js와 같은 규칙)
+function speechText(text) {
+  const orig = String(text || '').trim();
+  let t = orig.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&');
+  const parts = t.split(/\s*(?:→|->|=>|⇒|➡️?|➔)\s*/);
+  if (parts.length > 1 && /[A-Za-z]/.test(parts[parts.length - 1])) t = parts[parts.length - 1];
+  t = t.replace(/[(\[{（【][^)\]}）】]*[ᄀ-ᇿ㄰-㆏가-힯][^)\]}）】]*[)\]}）】]/g, ' ') // 한글이 든 괄호 메모
+    .replace(/[ᄀ-ᇿ㄰-㆏가-힯]+[^A-Za-z]*/g, ' ') // 남은 한글
+    .replace(/^\s*(?:[-*•·▶▷✓✔☞※]+|\d+[.)])\s*/, '') // 앞 번호·기호
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replace(/[^\x20-\x7EÀ-ɏ]/g, ' ') // 이모지·특수기호
+    .replace(/-+>|=+>|<-+/g, ' ').replace(/[*#~_|<>=+^\\\/\[\]{}"]/g, ' ').replace(/(^|\s)[-–—]+(?=\s|$)/g, ' ') // 화살표·별표 같은 기호는 읽지 않아요
+    .replace(/\s+/g, ' ').replace(/\s+([,.?!])/g, '$1').trim();
+  return /[A-Za-z]/.test(t) ? t : orig;
+}
 async function speakText(text, rate) {
+  text = speechText(text);
   const gen = __voiceGen;
   let withDing = __dingPending; // 버튼을 누른 뒤 첫 재생이면 앞에 '띵동'
   __dingPending = false;
@@ -1505,6 +1522,8 @@ if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => 
 const X_PREFIX_RE = /^x\s*(?:[:：\-－]\s*|\s+)/i;
 const O_PREFIX_RE = /^o\s*(?:[:：\-－]\s*|\s+)/i;
 const W_PREFIX_RE = /^w\s*(?:[:：\-－]\s*|\s+)/i;
+const ARROW_LEAD_RE = /^(?:-+>|=+>|→|⇒|➡️?|➔|➜|⟶)\s*/; // 줄 맨 앞 화살표
+const ARROW_MID_RE = /\s*(?:-+>|=+>|→|⇒|➡️?|➔|➜|⟶)\s*/;      // 줄 가운데 화살표
 
 // pairMode: 접두어(x:/o:) 없는 줄들을 "두 줄씩 짝" (홀수=틀린 문장, 짝수=맞는 문장)으로 처리합니다.
 // 이때 만들어지는 카드는 hideX 표시를 붙여서, 화면에는 맞는 문장만 보이고(틀린 문장은 숨김)
@@ -1514,10 +1533,30 @@ function parseFeedbackBlock(text, pairMode) {
   const newSentences = [];
   const newWords = [];
   let pendingX = '';
+  let lastPlain = null; // 짝 모드가 꺼져 있을 때: 바로 위의 그냥 문장 줄 (다음 줄이 화살표면 그 줄을 고친 것)
   let pendingPairX = null; // pairMode에서만 사용: 접두어 없는 줄 중 아직 짝이 안 지어진 "틀린 문장" 줄
   lines.forEach(raw => {
     const line = raw.trim();
     if (!line || line.startsWith('#')) return;
+    const prevPlain = lastPlain; lastPlain = null;
+    // 화살표 줄 "-> I'm happy." = 바로 위 줄(교정 전)을 고친 문장. 한 줄 "happy -> I'm happy."도 같은 한 세트예요. 화살표는 지워요.
+    if (ARROW_LEAD_RE.test(line) && !X_PREFIX_RE.test(line) && !O_PREFIX_RE.test(line)) {
+      const o = line.replace(ARROW_LEAD_RE, '').trim();
+      const x = pendingPairX !== null ? pendingPairX : pendingX;
+      if (!x && prevPlain && o) { prevPlain.x = prevPlain.o; prevPlain.o = o; return; } // 짝 모드가 꺼져 있어도 바로 위 줄과 한 세트
+      if (o) newSentences.push(x ? { x, o, hideX: !!pairMode } : { x: '', o });
+      else if (x) newSentences.push({ x: '', o: x });
+      pendingPairX = null; pendingX = '';
+      return;
+    }
+    if (ARROW_MID_RE.test(line) && !X_PREFIX_RE.test(line) && !O_PREFIX_RE.test(line) && !W_PREFIX_RE.test(line)) {
+      if (pendingPairX !== null) { newSentences.push({ x: '', o: pendingPairX }); pendingPairX = null; }
+      const parts = line.split(ARROW_MID_RE).map(s => s.trim()).filter(Boolean);
+      const o = parts[parts.length - 1] || '', x = parts.length > 1 ? parts[0] : '';
+      if (o) newSentences.push(x ? { x, o, hideX: !!pairMode } : { x: '', o });
+      pendingX = '';
+      return;
+    }
     if (X_PREFIX_RE.test(line)) {
       pendingX = line.replace(X_PREFIX_RE, '');
     } else if (O_PREFIX_RE.test(line)) {
@@ -1537,7 +1576,9 @@ function parseFeedbackBlock(text, pairMode) {
     } else {
       // 접두어 없이 그냥 문장만 한 줄씩 있는 경우 — 바로 앞에 x 줄이 있었으면 그 줄과 짝을 짓고,
       // 없었으면 교정 문장(o)으로만 취급합니다.
-      newSentences.push({ x: pendingX, o: line });
+      const item = { x: pendingX, o: line };
+      newSentences.push(item);
+      if (!pendingX) lastPlain = item;
       pendingX = '';
     }
   });
