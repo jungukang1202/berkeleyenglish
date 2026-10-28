@@ -150,7 +150,7 @@
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
   let __activePracticeWrap = null; // 지금 연습 중인 문장 카드 (공부 시간을 피드백/교재로 나눠 재는 데 사용)
-  const ENGINE_VERSION = '2026-10-28a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-10-28b'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -876,7 +876,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   // (소리 크기를 못 재는 기기면 아무 일도 안 하고, 예전처럼 정해진 시간까지 녹음해요)
   // 학생 목소리가 멈추고 이만큼 조용하면 '말 끝' → 바로 채점하고 다음으로 (피드백·교재·영상 쉐도잉 모두)
   // 모든 따라 말하기가 이 함수 하나를 거쳐요(교재·영상 쉐도잉도 같은 엔진) → 교재나 영상을 새로 넣어도 이 기능은 그대로 적용돼요.
-  const SILENCE_MS = 200;
+  const SILENCE_MS = 1000; // 말이 멈추고 1초 뒤 채점 (0.2초는 단어 사이 숨 쉬는 틈에도 끊겨 인식이 잘렸어요)
   function __watchSilence(stream, onSilence, meter, quietLimitMs) {
     const quietLimit = quietLimitMs || SILENCE_MS;
     let ctx = null, timer = null, stopped = false;

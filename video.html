@@ -338,7 +338,7 @@
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/shadowing-engine.js?v=20261028a"></script>
+<script src="js/shadowing-engine.js?v=20261028b"></script>
 <script src="js/yt-media.js?v=20261019f"></script>
 <script src="js/study-time.js?v=20261023c"></script>
 <script>
@@ -1075,8 +1075,8 @@ function showScore(s, res) {
 }
 async function listenAndGrade(s, onReady) {
   if (!window.ShadowingEngine || !ShadowingEngine.listenAndScore) return { ok: false, error: 'no-engine', message: '채점 기능을 불러오지 못했어요. 새로고침해 주세요.' };
-  // 마이크가 켜져 "지금 말하세요!"가 뜨는 순간 삐(신호음 켰을 때), 학생 목소리가 멈추고 0.2초 뒤 바로 채점
-  const res = await ShadowingEngine.listenAndScore(s.en, { noBeep: true, beepOnReady: true, beepFn: () => beep(), silenceMs: 200, onReady });
+  // 마이크가 켜져 "지금 말하세요!"가 뜨는 순간 삐(신호음 켰을 때), 학생 목소리가 멈추고 1초 뒤 채점
+  const res = await ShadowingEngine.listenAndScore(s.en, { noBeep: true, beepOnReady: true, beepFn: () => beep(), silenceMs: 1000, onReady });
   showScore(s, res);
   return res;
 }
