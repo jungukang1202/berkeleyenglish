@@ -393,7 +393,7 @@ let __voiceGen = 0;
 let __lastTtsEnd = 0;
 // 지금 재생 중인 카드의 '멈춤' 함수. 다른 카드를 누르면 이걸 불러서 앞 카드의 반복을 완전히 멈춥니다(소리 겹침 방지).
 let __activeShadowStop = null;
-const ENGINE_VERSION = '2026-10-28b'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+const ENGINE_VERSION = '2026-10-28c'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
 // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
 const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
 function __dbg(msg) {
@@ -1088,23 +1088,93 @@ function warmupMic() {
 }
 
 // Word-level alignment between target text and recognized speech (LCS-based diff + match score).
+// 채점용 단어 나누기: 숫자는 글자로 쓰든 숫자로 쓰든 같게 봐요 (four = 4, twenty-four = 24, fourth = 4th, 1990 = nineteen ninety)
+// 줄임말도 풀어서 같게 봐요 (I'm = I am, don't = do not)
+const __NUM_ONES = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 };
+const __NUM_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const __NUM_SCALES = { hundred: 100, thousand: 1000, million: 1000000 };
+const __NUM_ORD = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16, seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20, thirtieth: 30, fortieth: 40, fiftieth: 50, sixtieth: 60, seventieth: 70, eightieth: 80, ninetieth: 90, hundredth: 100, thousandth: 1000 };
+const __CONTRACT = { "can't": 'can not', cannot: 'can not', "won't": 'will not', "shan't": 'shall not', "ain't": 'is not', "let's": 'let us' };
+function __numKind(w) {
+  if (__NUM_ONES[w] != null) return 'ones';
+  if (__NUM_TENS[w] != null) return 'tens';
+  if (__NUM_SCALES[w] != null) return 'scale';
+  if (__NUM_ORD[w] != null) return 'ord';
+  return null;
+}
+// 1100~2099처럼 연도로 읽는 네 자리 숫자는 두 마디로 나눠요 (1990 → 19 90, 2026 → 20 26) — 어느 쪽으로 읽어도 맞게
+function __numKeys(n, ord) {
+  const sfx = ord ? '#' : '';
+  if (!ord && n >= 1100 && n <= 2099 && n % 100 >= 10 && !(n >= 2000 && n < 2010)) return [String(Math.floor(n / 100)), String(n % 100)];
+  return [String(n) + sfx];
+}
+function __scoreTokens(s) {
+  let t = String(s || '').toLowerCase()
+    .replace(/[‘’ʼ`]/g, "'")
+    .replace(/(\d),(?=\d{3}\b)/g, '$1')       // 1,000 → 1000
+    .replace(/(\d)\.(\d)/g, '$1 point $2')     // 3.5 → 3 point 5
+    .replace(/(\d+(?:\s+point\s+\d+)?)\s*%/g, '$1 percent')
+    .replace(/\$\s*(\d+)/g, '$1 dollars')
+    .replace(/[-–—/:]/g, ' ')
+    .replace(/[^a-z0-9'\s]/g, '');
+  const raw = t.split(/\s+/).map(w => w.replace(/^'+|'+$/g, '')).filter(Boolean);
+  const words = [];
+  raw.forEach(w => {
+    let x = __CONTRACT[w];
+    if (!x) x = w.replace(/n't$/, ' not').replace(/'m$/, ' am').replace(/'re$/, ' are').replace(/'ve$/, ' have').replace(/'ll$/, ' will');
+    if (x === w) { words.push({ w, d: w }); return; }
+    x.split(' ').forEach((p, k) => words.push({ w: p, d: k ? '' : w })); // 화면에는 원래 모양(I'm)으로 보여줘요
+  });
+  const out = [];
+  for (let i = 0; i < words.length;) {
+    const w = words[i].w;
+    let m = w.match(/^(\d+)(st|nd|rd|th)$/);
+    if (m) { __numKeys(Number(m[1]), true).forEach((k, q) => out.push({ k, d: q ? '' : words[i].d })); i++; continue; }
+    if (/^\d+$/.test(w)) { __numKeys(Number(w), false).forEach((k, q) => out.push({ k, d: q ? '' : words[i].d })); i++; continue; }
+    if (!__numKind(w)) { out.push({ k: w, d: words[i].d }); i++; continue; }
+    // 글자로 쓴 숫자 덩어리 읽기: twenty four · one hundred and five · twenty-first
+    let total = 0, cur = 0, last = null, j = i, ord = false;
+    while (j < words.length) {
+      const x = words[j].w, kind = __numKind(x);
+      if (x === 'and' && last === 'scale' && j + 1 < words.length && __numKind(words[j + 1].w)) { j++; continue; }
+      if (!kind) break;
+      if (kind === 'ord') {
+        const v = __NUM_ORD[x];
+        if (v >= 100) { if (!(last === 'ones' || last === 'tens')) break; cur = (cur || 1) * v; if (v >= 1000) { total += cur; cur = 0; } }
+        else if (v < 10 && last === 'tens') cur += v;
+        else if (last === null || last === 'scale') cur += v;
+        else break;
+        ord = true; j++; break;
+      }
+      if (kind === 'ones') { const v = __NUM_ONES[x]; if (last === 'tens' && v > 0 && v < 10) cur += v; else if (last === null || last === 'scale') cur += v; else break; }
+      else if (kind === 'tens') { if (last === null || last === 'scale') cur += __NUM_TENS[x]; else break; }
+      else { const v = __NUM_SCALES[x]; if (!(last === 'ones' || last === 'tens') || cur === 0) break; if (v === 100) cur *= 100; else { total += cur * v; cur = 0; } }
+      last = kind; j++;
+    }
+    if (j === i) { out.push({ k: w, d: words[i].d }); i++; continue; }
+    const disp = words.slice(i, j).map(o => o.d).filter(Boolean).join(' ');
+    __numKeys(total + cur, ord).forEach((k, q) => out.push({ k, d: q ? '' : disp }));
+    i = j;
+  }
+  return out;
+}
 function compareWords(target, heard) {
-  const norm = s => s.toLowerCase().replace(/[^a-z0-9'\s]/g, '').split(/\s+/).filter(Boolean);
-  const tw = norm(target);
-  const hw = norm(heard);
-  const dp = Array.from({length: tw.length + 1}, () => new Array(hw.length + 1).fill(0));
+  const tw = __scoreTokens(target);
+  const hw = __scoreTokens(heard);
+  const dp = Array.from({ length: tw.length + 1 }, () => new Array(hw.length + 1).fill(0));
   for (let i = tw.length - 1; i >= 0; i--)
     for (let j = hw.length - 1; j >= 0; j--)
-      dp[i][j] = tw[i] === hw[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+      dp[i][j] = tw[i].k === hw[j].k ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
 
+  const span = (cls, o) => (o.d ? `<span class="${cls}">${escapeHTML(o.d)}</span>` : '');
   let i = 0, j = 0, html = '', matched = 0;
   while (i < tw.length && j < hw.length) {
-    if (tw[i] === hw[j]) { html += `<span class="w-ok">${escapeHTML(tw[i])}</span>`; matched++; i++; j++; }
-    else if (dp[i+1][j] >= dp[i][j+1]) { html += `<span class="w-miss">${escapeHTML(tw[i])}</span>`; i++; }
-    else { html += `<span class="w-extra">${escapeHTML(hw[j])}</span>`; j++; }
+    if (tw[i].k === hw[j].k) { html += span('w-ok', tw[i]); matched++; i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { html += span('w-miss', tw[i]); i++; }
+    else { html += span('w-extra', hw[j]); j++; }
   }
-  while (i < tw.length) { html += `<span class="w-miss">${escapeHTML(tw[i])}</span>`; i++; }
-  while (j < hw.length) { html += `<span class="w-extra">${escapeHTML(hw[j])}</span>`; j++; }
+  while (i < tw.length) { html += span('w-miss', tw[i]); i++; }
+  while (j < hw.length) { html += span('w-extra', hw[j]); j++; }
 
   const score = tw.length ? Math.round((matched / tw.length) * 100) : 0;
   return { score, html };
