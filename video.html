@@ -338,7 +338,7 @@
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/shadowing-engine.js?v=20261027b"></script>
+<script src="js/shadowing-engine.js?v=20261028a"></script>
 <script src="js/yt-media.js?v=20261019f"></script>
 <script src="js/study-time.js?v=20261023c"></script>
 <script>
@@ -589,6 +589,8 @@ let S = {};
 let done = new Set();
 let parts = [], list = [], cur = 0, rep = 0, running = false;
 let stopAt = null, onReach = null, timers = [], countdown = null;
+// 문장 재생 감시: 영상이 문장 시작으로 '실제로' 옮겨진 것을 확인한 뒤에만 끝 지점을 봅니다.
+let segFrom = 0, segArmed = false, segAt = 0, segRetry = 0;
 const recs = {}, scores = {};
 let review = {}; // 문장(i)별 마지막 따라 말하기 결과 { score, miss:[잘못 발음·빠뜨린 단어], extra:[더 말한 단어], heard, at } — 이 기기에 저장
 
@@ -845,14 +847,31 @@ function playSentence(k, cb) {
   v.playbackRate = S.rate;
   v.currentTime = s.s;
   stopAt = s.e; onReach = cb || null;
+  segFrom = s.s; segArmed = false; segAt = performance.now(); segRetry = 0;
   const p = v.play(); if (p) p.catch(() => toast(v.isYouTube ? '영상 화면을 한 번 눌러 재생한 뒤, 다시 ▶ 연습 시작을 눌러주세요' : '▶ 버튼을 한 번 더 눌러주세요 (브라우저 자동재생 제한)'));
 }
 // 문장 끝에서 멈춘 직후 잠깐은 영상이 조금 더 흘러가도 화면이 다음 문장으로 넘어가지 않게 잡아 둡니다.
 let holdUntil = 0;
 function reached() { const cb = onReach; stopAt = null; onReach = null; holdUntil = performance.now() + 800; v.pause(); if (cb) cb(); }
+// YouTube는 이동(seek) 직후 잠깐 '예전 시간'을 알려줘요. 두 번째 반복부터는 예전 시간이 이미 문장 끝을 지나 있어서
+// 소리가 나기도 전에 '문장 끝'으로 착각 → 띵동·삐만 계속 반복되던 문제를 막으려고, 진짜 시간을 직접 확인합니다.
+function realTime() {
+  try { if (v.isYouTube && v.player && v.player.getCurrentTime) return v.player.getCurrentTime() || 0; } catch (e) {}
+  return v.currentTime;
+}
+function segCheck() {
+  const t = realTime(), now = performance.now();
+  if (!segArmed) {
+    if (t >= segFrom - 0.6 && t < stopAt - 0.05) { segArmed = true; return false; } // 문장 안으로 제대로 옮겨짐
+    const waited = now - segAt;
+    if (waited > 700 && segRetry < 3) { segRetry++; segAt = now; try { v.currentTime = segFrom; if (v.paused) v.play().catch(() => {}); } catch (e) {} return false; } // 다시 옮기기
+    return segRetry >= 3 && waited > 2500; // 끝내 안 옮겨지면 멈추지 않게 그냥 넘어감
+  }
+  return t >= stopAt;
+}
 function loop() {
   if (stopAt != null) {
-    if (v.currentTime >= stopAt) reached();
+    if (segCheck()) reached();
     else if (list[cur]) { const s = list[cur]; setBar((v.currentTime - s.s) / (s.e - s.s)); }
   } else if (!v.paused && list.length && (!running || S.mode === 'listen') && performance.now() > holdUntil) {
     // 화면이 영상 시간을 따라가는 건 '듣기' 모드이거나, 연습 중이 아닐 때(영상을 직접 재생)뿐이에요.
@@ -970,8 +989,11 @@ function step() {
     // ② 에코잉: 혼자 따라 말할 시간 — 삐는 마이크가 켜져 "지금 말하세요!"가 뜰 때 나요
     if (S.grade) {
       setPill('② 따라 말하세요 🗣 (에코잉 · 말이 끝나면 자동 채점)', 'rec'); setBar(1);
+      const g0 = performance.now();
       const res = await listenAndGrade(s, () => { if (running) setPill('● 지금 말하세요! 🗣', 'rec'); });
       if (!running || myRun !== runId) return;
+      if (res && !res.ok && (res.error === 'not-allowed' || res.error === 'service-not-allowed' || res.error === 'no-engine')) { stop(res.message || '마이크를 쓸 수 없어요'); return; }
+      if (res && !res.ok && performance.now() - g0 < 1500) { await new Promise(r => setTimeout(r, 1500)); if (!running || myRun !== runId) return; } // 마이크가 바로 실패해도 너무 빨리 반복되지 않게
       const mr = micRecord(res, rep + 1, S.reps); if (mr) { logAttempt(s, mr); repLogged = true; }
       later(afterRep, 0); // 채점이 끝나면 바로 다음으로
       return;
