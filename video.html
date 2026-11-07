@@ -311,7 +311,7 @@
             <div class="seg" id="viewMode"><button data-v="video">🎬 영상과 함께</button><button data-v="audio">🎧 소리만</button></div>
           </div>
           <div class="row"><label class="k">연습 모드</label>
-            <div class="seg" id="mode"><button data-v="listen">듣기</button><button data-v="shadow">쉐도잉</button></div>
+            <div class="seg" id="mode"><button data-v="listen">듣기</button><button data-v="shadow">쉐도잉</button><button data-v="echo">에코잉</button></div>
           </div>
           <div class="hint" id="modeHint"></div>
           <div class="row">
@@ -322,6 +322,8 @@
             <span id="echoOpts" style="display:contents">
               <label class="k" style="min-width:auto; margin-left:6px;">말할 시간</label>
               <select class="sel" id="wait"><option value="1">문장×1</option><option value="1.5">문장×1.5</option><option value="2">문장×2</option><option value="3">문장×3</option></select>
+              <label class="k" style="min-width:auto; margin-left:6px;">쉬는 시간</label>
+              <select class="sel" id="gap" title="원어민 문장이 끝나고 따라 말하기 전 · 한 번 끝나고 다음 반복 전에 쉬는 시간"><option value="0.5">0.5초</option><option value="1">1초</option><option value="2">2초</option><option value="3">3초</option></select>
             </span>
           </div>
           <div class="row"><label class="k">영어 자막</label>
@@ -349,7 +351,7 @@
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/shadowing-engine.js?v=20261107a"></script>
+<script src="js/shadowing-engine.js?v=20261107b"></script>
 <script src="js/yt-media.js?v=20261107a"></script>
 <script src="js/study-time.js?v=20261023c"></script>
 <script>
@@ -647,8 +649,9 @@ async function showPlayer(id) {
     if (old) LS.set('vs:settings', Object.assign(old, { reps: 5 }));
     LS.set('vs:defaultsV', 3);
   }
-  S = Object.assign({ mode: 'shadow', reps: 5, rate: 1, wait: 1.5, text: 'show', ko: true, rec: true, grade: true, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
-  if (S.mode !== 'listen') S.mode = 'shadow'; // 예전 '에코잉' 모드는 이제 쉐도잉 안에 들어 있어요
+  S = Object.assign({ mode: 'shadow', reps: 5, rate: 1, wait: 1.5, gap: 1, text: 'show', ko: true, rec: true, grade: true, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
+  if (!['listen', 'shadow', 'echo'].includes(S.mode)) S.mode = 'shadow';
+  if (!(S.gap > 0)) S.gap = 1;
   S.rec = false; S.grade = true; // 내 목소리 녹음은 뺐어요 · 따라 말하면 늘 일치도(%)·틀린 단어를 보여줘요
   if (D.mime && D.mime.startsWith('audio')) { S.view = 'audio'; $('#viewMode').parentElement.style.display = 'none'; }
   done = new Set(LS.get(KEY + 'done', []));
@@ -1026,27 +1029,30 @@ function step() {
   }
   // 쉐도잉 = ① 원어민 소리와 '동시에' 따라 말하기(쉐도잉) → ② 삐 소리 뒤 멈춘 시간에 혼자 한 번 더(에코잉)
   // 녹음·채점은 ② 에코잉에서 해요 (원어민 소리가 섞이지 않아 더 정확해요)
-  setPill('🔔 곧 시작 · 같이 말할 준비', 'go');
+  const echoOnly = S.mode === 'echo';
+  const gapMs = Math.round((S.gap || 1) * 1000);
+  setPill(echoOnly ? '🔔 곧 시작 · 잘 들을 준비' : '🔔 곧 시작 · 같이 말할 준비', 'go');
   SentenceClip.cue(v, clipOf(s).start); // 띵동이 울리는 동안 문장 시작으로 미리 옮겨 둬요
   dingDong().then(async () => {
   if (!running || myRun !== runId) return;
-  setPill('① 같이 말하세요 🗣 (쉐도잉)', 'go');
+  setPill(echoOnly ? '① 잘 들으세요 👂 (에코잉)' : '① 같이 말하세요 🗣 (쉐도잉)', 'go');
   playSentence(cur, async () => {
     if (!running) return;
     markDone(s); // 원어민 소리를 끝까지 들은 순간 '공부함'·책갈피
+    // 따라 말하기 전에 잠깐 쉬어요 (쉬는 시간)
+    setPill(echoOnly ? '⏸ 잠깐… 곧 혼자 따라 말해요' : '⏸ 잠깐… 곧 혼자 한 번 더', 'go'); setBar(1);
+    await new Promise(r => later(r, gapMs));
+    if (!running || myRun !== runId) return;
     // ② 에코잉: 혼자 따라 말할 시간 — 삐는 마이크가 켜져 "지금 말하세요!"가 뜰 때 나요
     if (S.grade && isLessonRec) {
       // 🎥 수업영상쉐도잉: 영상 문장이 끝나고 0.2초 뒤 「● 지금 말하세요!」와 삐, 마이크도 그때 바로 켜요(운영자 지시 2026-11-03, 모든 기기)
       //   삐 소리가 끝난 뒤부터 목소리 끝을 재요 — 채점 규칙(quietNeedMs)은 그대로
-      setPill('② 따라 말하세요 🗣 (에코잉 · 말이 끝나면 자동 채점)', 'rec'); setBar(1);
-      await new Promise(r => later(r, 200));
-      if (!running || myRun !== runId) return;
       setPill('● 지금 말하세요! 🗣', 'rec');
       const beeped = beep();
       const res = await listenAndGrade(s, null, () => beeped);
       if (!running || myRun !== runId) return;
       const mr = micRecord(res, rep + 1, S.reps); if (mr) { logAttempt(s, mr); repLogged = true; }
-      later(afterRep, 0);
+      later(afterRep, gapMs); // 점수를 볼 시간
       return;
     }
     if (S.grade) {
@@ -1057,7 +1063,7 @@ function step() {
       if (res && !res.ok && (res.error === 'not-allowed' || res.error === 'service-not-allowed' || res.error === 'no-engine')) { stop(res.message || '마이크를 쓸 수 없어요'); return; }
       if (res && !res.ok && performance.now() - g0 < 1500) { await new Promise(r => setTimeout(r, 1500)); if (!running || myRun !== runId) return; } // 마이크가 바로 실패해도 너무 빨리 반복되지 않게
       const mr = micRecord(res, rep + 1, S.reps); if (mr) { logAttempt(s, mr); repLogged = true; }
-      later(afterRep, 0); // 채점이 끝나면 바로 다음으로
+      later(afterRep, gapMs); // 점수를 보고 숨 돌릴 시간 뒤에 다음으로
       return;
     }
     // (마이크를 못 쓰는 기기) '지금 말하세요' 차례가 따로 없으니 여기서 삐 하고, 정해진 시간 동안 따라 말하고 넘어가요
@@ -1078,7 +1084,7 @@ function afterRep() {
   repLogged = false;
   markDone(list[cur]); // 한 번 끝까지 연습하면 바로 '공부함'·책갈피 (반복을 다 채우기 전에 멈춰도 남아요)
   rep++;
-  if (rep < S.reps) { later(step, 100); return; }
+  if (rep < S.reps) { later(step, 300); return; }
   rep = 0; cur++;
   if (cur < list.length) { setCurrent(cur); updateRep(); }
   later(step, 200);
@@ -1180,6 +1186,7 @@ document.addEventListener('click', e => { if (!pop.contains(e.target) && !e.targ
 /* ---- 컨트롤 ---- */
 const modeHints = {
   listen: '끊지 않고 쭉 들으며 흐름을 익혀요. 지금 나오는 문장이 자동으로 표시돼요.',
+  echo: '① 원어민 소리를 <b>잘 듣고</b>, ② 잠깐 쉰 뒤 <b>삐</b> 소리가 나면 혼자 메아리처럼 따라 말해요(에코잉). 같이 말하지 않아서 듣기에 집중할 수 있어요. 따라 말하면 <b>일치도(%)</b>와 <b>잘못 발음한 단어</b>를 바로 보여줘요. 「쉬는 시간」으로 천천히 할 수 있어요.',
   shadow: '① 원어민 소리와 <b>동시에</b> 그림자처럼 따라 말하고(쉐도잉), ② <b>삐</b> 소리가 나면 멈춘 시간에 혼자 한 번 더 메아리처럼 따라 말해요(에코잉). 문장마다 정한 횟수만큼 반복해요. ② 에코잉 때 따라 말하면 피드백 쉐도잉처럼 <b>일치도(%)</b>와 <b>잘못 발음한 단어</b>를 바로 보여줘요.',
 };
 let controlsReady = false;
@@ -1195,12 +1202,12 @@ function initControls() {
   seg('#viewMode', 'view', () => document.body.classList.toggle('audio-only', S.view === 'audio'));
   seg('#mode', 'mode', () => {
     $('#modeHint').innerHTML = modeHints[S.mode];
-    $('#echoOpts').style.display = S.mode === 'shadow' ? 'contents' : 'none'; // 에코잉 '말할 시간'
+    $('#echoOpts').style.display = S.mode !== 'listen' ? 'contents' : 'none'; // '말할 시간' · '쉬는 시간'
     $('#recRow').style.display = S.mode === 'listen' ? 'none' : '';
     if (running) { const k = cur; stop(); cur = k; start(); }
   });
   seg('#textMode', 'text', () => { document.body.classList.remove('t-blur', 't-hide'); if (S.text !== 'show') document.body.classList.add('t-' + S.text); });
-  [['#reps', 'reps'], ['#rate', 'rate'], ['#wait', 'wait']].forEach(([id, key]) => {
+  [['#reps', 'reps'], ['#rate', 'rate'], ['#wait', 'wait'], ['#gap', 'gap']].forEach(([id, key]) => {
     const el = $(id); el.value = String(S[key]);
     el.onchange = () => { S[key] = +el.value; saveS(); if (key === 'rate') v.playbackRate = S.rate; };
   });

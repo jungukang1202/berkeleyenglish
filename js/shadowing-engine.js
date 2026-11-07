@@ -150,7 +150,7 @@
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
   let __activePracticeWrap = null; // 지금 연습 중인 문장 카드 (공부 시간을 피드백/교재로 나눠 재는 데 사용)
-  const ENGINE_VERSION = '2026-11-07a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-11-07b'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -765,7 +765,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         msg.textContent = (e && e.name === 'NotAllowedError') ? '⚠️ 마이크 권한이 막혀 있어요. 주소창의 🔒을 눌러 마이크를 "허용"으로 바꿔 주세요.' : '⚠️ 이 마이크를 열 수 없어요. 다른 마이크를 골라 보세요.';
       } finally {
         clearInterval(timer); bar.style.width = '0';
-        try { ctx && ctx.close(); } catch (e) {}
+        try { if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {}); } catch (e) {}
         if (stream) stream.getTracks().forEach(t => t.stop());
         testing = false;
       }
@@ -912,7 +912,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     // relQuietEnd: 문장을 다 말한 뒤의 기준 — 방이 조금 시끄러워도 목소리가 끊긴 걸 바로 알아채요
     const relQuietEnd = extra && extra.relQuietEnd != null ? extra.relQuietEnd : relQuiet;
     let ctx = null, timer = null, stopped = false;
-    const stop = () => { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch (e) {} };
+    const stop = () => { stopped = true; clearInterval(timer); try { if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {}); } catch (e) {} };
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return stop;
