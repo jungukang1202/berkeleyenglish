@@ -152,11 +152,69 @@ async function supadata(videoId, key, jobId, want = 'en', mode = 'auto', ms = 25
 }
 const punctRatio = words => (words.length ? words.filter(w => /[.?!]$/.test(w.w)).length / words.length : 0);
 
+// 시간 제한이 있는 fetch · YouTube 앱 접속 정보 (영상 길이 · 말소리 단어 시간에 써요)
+async function fetchT(url, init = {}, ms = 9000) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try { return await fetch(url, Object.assign({ signal: ctl.signal }, init)); } finally { clearTimeout(t); }
+}
+const APP_CLIENTS = [
+  { client: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 30, hl: 'en', gl: 'US' },
+    headers: { 'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip', 'X-YouTube-Client-Name': '3', 'X-YouTube-Client-Version': '20.10.38' } },
+  { client: { clientName: 'IOS', clientVersion: '20.10.4', deviceMake: 'Apple', deviceModel: 'iPhone16,2', osName: 'iPhone', osVersion: '18.3.2.22D82', hl: 'en', gl: 'US' },
+    headers: { 'User-Agent': 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)', 'X-YouTube-Client-Name': '5', 'X-YouTube-Client-Version': '20.10.4' } },
+];
+
 async function oembed(videoId) {
   try {
     const r = await timed(`https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&format=json`, {}, 6000);
     if (r.ok) return await r.json();
   } catch (e) {}
+  return null;
+}
+
+// 영상 길이(초) — 👶 유아 영상은 자막을 가져오지 않아서 길이를 따로 물어봐요 (영상 목록을 짧은 순으로 놓을 때 써요). 모르면 0.
+async function videoLength(id) {
+  for (const c of APP_CLIENTS) {
+    try {
+      const r = await fetchT('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+        method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, c.headers),
+        body: JSON.stringify({ context: { client: c.client }, videoId: id, contentCheckOk: true, racyCheckOk: true }),
+      }, 9000);
+      const n = Number(((await r.json()).videoDetails || {}).lengthSeconds || 0);
+      if (n > 0) return n;
+    } catch (e) {}
+  }
+  return 0;
+}
+
+/* ---- 영상 말소리 단어 시간 (문장을 영상에 맞출 때 — 영상 만들기·다시 만들기마다) ---- */
+// 자동 자막에는 단어마다 시간이 있어요. 스크립트를 붙여넣어 만들 때도 이 시간으로 문장을 맞춰요.
+// 서버가 자막 파일을 못 받으면 링크만 돌려줘요 → 관리자 브라우저가 받아요 (링크는 서명돼 있어 어디서든 열려요).
+// 자동 자막이 다른 시간대인 영상이 있어서 사람 자막도 함께 돌려줘요 — 어느 쪽이 영상과 맞는지는 관리자 화면이 비교해요.
+async function speechTiming(id) {
+  for (const c of APP_CLIENTS) {
+    try {
+      const r = await fetchT('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+        method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, c.headers),
+        body: JSON.stringify({ context: { client: c.client }, videoId: id, contentCheckOk: true, racyCheckOk: true }),
+      }, 9000);
+      const d = await r.json();
+      const en = (((d.captions || {}).playerCaptionsTracklistRenderer || {}).captionTracks || []).filter(t => /^en/.test(t.languageCode || ''));
+      const picks = [en.find(t => t.kind === 'asr'), en.find(t => t.kind !== 'asr')].filter(Boolean);
+      if (!picks.length) continue;
+      const tracks = await Promise.all(picks.map(async track => {
+        const url = String(track.baseUrl).replace(/&fmt=[^&]*/, '') + '&fmt=json3', asr = track.kind === 'asr';
+        try {
+          const rr = await fetchT(url, { headers: { 'User-Agent': c.headers['User-Agent'] } });
+          const events = ((await rr.json()).events) || [];
+          if (events.length) return { events, asr };
+        } catch (e) {}
+        return { captionUrl: url, asr };
+      }));
+      return { tracks };
+    } catch (e) {}
+  }
   return null;
 }
 
@@ -167,12 +225,18 @@ export default async (req) => {
   const videoId = parseVideoId(body && body.url);
   if (!videoId) return jsonResponse({ error: 'bad_url', message: 'YouTube 링크를 확인해주세요.' }, 400);
 
+  // 영상과 스크립트 맞추기: 자동 자막의 단어 시간 (브라우저 VideoTranscript.alignToSpeech가 문장 시작·끝을 말소리에 맞춰요)
+  if (body.timing) {
+    const t = await speechTiming(videoId);
+    return t ? jsonResponse(t) : jsonResponse({ error: 'no_timing', message: '영상 말소리 시간을 가져오지 못했어요.' }, 422);
+  }
+
   const info = { videoId, title: '', author: '', duration: 0 };
   const oe = await oembed(videoId);
   if (oe) { info.title = oe.title || ''; info.author = oe.author_name || ''; }
   else return jsonResponse({ ...info, error: 'not_found', message: '영상을 찾을 수 없어요. 비공개이거나 삭제된 영상인지, 퍼가기가 허용된 영상인지 확인해주세요.' }, 404);
-  // 유아용(영상만 보기): 자막은 필요 없고 제목만
-  if (body.infoOnly) return jsonResponse(info);
+  // 유아용(영상만 보기): 자막은 필요 없고 제목(+ 원하면 영상 길이)만
+  if (body.infoOnly) { if (body.wantLength) info.duration = await videoLength(videoId); return jsonResponse(info); }
 
   const attempts = [];
   const supaKey = process.env.SUPADATA_API_KEY;

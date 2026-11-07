@@ -155,6 +155,105 @@ a {
   display: none;
 }
 
+/* 관리자 로그인: 메뉴(☰) 안이 아니라 머리글에 항상 보이는 작은 상자 */
+.header-admin {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border: 2px solid var(--berkeley-blue);
+  border-radius: 8px;
+  color: var(--berkeley-blue);
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.header-admin:hover {
+  background: var(--berkeley-blue);
+  color: #fff;
+}
+
+.header-admin-short {
+  display: none;
+}
+
+/* 노트북·태블릿 폭: 메뉴 글자가 다 들어가지 않아 오른쪽 버튼들이 화면 밖으로 밀려나므로 ☰ 메뉴로 바꿔요 */
+@media (min-width: 769px) and (max-width: 1360px) {
+  .site-header .site-nav {
+    display: none;
+  }
+  .site-header .menu-toggle {
+    display: flex;
+  }
+  .site-header .header-right {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-admin {
+    padding: 6px 9px;
+    font-size: 13px;
+  }
+  .header-admin-full {
+    display: none;
+  }
+  .header-admin-short {
+    display: inline;
+  }
+}
+
+/* 휴대폰: 로고·관리자·체험신청·메뉴 버튼이 한 줄에 다 들어가게 간격과 글자를 조금 줄여요 */
+@media (max-width: 420px) {
+  .site-header .header-right {
+    gap: 6px;
+  }
+  .site-header .logo-wordmark {
+    font-size: 13px;
+  }
+  .site-header .btn.header-cta {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .header-admin {
+    padding: 5px 7px;
+    font-size: 12px;
+  }
+}
+
+/* 아주 좁은 휴대폰: 로고 글자는 숨기고 로고 그림만 */
+@media (max-width: 360px) {
+  .site-header .logo-wordmark {
+    display: none;
+  }
+}
+
+/* 회원 상자가 관리자 옆에 생겨서: 넓은 PC는 같은 회원 로그인 글자를 메뉴에서 빼고, 태블릿은 짧은 이름, 휴대폰은 로고 글자를 두 줄로 */
+@media not all and (max-width: 1360px) {
+  .site-nav a[href$="member.html"] {
+    display: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .site-header .header-admin-full {
+    display: none;
+  }
+  .site-header .header-admin-short {
+    display: inline;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header .logo-wordmark {
+    white-space: normal;
+    max-width: 5.1em;
+    line-height: 1.15;
+  }
+}
+
 .menu-toggle {
   display: none;
   flex-direction: column;

@@ -4,6 +4,7 @@
 // 회원 연습 기록은 피드백 쉐도잉과 같은 곳에 setId = 'book-교재ID-u유닛번호' 로 쌓여요.
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { splitEntry } from './one-sentence.mjs';
 
 const store = () => getStore({ name: 'textbooks', consistency: 'strong' });
 const clip = (s, n) => String(s == null ? '' : s).slice(0, n);
@@ -17,7 +18,9 @@ function cleanUnits(units) {
     const out = {
       title: clip(u && u.title, 160).trim() || `Unit ${k + 1}`,
       sentences: (Array.isArray(u && u.sentences) ? u.sentences : []).slice(0, 1000)
-        .map(x => { const r = { o: clip(x && x.o, 500).trim(), ko: clip(x && x.ko, 500).trim() }; const xx = clip(x && x.x, 500).trim(); if (xx) r.x = xx; return r; }).filter(x => x.o),
+        .map(x => { const r = { o: clip(x && x.o, 500).trim(), ko: clip(x && x.ko, 500).trim() }; const xx = clip(x && x.x, 500).trim(); if (xx) r.x = xx; return r; }).filter(x => x.o)
+        // 교재 문장은 언제나 한 문장씩: . ! ? 뒤에 이어지는 문장은 다음 문장으로 (뜻은 첫 문장에 남겨요)
+        .flatMap(x => splitEntry(x).map((y, i) => { const r = { o: y.o, ko: i ? '' : x.ko }; if (y.x) r.x = y.x; return r; })).slice(0, 1500),
     };
     const words = (Array.isArray(u && u.words) ? u.words : []).map(w => clip(w, 80).trim()).filter(Boolean).slice(0, 300);
     if (words.length) out.words = words;

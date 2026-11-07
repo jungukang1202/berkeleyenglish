@@ -97,8 +97,16 @@ export async function createYoutubeLesson({ youtubeId, title, duration, sentence
 export async function listLessons() {
   const store = lessonsStore();
   const { blobs } = await store.list();
-  const recs = await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })));
-  return recs.filter(Boolean).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const all = (await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })))).filter(Boolean);
+  return sortLessons(all);
+}
+
+// 영상 순서 (운영자 지시 2026-11-03): 레벨(유아 → 1-2 → 3-4 → 5-6 → 7-9 → 레벨 없음) 안에서 영상 길이가 짧은 것부터.
+// 학생 화면·관리자 화면 모두 이 순서를 받아서 써요. 영상을 추가해도 저절로 제자리에 들어가요. 길이를 모르는 영상은 그 레벨 맨 뒤(최근에 만든 것부터).
+export function sortLessons(all) {
+  const rank = l => { const i = ['kids', '1-2', '3-4', '5-6', '7-9'].indexOf(l.level || ''); return i < 0 ? 5 : i; };
+  const len = l => { const n = (num(l.clipEnd) || num(l.duration)) - num(l.clipStart); return n > 0 ? n : Infinity; };
+  return all.sort((a, b) => rank(a) - rank(b) || (len(a) === len(b) ? 0 : len(a) - len(b)) || (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export async function getLesson(id) {
@@ -172,4 +180,16 @@ export async function deleteLesson(id) {
     await Promise.all(blobs.slice(i, i + 20).map(b => cs.delete(b.key)));
   }
   await lessonsStore().delete(id);
+}
+
+/* ---- 🎥 수업영상(엔보임 수업 녹화) 가져오기에서 쓰는 이름 (_lib/nvoim-video.mjs) ---- */
+export const CHUNK = CHUNK_SIZE;
+// 📁 녹화 파일: 정보만 먼저 만들고(업로드 미완료), 조각을 다 받은 뒤 update(status:'ready')
+export async function createFileLesson(b) {
+  const l = await createLesson({ title: b.title, mime: /^(video|audio)\//.test(String(b.mime || '')) ? b.mime : 'video/mp4', size: b.size, duration: b.duration });
+  // 수업 녹화는 그 학생에게만 (🎁 넣어 준 학생만) — '모든 회원'에게 보이지 않게
+  return updateLesson(l.id, { visibility: 'assigned', partSentences: 1, partMinutes: 0 });
+}
+export async function getChunk(id, n) {
+  return chunksStore().get(chunkKey(id, n), { type: 'arrayBuffer' });
 }

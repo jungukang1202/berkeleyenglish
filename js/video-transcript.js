@@ -127,9 +127,30 @@
     return wordsToSentences(all, duration, true);
   }
 
+  // 붙여넣은 스크립트는 자막 한 줄의 시작 시간만 정확해요. 줄 가운데서 끝나는 문장의 경계가 맞도록,
+  // 말이 쉬는 곳(. ! ? 뒤 0.4초쯤, 쉼표 뒤 0.2초쯤)까지 계산해서 줄 안의 단어 시간을 다시 나눠요.
+  function spreadWithPauses(all) {
+    const out = all.map(w => Object.assign({}, w));
+    for (let i = 0; i < out.length;) {
+      let n = i; while (n + 1 < out.length && out[i].cue != null && out[n + 1].cue === out[i].cue) n++;
+      if (out[i].cue != null && n > i) {
+        const from = out[i].s, to = out[n].e;
+        const pause = k => (k === n ? 0 : endsSentence(out[k].w) ? 7 : /[,;:]$/.test(out[k].w) ? 3 : 0);
+        const len = k => out[k].w.length + 1;
+        let total = 0; for (let k = i; k <= n; k++) total += len(k) + pause(k);
+        const unit = (to - from) / (total || 1);
+        let t = from;
+        for (let k = i; k <= n; k++) { out[k].s = t; t += len(k) * unit; out[k].e = t; t += pause(k) * unit; }
+      }
+      i = n + 1;
+    }
+    return out;
+  }
+
   // 단어 목록 → 문장. punctuated=false(YouTube 자동 자막처럼 문장부호가 없음)면 말이 쉬는 곳에서 나눕니다.
   // opts.pauseCut: AI로 문장부호를 복원한 자막이면, AI가 마침표를 놓친 곳이라도 1.2초 넘게 말이 끊기면 문장을 나눕니다.
   function wordsToSentences(all, duration, punctuated, opts = {}) {
+    all = spreadWithPauses(all);
     const groups = []; let cur = [];
     all.forEach((w, i) => {
       cur.push(w);
@@ -271,16 +292,126 @@
     cues.forEach((c, i) => {
       const t = c.text.replace(/\[[^\]]*\]/g, ' ').replace(/[♪♫]+/g, ' ').replace(/>>/g, ' ').replace(/\s+/g, ' ').trim();
       if (!t) return;
-      const natural = c.s + 1 + t.split(' ').length * 0.45; // 한 줄을 말하는 데 걸릴 만한 시간
-      const end = Math.min(cues[i + 1] ? cues[i + 1].s : natural, natural);
+      const n = t.split(' ').length;
+      const natural = c.s + 1 + n * 0.45; // 한 줄을 말하는 데 걸릴 만한 시간 (다음 줄이 없을 때)
+      // 자막 줄의 시작 시간은 정확해요. 다음 줄(또는 [Music])이 시작할 때까지 이 줄을 말하고 있다고 보고 그 사이에 단어를 고르게 나눠요.
+      // (예전엔 '단어당 0.45초'로 줄여 잡아서, 천천히 말하는 영상은 문장 끝이 잘리고 다음 문장이 앞 문장 단어부터 시작했어요)
+      // 다음 줄까지 너무 멀면(단어당 0.9초 + 1.5초 넘게) 중간에 쉬는 시간이 있다고 보고 예전처럼 잡아요.
+      const nextS = cues[i + 1] ? cues[i + 1].s : null;
+      const end = nextS == null ? natural : (nextS - c.s <= 1.5 + n * 0.9 ? Math.max(c.s + 0.3, nextS - 0.1) : Math.min(nextS, natural));
       const ws = t.split(' ');
       const total = ws.reduce((a, w) => a + w.length + 1, 0);
       let tt = c.s;
-      ws.forEach(w => { const d = Math.max(0.05, (end - c.s) * (w.length + 1) / total); words.push({ w, s: tt, e: tt + d * 0.9 }); tt += d; });
+      ws.forEach(w => { const d = Math.max(0.05, (end - c.s) * (w.length + 1) / total); words.push({ w, s: tt, e: tt + d * 0.9, cue: i }); tt += d; });
       words[words.length - 1].brk = true; // 자막 한 줄의 끝 → 문장 나눌 후보
     });
     const punctuated = words.length ? words.filter(w => /[.?!]$/.test(w.w)).length / words.length > 0.02 : false;
     return { words, punctuated, cues: cues.length };
+  }
+
+  // YouTube 자막 파일(json3) → 말소리 단어 시간 [{ n: 소문자 단어, s: 시작 }]. [Music] 같은 소리 표시는 빼요.
+  const spokenNorm = t => String(t).toLowerCase().replace(/[’‘`]/g, "'").replace(/[^a-z0-9']/g, '').replace(/^'+|'+$/g, '').replace(/'s$/, 's');
+  const spokenToks = en => String(en).replace(/[—–/-]+/g, ' ').replace(/\.(?=[a-z])/g, ' ').split(/\s+/).map(spokenNorm).filter(Boolean);
+  function captionWords(events, asr) {
+    const W = [];
+    (events || []).forEach(e => {
+      const segs = (e.segs || []).filter(x => x.utf8 && x.utf8.trim());
+      if (!asr) { // 사람 자막: 줄 단위 시간뿐이라 줄 안에 단어를 고르게 나눠요
+        const ts = spokenToks(segs.map(x => x.utf8).join(' ').replace(/\[[^\]]*\]/g, ' ').replace(/[♪♫]+/g, ' ').replace(/>>/g, ' '));
+        const d = (e.dDurationMs || 0) / 1000 / (ts.length || 1);
+        ts.forEach((n, k) => W.push({ n, s: e.tStartMs / 1000 + d * k }));
+        return;
+      }
+      segs.forEach(x => {
+        const s = (e.tStartMs + (x.tOffsetMs || 0)) / 1000;
+        x.utf8.replace(/\[[^\]]*\]/g, ' ').replace(/>>/g, ' ').replace(/[♪♫]+/g, ' ').replace(/[—–-]+/g, ' ').trim().split(/\s+/).filter(Boolean).forEach(t => { const n = spokenNorm(t); if (n) W.push({ n, s }); });
+      });
+    });
+    return W.sort((a, b) => a.s - b.s);
+  }
+
+  const editDist = (a, b) => {
+    if (Math.abs(a.length - b.length) > 2) return 9;
+    let p = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) { const c = [i]; for (let j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; }
+    return p[b.length];
+  };
+  const wordScore = (a, b) => (a === b ? 4 : (a.length > 3 && editDist(a, b) <= 1) || (a.length > 5 && editDist(a, b) <= 2) ? 2 : -3);
+
+  // 스크립트 문장을 영상의 실제 말소리 단어에 하나씩 맞춰 문장마다 시작·끝을 다시 계산해요. 글은 그대로 두고 시간만 바꿔요.
+  // 지금 시간이 조금 틀려도 앞뒤 90초 안에서 찾아요. 말소리에서 찾지 못한 문장은 시간을 그대로 두되 앞뒤 문장을 넘지 않게 해요.
+  // 반환: { sentences, matched(찾은 문장 수), missed(못 찾은 문장의 글) }
+  function alignToSpeech(sents, words, BAND = 90) {
+    const W = words, T = [];
+    sents.forEach((x, i) => spokenToks(x.en).forEach(n => T.push({ n, line: i })));
+    const A = T.length, B = W.length, GAP = -2;
+    if (!A || !B) return { sentences: sents, matched: 0, missed: sents.map(x => x.en) };
+    const lo = new Int32Array(A + 2), hi = new Int32Array(A + 2);
+    for (let i = 0, a = 0, b = 0; i < A; i++) {
+      const l = sents[T[i].line];
+      while (a < B && W[a].s < l.s - BAND) a++;
+      while (b < B && W[b].s <= l.e + BAND) b++;
+      lo[i + 1] = a; hi[i + 1] = Math.max(a, b);
+    }
+    hi[0] = lo[1];
+    let prev = new Int32Array(hi[0] + 2), R = prev;
+    const back = [new Uint8Array(prev.length).fill(2)];
+    const pv = (i, j) => (j < lo[i] || j > hi[i] ? -1e8 : prev[j - lo[i]]);
+    for (let i = 1; i <= A; i++) {
+      const n = hi[i] - lo[i] + 1, Bt = new Uint8Array(n + 1);
+      R = new Int32Array(n + 1); back[i] = Bt;
+      const lineEnd = !T[i] || T[i].line !== T[i - 1].line; // 문장과 문장 사이의 건너뛴 말소리는 깎지 않아요
+      for (let x = 0; x < n; x++) {
+        const j = lo[i] + x;
+        const d = j > 0 ? pv(i - 1, j - 1) + wordScore(T[i - 1].n, W[j - 1].n) : -1e8, u = pv(i - 1, j) + GAP, l = x > 0 ? R[x - 1] + (lineEnd ? 0 : GAP) : -1e8;
+        if (d >= u && d >= l) { R[x] = d; Bt[x] = 0; } else if (u >= l) { R[x] = u; Bt[x] = 1; } else { R[x] = l; Bt[x] = 2; }
+      }
+      prev = R;
+    }
+    let i = A, j = lo[A], best = -1e9;
+    for (let x = lo[A]; x <= hi[A]; x++) if (R[x - lo[A]] > best) { best = R[x - lo[A]]; j = x; }
+    const map = new Array(A).fill(-1);
+    while (i > 0) {
+      const x = j - lo[i], c = x >= 0 && x < back[i].length ? back[i][x] : 1;
+      if (c === 0) { if (wordScore(T[i - 1].n, W[j - 1].n) > 0) map[i - 1] = j - 1; i--; j--; } else if (c === 1) i--; else j--;
+    }
+    const per = sents.map(() => ({ n: 0, m: [] }));
+    T.forEach((t, k) => { const p = per[t.line]; if (map[k] >= 0) p.m.push({ w: map[k], at: p.n }); p.n++; });
+    const WORD = 0.3; // 맞추지 못한 앞뒤 단어 하나의 길이 어림
+    const lastLen = n => Math.min(1, Math.max(0.3, 0.2 + 0.06 * n.length)); // 문장 마지막 단어의 길이는 글자 수로 어림
+    const res = sents.map((x, k) => {
+      const p = per[k];
+      if (!p.m.length || p.m.length / p.n < 0.34) return Object.assign({}, x, { hit: false });
+      const a = p.m[0], z = p.m[p.m.length - 1], first = W[a.w], last = W[z.w], nxt = W[z.w + 1];
+      const before = p.m.length > 1 ? W[p.m[p.m.length - 2].w].s : first.s;
+      let e = last.s + lastLen(last.n) + (p.n - 1 - z.at) * WORD;
+      if (nxt) e = Math.min(e, nxt.s);
+      // 자막이 마지막 단어를 뒤 음악 속으로 밀어 둔 경우: 줄 끝 시간이 더 믿을 만해요
+      if (last.s - before > 2.2 && x.e > before && x.e < e) e = Math.max(x.e, before + 0.6);
+      return Object.assign({}, x, { s: first.s - a.at * WORD, e, hit: true });
+    });
+    res.forEach((r, k) => { // 못 찾은 문장이 앞뒤 문장을 넘지 않게
+      if (r.hit) return;
+      let p = k - 1; while (p >= 0 && !res[p].hit) p--;
+      let n = k + 1; while (n < res.length && !res[n].hit) n++;
+      const from = p >= 0 ? res[p].e : 0, to = n < res.length ? res[n].s : Infinity;
+      r.s = Math.max(r.s, from); r.e = Math.min(r.e, to);
+      if (r.e - r.s < 0.3) { r.e = Math.min(to, r.s + 0.5); if (r.e - r.s < 0.2) r.s = Math.max(from, r.e - 0.3); }
+    });
+    const LEAD = 0.12; // 첫 소리가 잘리지 않게 조금 앞에서 시작
+    const out = res.map((r, k) => {
+      const p = res[k - 1];
+      let s = r.s - LEAD;
+      if (p && s < p.e) s = Math.min(r.s, Math.max(p.e, r.s - 0.06));
+      return { s: Math.max(0, s), e: r.e, en: r.en, ko: r.ko };
+    });
+    out.forEach((r, k) => {
+      const n = out[k + 1];
+      if (n && r.e > n.s) r.e = n.s;
+      if (r.e - r.s < 0.15) r.e = r.s + 0.15;
+      r.s = +r.s.toFixed(2); r.e = +r.e.toFixed(2);
+    });
+    return { sentences: out, matched: res.filter(r => r.hit).length, missed: res.filter(r => !r.hit).map(r => r.en) };
   }
 
   function planParts(duration, sents, minutes) {
@@ -335,5 +466,5 @@
     return '';
   }
 
-  root.VideoTranscript = { SR, extractAudio, splitAudio, encodeWav, buildSentences, wordsToSentences, parsePastedTranscript, applyPunctuation, restorePunctuation, sentencesToWords, planParts, fmt, parseTime, translate };
+  root.VideoTranscript = { SR, extractAudio, splitAudio, encodeWav, buildSentences, wordsToSentences, parsePastedTranscript, captionWords, alignToSpeech, applyPunctuation, restorePunctuation, sentencesToWords, planParts, fmt, parseTime, translate };
 })(window);

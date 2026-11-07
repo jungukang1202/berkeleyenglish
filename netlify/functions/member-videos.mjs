@@ -1,10 +1,12 @@
 // 영상 쉐도잉 목록/상세 — 회원 토큰이 있으면 '회원 공개' + '전체 공개' 영상을, 없으면 '전체 공개' 영상만 보여줍니다.
 // GET /api/member-videos            → { lessons:[요약], loggedIn }
-// GET /api/member-videos?id=xxx     → { lesson:{...문장 포함}, streamUrl }
+// GET /api/member-videos?id=xxx     → { lesson:{...문장 포함}, streamUrl, counts, mic }
+//   counts / mic: { [문장 번호]: 연습한 횟수 / 따라 말한 횟수 } — 로그인한 회원만 (스크립트 문장마다 '🗣️ N번')
 import { requireAuth, jsonResponse, signToken } from './_lib/auth.mjs';
 import { listLessons, getLesson, summary } from './_lib/videos.mjs';
 import { getAccess, canSeeVideoWith } from './_lib/access.mjs';
 import { progressSummary } from './_lib/video-progress.mjs';
+import { sentenceCounts } from './_lib/practice.mjs';
 
 const STREAM_TTL = 60 * 60 * 12;
 
@@ -20,9 +22,10 @@ export default async (req) => {
     if (!canSee(lesson)) return jsonResponse({ error: !member ? 'login_required' : lesson ? 'not_assigned' : 'lesson_not_found' }, !member ? 401 : lesson ? 403 : 404);
     const { sentences, title, duration, mime, partMinutes, partSentences, description, level, youtubeId, clipStart, clipEnd, watchOnly } = lesson;
     const out = { id, title, duration, mime, partMinutes, partSentences: partSentences || 0, description, level, sentences, youtubeId: youtubeId || null, clipStart: clipStart || 0, clipEnd: clipEnd || 0, watchOnly: !!watchOnly };
-    if (youtubeId) return jsonResponse({ lesson: out, streamUrl: null });
+    const { counts, mic } = member ? await sentenceCounts(member.username, 'video-' + id).catch(() => ({ counts: {}, mic: {} })) : { counts: {}, mic: {} };
+    if (youtubeId) return jsonResponse({ lesson: out, streamUrl: null, counts, mic });
     const t = signToken({ role: 'video', vid: id }, STREAM_TTL);
-    return jsonResponse({ lesson: out, streamUrl: `/api/video-stream?id=${id}&t=${encodeURIComponent(t)}` });
+    return jsonResponse({ lesson: out, streamUrl: `/api/video-stream?id=${id}&t=${encodeURIComponent(t)}`, counts, mic });
   }
 
   // 다른 학생 이름은 보내지 않아요

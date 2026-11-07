@@ -316,14 +316,14 @@
     try {
       setStatus('YouTube 영상을 확인하는 중…');
       setBar('vidTr', 0.3, '영상 정보 확인 중…');
-      const r = await fetch(VAPI.youtube, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId, infoOnly: true }) });
+      const r = await fetch(VAPI.youtube, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId, infoOnly: true, wantLength: true }) });
       const d = await r.json().catch(() => ({}));
       if (r.status === 401) { clearToken(); showLogin(); throw new Error('세션이 만료됐어요. 다시 로그인해주세요.'); }
       if (!r.ok) throw new Error(d.message || d.error || ('HTTP ' + r.status));
       await checkpoint();
       setBar('vidTr', 0.8, '저장 중…');
       const lesson = (await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({
-        action: 'create_youtube', youtubeId: videoId, title: $('vidTitle').value.trim() || d.title, duration: 0,
+        action: 'create_youtube', youtubeId: videoId, title: $('vidTitle').value.trim() || d.title, duration: d.duration || 0,
         clipStart, clipEnd: clipEndIn || 0, watchOnly: true, visibility: $('vidVisibility').value, level: 'kids',
       }) })).lesson;
       setBar('vidTr', 1, '완료');
@@ -397,6 +397,29 @@
     return d;
   }
 
+  // 영상 말소리에 문장 맞추기 — YouTube 영상을 만들거나 문장을 다시 만들 때마다 꼭 거쳐요 (글은 그대로, 시간만 말소리에 맞게).
+  // 반환: { sentences, note } (note: 결과를 알려 주는 문구). 단어 시간을 못 받으면 문장은 그대로 두고 note로 알려요.
+  async function matchToSpeech(sents, videoId, clipStart, clipEnd) {
+    let d = {};
+    try {
+      const r = await fetch(VAPI.youtube, { method: 'POST', signal: sig(), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() }, body: JSON.stringify({ url: videoId, timing: true }) });
+      if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
+      d = await r.json().catch(() => ({}));
+      for (const t of d.tracks || []) if (!t.events && t.captionUrl) { try { t.events = ((await (await fetch(t.captionUrl, { signal: sig() })).json()).events) || []; } catch (e) { if (isCancelled(e)) throw e; } }
+    } catch (e) { if (isCancelled(e) || /세션/.test(e.message)) throw e; }
+    // 자동 자막·사람 자막으로 각각 맞춰 보고 더 잘 맞는 쪽을 써요. 영상과 시간대가 다른 자막(문장이 5초 넘게 밀림)은 쓰지 않아요.
+    const tries = (d.tracks || []).map(t => {
+      const words = VT.captionWords(t.events, t.asr).filter(w => w.s >= (clipStart || 0) - 2 && (!clipEnd || w.s < clipEnd + 2));
+      const r = VT.alignToSpeech(sents, words);
+      r.far = r.sentences.filter((x, i) => Math.abs(x.s - sents[i].s) > 5).length;
+      return r;
+    }).filter(r => r.matched && r.far <= sents.length * 0.1).sort((a, b) => b.matched - a.matched);
+    if (!tries.length) return { sentences: sents, note: ' ⚠️ 영상 말소리 시간을 가져오지 못해 문장 시간은 추정값이에요. 잠시 뒤 편집 화면의 「🔄 자막 다시 가져오기」나 스크립트 붙여넣기로 다시 맞춰 주세요.', ok: false };
+    const r = tries[0];
+    return { sentences: Object.assign(r.sentences, { changed: sents.changed, dropped: sents.dropped }), ok: true,
+      note: ` 🎯 영상 말소리에 ${r.matched}/${sents.length}문장을 맞췄어요.` + (r.missed.length ? ` ⚠️ 말소리에서 찾지 못한 ${r.missed.length}문장: "${r.missed.slice(0, 3).join('" · "')}"${r.missed.length > 3 ? ' …' : ''}` : '') };
+  }
+
   async function startYoutube() {
     const videoId = parseYoutubeId($('ytUrl').value);
     if (!videoId) { setStatus('⚠️ YouTube 링크를 붙여넣어 주세요. (예: https://www.youtube.com/watch?v=...)', 'error'); return; }
@@ -462,6 +485,10 @@
         introDropped = sentences.dropped || 0;
       }
       await checkpoint();
+      setBar('vidTr', 0.74, '영상 말소리에 문장을 맞추는 중…');
+      const matched = await matchToSpeech(sentences, videoId, clipStart, clipEnd);
+      sentences = matched.sentences;
+      await checkpoint();
       if ($('vidTranslate').checked) {
         trFail = await translateAll(sentences, f => setBar('vidTr', 0.75 + f * 0.2, `한국어 번역 중… ${Math.round(f * 100)}%`));
       }
@@ -472,7 +499,7 @@
         clipStart, clipEnd, sentences, ...partFields($('vidParts').value), visibility: $('vidVisibility').value, track, level: $('vidLevel').value,
       }) })).lesson;
       setBar('vidTr', 1, `완료 — 문장 ${sentences.length}개`);
-      setStatus(`✅ 완료! "${lesson.title}" — 문장 ${sentences.length}개로 쉐도잉을 만들었어요.${fixed ? ` (✨ AI가 ${fixed}문장을 고쳤어요)` : ''}${introDropped ? ` (맨 앞 제목 ${introDropped}줄은 뺐어요)` : ''} 아래에서 확인·수정하세요.` + captionNote(track.kind) + trWarn(trFail), track.kind === 'human' ? 'success' : '');
+      setStatus(`✅ 완료! "${lesson.title}" — 문장 ${sentences.length}개로 쉐도잉을 만들었어요.${fixed ? ` (✨ AI가 ${fixed}문장을 고쳤어요)` : ''}${introDropped ? ` (맨 앞 제목 ${introDropped}줄은 뺐어요)` : ''} 아래에서 확인·수정하세요.` + matched.note + captionNote(track.kind) + trWarn(trFail), track.kind === 'human' && matched.ok ? 'success' : '');
       $('ytUrl').value = ''; $('ytStart').value = ''; $('ytEnd').value = ''; $('ytPaste').value = ''; $('vidTitle').value = '';
       await loadLessons();
       openEditor(lesson);
@@ -763,7 +790,14 @@
     const i = +b.closest('.ved-row').dataset.i;
     syncFromInputs();
     const S = editing.sentences;
-    const playIt = k => { if (!media) return; media.currentTime = S[k].s; stopAt = S[k].e; const p = media.play(); if (p && p.catch) p.catch(() => {}); };
+    // 학생 화면과 같은 규칙: 앞 문장 소리 없이 시작하고, 문장 끝이 잘리지 않게 멈춰요 (yt-media.js SentenceClip)
+    const playIt = async k => {
+      if (!media) return;
+      const clip = SentenceClip.of(S, k);
+      stopAt = null; media.pause();
+      await SentenceClip.seek(media, clip.start);
+      stopAt = clip.end; const p = media.play(); if (p && p.catch) p.catch(() => {});
+    };
     if (b.dataset.sact === 'play') { playIt(i); return; }
     if (b.dataset.sact === 'adj') { b.closest('.ved-row').querySelector('.ved-adj').classList.toggle('hidden'); return; }
     if (/^[se][+-]$/.test(b.dataset.sact)) {
@@ -820,6 +854,12 @@
     b.textContent = '🌐 빈 번역 채우기'; b.disabled = false;
     renderSentences();
   });
+  // 편집 화면에서 문장을 새로 만들 때도 영상 말소리에 맞춰요 (직접 올린 영상은 받아쓰기 시간이 이미 단어 단위예요)
+  async function editorMatch(sents, st) {
+    if (!editing.youtubeId) return { sentences: sents, note: '' };
+    st.textContent = '영상 말소리에 문장을 맞추는 중…';
+    return matchToSpeech(sents, editing.youtubeId, editing.clipStart || 0, editing.clipEnd || 0);
+  }
   $('vedFix').addEventListener('click', async () => {
     syncFromInputs();
     if (!editing.sentences.length) return;
@@ -829,10 +869,11 @@
     try {
       const before = editing.sentences.length;
       const next = await fixSentences(editing.sentences, f => { st.textContent = `AI가 틀린 문장을 고치는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
-      editing.sentences = next;
+      const m = await editorMatch(next, st);
+      editing.sentences = m.sentences;
       await translateAll(editing.sentences, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
       renderSentences();
-      st.textContent = `✅ ${next.changed || 0}문장을 고쳤어요 (${before}개 → ${next.length}개 문장). 확인 후 💾 저장을 눌러주세요.`; st.className = 'status success';
+      st.textContent = `✅ ${next.changed || 0}문장을 고쳤어요 (${before}개 → ${next.length}개 문장). 확인 후 💾 저장을 눌러주세요.` + m.note; st.className = 'status success';
     } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
     b.disabled = false;
   });
@@ -848,10 +889,11 @@
       const end = editing.clipEnd || editing.duration || editing.sentences.at(-1).e;
       const next = await smartSentences(words, end, false, f => { st.textContent = `AI가 문장을 다시 나누는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
       const before = editing.sentences.length;
-      editing.sentences = next;
+      const m = await editorMatch(next, st);
+      editing.sentences = m.sentences;
       await translateAll(editing.sentences, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
       renderSentences();
-      st.textContent = `✅ ${before}개 → ${next.length}개 문장으로 다시 나눴어요. 확인 후 💾 저장을 눌러주세요.`; st.className = 'status success';
+      st.textContent = `✅ ${before}개 → ${next.length}개 문장으로 다시 나눴어요. 확인 후 💾 저장을 눌러주세요.` + m.note; st.className = 'status success';
     } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
     b.disabled = false;
   });
@@ -870,11 +912,13 @@
       let next = await smartSentences(inClip, ce || d.duration || editing.duration, d.punctuated, f => { st.textContent = `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value || d.title);
       next = next.filter(s => s.s >= cs - 0.5);
       if (cs) next.forEach(s => { s.s = Math.max(s.s, cs); });
+      const m = await editorMatch(next, st);
+      next = m.sentences;
       await translateAll(next, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
       editing.sentences = next;
       editing.caption = captionKind(d.track, d.punctuated); editing.captionChanged = true; showCaptionInfo();
       renderSentences();
-      st.textContent = `✅ 문장 ${next.length}개로 새로 만들었어요. ▶로 몇 문장 들어보고 💾 저장을 눌러주세요.` + captionNote(editing.caption); st.className = 'status success';
+      st.textContent = `✅ 문장 ${next.length}개로 새로 만들었어요. ▶로 몇 문장 들어보고 💾 저장을 눌러주세요.` + m.note + captionNote(editing.caption); st.className = 'status success';
     } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
     b.disabled = false;
   });
@@ -903,12 +947,14 @@
         f => { st.textContent = `AI가 문장부호를 붙이는 중… ${Math.round(f * 100)}%`; }, $('vedTitle').value);
       next = next.filter(x => x.s >= cs - 0.5);
       if (cs) next.forEach(x => { x.s = Math.max(x.s, cs); });
+      const m = await editorMatch(next, st);
+      next = m.sentences;
       const fail = await translateAll(next, f => { st.textContent = `번역 중… ${Math.round(f * 100)}%`; });
       editing.sentences = next;
       editing.caption = p.punctuated ? 'human' : 'auto'; editing.captionChanged = true; showCaptionInfo();
       $('vedPasteBox').classList.add('hidden');
       renderSentences();
-      st.textContent = `✅ 붙여넣은 스크립트로 문장 ${next.length}개를 만들었어요. 확인 후 💾 저장을 눌러주세요.` + trWarn(fail); st.className = 'status success';
+      st.textContent = `✅ 붙여넣은 스크립트로 문장 ${next.length}개를 만들었어요. 확인 후 💾 저장을 눌러주세요.` + m.note + trWarn(fail); st.className = 'status success';
     } catch (e) { st.textContent = '⚠️ ' + e.message; st.className = 'status error'; }
     b.disabled = false;
   });

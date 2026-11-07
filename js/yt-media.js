@@ -82,4 +82,46 @@
     destroy() { try { this.player.destroy(); } catch (e) {} }
   }
   root.YTMedia = YTMedia;
+
+  /* 영상 쉐도잉 문장 재생 규칙 (운영자 지시 2026-10-31 · 11-02) — 학생 화면·관리자 편집기가 같이 쓰고, 영상을 추가해도 그대로예요.
+   *   ① 한 문장을 온전히 끝까지: 문장 끝 시간 뒤로 여유를 두고, 기기의 소리 늦음까지 더해서 멈춰요.
+   *   ② 앞 문장 단어가 들리지 않게: 영상을 문장 시작으로 먼저 옮기고, 옮겨진 것을 확인한 뒤에야 재생해요.
+   *      앞 문장과 시간이 붙어 있으면 앞 문장이 끝나는 곳과 다음 문장이 시작하는 곳을 같은 경계로 잡아서,
+   *      비는 소리도 겹치는 소리도 없어요. (YouTube는 멈춤 명령을 보내면 바로 멈춰요: 재 보니 0.006초)
+   *   문장 시간은 첫 단어보다 0.15초 앞에서 시작하고 다음 문장 첫 단어 +0.05초까지로 저장돼요(video-transcript.js).
+   *   그래서 시간이 겹친 두 문장의 진짜 경계는 '다음 문장 시작 + 0.15초'예요. */
+  const TAIL = 0.35;    // 문장 끝 시간 뒤 여유(마지막 단어 끝소리)
+  const LAST = 0.5;     // 영상의 마지막 문장은 조금 더
+  const LEAD = 0.15;    // 저장된 문장 시작 시간과 첫 단어 사이
+  const LAG = navigator.maxTouchPoints > 0 ? 0.15 : 0.05; // 태블릿·휴대폰·블루투스는 소리가 영상 시간보다 늦게 나와요
+  const meet = (a, b) => { // 두 문장 사이에 충분히 쉬는 틈이 없으면 경계 시간, 있으면 null
+    if (!a || !b || a.e + TAIL <= b.s) return null;
+    if (a.e <= b.s) return b.s;
+    return Math.min(Math.max(b.s + LEAD, a.e - 0.05), b.s + Math.max(0.2, (b.e - b.s) / 2));
+  };
+  const position = m => (m.isYouTube ? (m.player && m.player.getCurrentTime ? m.player.getCurrentTime() || 0 : 0) : m.currentTime);
+  root.SentenceClip = {
+    // all: 영상의 모든 문장, i: 문장 번호 → { start, end } (재생을 시작할 시간, 멈춤 명령을 보낼 시간)
+    of(all, i) {
+      const s = all[i]; const before = meet(all[i - 1], s); const after = meet(s, all[i + 1]);
+      const start = before != null ? before : s.s;
+      const stop = (after != null ? after : s.e + (all[i + 1] ? TAIL : LAST)) + LAG;
+      return { start, end: Math.max(stop, start + 0.2) };
+    },
+    // 멈춰 있는 영상을 소리 없이 문장 시작으로 미리 옮겨 둬요 (아직 재생 전인 YouTube는 옮기면 바로 재생되므로 그대로 둬요)
+    cue(media, t) {
+      if (media.isYouTube && media._state !== 2 && media._state !== 0) return;
+      if (Math.abs(position(media) - t) > 0.03) media.currentTime = t;
+    },
+    // t로 옮기고, 실제로 옮겨질 때까지 기다려요. 아직 재생 전인 YouTube는 앞에 들을 소리가 없어서 바로 넘어가요.
+    async seek(media, t) {
+      if (Math.abs(position(media) - t) > 0.03) media.currentTime = t;
+      if (media.isYouTube && media._state !== 2 && media._state !== 0) return;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 1000) {
+        if (Math.abs(position(media) - t) < 0.25 && !media.seeking) return;
+        await new Promise(r => setTimeout(r, 30));
+      }
+    },
+  };
 })(window);

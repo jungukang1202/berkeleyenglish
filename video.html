@@ -107,6 +107,14 @@
   body.has-today-bar .script-card{max-height:calc(100vh - 64px);}
   .left{position:sticky; top:12px; align-self:start; display:flex; flex-direction:column; gap:12px;}
   @media (max-width:940px){ .left{position:static;} }
+  /* 휴대폰·태블릿: 문장마다 연습할 때 영상(+지금 문장·점수) 카드가 화면 위에 고정돼요 (PC는 왼쪽 칸 전체가 이미 고정) */
+  @media (max-width:940px){
+    .left{display:contents;}
+    .left > .card:first-child{position:sticky; top:0; z-index:30; box-shadow:0 8px 16px -8px rgba(27,42,78,0.35);}
+    body.has-today-bar .left > .card:first-child{top:var(--today-bar-h, 52px);}
+    .vbox video, .yt-frame{max-height:30vh;}
+    .s{scroll-margin-top:calc(var(--today-bar-h, 0px) + var(--pin-h, 360px) + 8px);} /* 지금 문장이 고정 카드 아래에 보이게 */
+  }
   .topline{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
   .topline h2{margin:0; font-size:1.08rem; color:var(--text); flex:1; min-width:200px;}
   select.sel{background:var(--input-bg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:0.9rem; color:var(--text);}
@@ -121,6 +129,7 @@
   /* YouTube는 플레이어를 숨기면 안 돼서, 소리만 모드에서는 작게 줄여서 보여줍니다 */
   body.audio-only .vbox.yt{padding:12px;}
   body.audio-only .vbox.yt .yt-frame{width:260px; max-width:100%; aspect-ratio:auto; height:200px; border-radius:10px; overflow:hidden;}
+  .big.under-video{padding:10px 18px 0;}
   .now{padding:14px 18px 16px;}
   .now .meta{display:flex; justify-content:space-between; color:var(--muted); font-size:0.8rem; margin-bottom:4px;}
   .now .en{font-family:Georgia,"Times New Roman",serif; font-size:1.45rem; line-height:1.4; color:var(--text); min-height:1.4em;}
@@ -182,7 +191,9 @@
   .script-head .mini{border:0; background:none; color:var(--muted); font-size:0.75rem; cursor:pointer; text-decoration:underline; margin-left:8px; padding:0;}
   .lesson .meta .bm{color:#C27C0E; font-weight:800;}
   .s .e{font-size:0.98rem; color:var(--text); line-height:1.45;}
-  .s .k{color:#1565C0; font-weight:700; font-size:0.86rem; margin-top:2px;} /* 스크립트의 한글 뜻: 눈에 잘 띄는 파란색 */
+  .s .k{color:#1565C0; font-weight:700; font-size:0.86rem; margin-top:2px;}   /* 스크립트의 한글 뜻: 눈에 잘 띄는 파란색 */
+  .s .rc{font-size:0.76rem; font-weight:800; color:#2E7D32; margin-top:3px;}   /* 문장마다 따라 말한 횟수 */
+  .s .rc.zero{color:var(--muted); font-weight:700;}
   .s .sc, .bm-bar .sc{font-size:0.72rem; font-weight:800; padding:1px 7px; border-radius:999px; margin-left:4px; vertical-align:1px;}
   /* 문장마다 마지막으로 따라 말한 결과: 잘못 발음한(빠뜨린) 단어 · 더 말한 단어 · 내가 말한 문장 */
   .s .rv, .bm-bar .rv{margin-top:6px; font-size:0.8rem; line-height:1.9; color:#111; font-weight:700;}
@@ -280,6 +291,12 @@
             <video id="v" playsinline preload="metadata"></video>
             <div class="audio-note">🎧 소리만 듣기 모드 — 자막에 집중해 보세요</div>
           </div>
+          <div class="big under-video">
+            <button class="btn" id="prev" title="이전 문장 (←)">◀</button>
+            <button class="btn primary" id="go">▶ 연습 시작</button>
+            <button class="btn" id="again" title="이 문장 다시 (R)">↻</button>
+            <button class="btn" id="next" title="다음 문장 (→)">▶</button>
+          </div>
           <div class="now">
             <div class="meta"><span id="nowIdx">—</span><span id="nowTime"></span></div>
             <div class="en" id="nowEn"></div>
@@ -317,12 +334,6 @@
           <div class="row" id="recRow">
             <label class="chk" title="피드백 쉐도잉과 같은 방식: 따라 말한 소리를 알아듣고 원문과 단어별로 비교해 일치도(%)와 잘못 발음한 단어를 보여줘요"><input type="checkbox" id="grade"> 💯 따라 말하면 일치도(%) · 잘못 발음한 단어 알려주기</label>
           </div>
-          <div class="big">
-            <button class="btn" id="prev" title="이전 문장 (←)">◀</button>
-            <button class="btn primary" id="go">▶ 연습 시작</button>
-            <button class="btn" id="again" title="이 문장 다시 (R)">↻</button>
-            <button class="btn" id="next" title="다음 문장 (→)">▶</button>
-          </div>
           <div class="hint"><kbd>Space</kbd> 시작/정지 · <kbd>←</kbd><kbd>→</kbd> 문장 이동 · <kbd>R</kbd> 다시 · <kbd>M</kbd> 따라 말하고 채점 · <kbd>H</kbd> 숨긴 자막 잠깐 보기 · 문장을 누르면 거기서부터 · 단어를 누르면 사전</div>
         </div>
       </div>
@@ -338,8 +349,8 @@
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/shadowing-engine.js?v=20261028d"></script>
-<script src="js/yt-media.js?v=20261019f"></script>
+<script src="js/shadowing-engine.js?v=20261107a"></script>
+<script src="js/yt-media.js?v=20261107a"></script>
 <script src="js/study-time.js?v=20261023c"></script>
 <script>
 (function () {
@@ -366,6 +377,10 @@ function practiceOn() { return !ADMIN && !!LS.raw('shadowing_member_token') && !
 function logAttempt(s, rec) {
   if (!practiceOn() || !s) return;
   pq.push(Object.assign({ at: new Date().toISOString(), type: 'sentence', idx: s.i, target: s.en, session: pSession || 'v' }, rec));
+  if (rec && rec.mode === 'mic') { // 따라 말한 횟수 바로 올리기
+    micCounts[s.i] = (micCounts[s.i] || 0) + 1;
+    document.querySelectorAll(`[data-rc="${s.i}"]`).forEach(el => { el.outerHTML = rcHtml(s); });
+  }
   if (pq.length >= 20) flushPractice(); else { clearTimeout(pTimer); pTimer = setTimeout(flushPractice, 5000); }
 }
 async function flushPractice(keepalive) {
@@ -417,7 +432,10 @@ async function showLibrary() {
     // '전체 보기'는 레벨 순서(👶 유아 → Lv 1-2 → 3-4 → 5-6 → 7-9 → 레벨 없음)로, 같은 레벨 안에서는 원래 순서 그대로
     const LV_ORDER = ['kids', '1-2', '3-4', '5-6', '7-9'];
     const lvRank = v => { const i = LV_ORDER.indexOf(v.level || ''); return i < 0 ? LV_ORDER.length : i; };
-    const L = myLv === 'all' ? ALL.slice().sort((a, b) => lvRank(a) - lvRank(b)) : ALL.filter(v => v.level === myLv);
+    // 다 공부한 영상은 맨 뒤로
+    const doneOf = v => Math.max((LS.get('vs:' + v.id + ':done', []) || []).length, ((d.progress || {})[v.id] || {}).done || 0);
+    const finished = v => !v.watchOnly && v.sentenceCount > 0 && doneOf(v) >= v.sentenceCount;
+    const L = (myLv === 'all' ? ALL.slice().sort((a, b) => lvRank(a) - lvRank(b)) : ALL.filter(v => v.level === myLv)).sort((a, b) => finished(a) - finished(b));
     if (!L.length && ALL.length) { $('#lib').innerHTML = `<div class="empty">${myLv === 'kids' ? '유아' : 'Lv ' + esc(myLv)} 영상이 아직 없어요. 다른 레벨이나 '전체 보기'를 눌러 보세요.</div>`; return; }
     if (!L.length) { $('#lib').innerHTML = `<div class="empty">${d.loggedIn ? '아직 올라온 영상이 없어요.' : '공개된 영상이 없어요. 회원 로그인을 해주세요.'}</div>`; return; }
     $('#lib').innerHTML = L.map(v => {
@@ -592,6 +610,10 @@ let stopAt = null, onReach = null, timers = [], countdown = null;
 // 문장 재생 감시: 영상이 문장 시작으로 '실제로' 옮겨진 것을 확인한 뒤에만 끝 지점을 봅니다.
 let segFrom = 0, segArmed = false, segAt = 0, segRetry = 0;
 const recs = {}, scores = {};
+let micCounts = {}; // 스크립트 문장마다 따라 말한 횟수 { [문장 번호]: 횟수 } — 서버에서 받아 오고, 따라 말할 때마다 바로 올려요
+const rcHtml = s => { const n = micCounts[s.i] || 0; return `<div class="rc${n ? '' : ' zero'}" data-rc="${s.i}">🗣️ 따라 말한 횟수 ${n}번</div>`; };
+// 🎥 수업영상쉐도잉(엔보임 수업 녹화로 만든 영상)인지 — 학생은 /api/member-lesson-videos, 관리자 연습 화면은 주소의 lesson=1
+let isLessonRec = false;
 let review = {}; // 문장(i)별 마지막 따라 말하기 결과 { score, miss:[잘못 발음·빠뜨린 단어], extra:[더 말한 단어], heard, at } — 이 기기에 저장
 
 async function showPlayer(id) {
@@ -606,6 +628,9 @@ async function showPlayer(id) {
     return;
   }
   D = d.lesson; KEY = 'vs:' + D.id + ':'; window.__lessonId = D.id;
+  isLessonRec = params.get('lesson') === '1';
+  if (!ADMIN && MEMBER_TOKEN && !isLessonRec) { try { isLessonRec = ((await api('/api/member-lesson-videos', MEMBER_TOKEN)).ids || []).includes(D.id); } catch (e) {} }
+  micCounts = Object.assign({}, d.mic || {});
   if (D.watchOnly) { $('#lessonTitle').textContent = D.title; return showWatch(D, d.streamUrl); }
   document.title = D.title + ' | 영상 쉐도잉';
   $('#lessonTitle').textContent = D.title;
@@ -616,7 +641,13 @@ async function showPlayer(id) {
     if (old) LS.set('vs:settings', Object.assign(old, { ko: true, cue: true, rec: true, grade: true }));
     LS.set('vs:defaultsV', 2);
   }
-  S = Object.assign({ mode: 'shadow', reps: 2, rate: 1, wait: 1.5, text: 'show', ko: true, rec: true, grade: true, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
+  // 반복 횟수 기본값은 5회 — 예전에 저장된 설정도 한 번은 5회로 맞추고, 그 뒤로는 학생이 고른 대로 기억해요
+  if (LS.get('vs:defaultsV', 0) < 3) {
+    const old = LS.get('vs:settings', null);
+    if (old) LS.set('vs:settings', Object.assign(old, { reps: 5 }));
+    LS.set('vs:defaultsV', 3);
+  }
+  S = Object.assign({ mode: 'shadow', reps: 5, rate: 1, wait: 1.5, text: 'show', ko: true, rec: true, grade: true, cue: true, view: D.mime && D.mime.startsWith('audio') ? 'audio' : 'video', part: 0 }, LS.get('vs:settings', {}), LS.get(KEY + 'pos', {}));
   if (S.mode !== 'listen') S.mode = 'shadow'; // 예전 '에코잉' 모드는 이제 쉐도잉 안에 들어 있어요
   S.rec = false; S.grade = true; // 내 목소리 녹음은 뺐어요 · 따라 말하면 늘 일치도(%)·틀린 단어를 보여줘요
   if (D.mime && D.mime.startsWith('audio')) { S.view = 'audio'; $('#viewMode').parentElement.style.display = 'none'; }
@@ -792,7 +823,7 @@ function renderList() {
   $('#list').innerHTML = list.map((s, k) => `
     <div class="s${done.has(s.i) ? ' done' : ''}${bm && bm.i === s.i ? ' bm' : ''}" data-k="${k}">
       <div class="t">${fmt(s.s)}</div>
-      <div><div class="e">${wordsHtml(s.en)}${scores[s.i] != null ? `<span class="sc ${scoreClass(scores[s.i])}">${scores[s.i]}%</span>` : ''}</div>${s.ko ? `<div class="k">${esc(s.ko)}</div>` : ''}${reviewHtml(s)}</div>
+      <div><div class="e">${wordsHtml(s.en)}${scores[s.i] != null ? `<span class="sc ${scoreClass(scores[s.i])}">${scores[s.i]}%</span>` : ''}</div>${s.ko ? `<div class="k">${esc(s.ko)}</div>` : ''}${practiceOn() ? rcHtml(s) : ''}${reviewHtml(s)}</div>
       <div class="acts">
         <button data-a="play" title="이 문장 듣기">▶</button>
         <button data-a="rec" title="이 문장 따라 말하고 채점 (일치도 · 잘못 발음한 단어)">🎙</button>
@@ -816,7 +847,13 @@ function setCurrent(k, scroll = true) {
   cur = Math.max(0, Math.min(list.length - 1, k));
   document.querySelectorAll('.s.cur').forEach(e => e.classList.remove('cur'));
   const el = rowEl(cur);
-  if (el) { el.classList.add('cur'); if (scroll) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  if (el) {
+    el.classList.add('cur');
+    // 휴대폰·태블릿은 영상 카드가 위에 고정돼 있어서, 그 높이만큼 비워 두고 지금 문장을 보여줘요
+    const pin = document.querySelector('.left > .card');
+    if (pin) document.body.style.setProperty('--pin-h', pin.offsetHeight + 'px');
+    if (scroll) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
   const s = list[cur];
   $('#nowEn').innerHTML = wordsHtml(s.en);
   $('#nowKo').textContent = s.ko || '';
@@ -841,13 +878,23 @@ function clearTimers() { timers.forEach(clearTimeout); timers = []; if (countdow
 
 // 문장 하나를 끝까지 들으면 '공부함' + 책갈피
 const heard = k => () => { setPill('대기'); markDone(list[k]); };
-function playSentence(k, cb) {
+const clipOf = s => SentenceClip.of(D.sentences, s.i);
+let clipRun = 0, clipPlayed = false; // 새 문장을 틀거나 멈추면 기다리던 재생은 취소돼요
+async function playSentence(k, cb) {
   const s = list[k]; if (!s) return;
   setCurrent(k);
+  const me = ++clipRun; stopAt = null; onReach = null;
+  v.pause();
   v.playbackRate = S.rate;
-  v.currentTime = s.s;
-  stopAt = s.e; onReach = cb || null;
-  segFrom = s.s; segArmed = false; segAt = performance.now(); segRetry = 0;
+  // 한 문장을 끝까지, 앞 문장 소리 없이: 시작으로 옮겨진 뒤에 재생하고, 문장 끝이 잘리지 않을 때 멈춰요 (규칙은 yt-media.js SentenceClip)
+  const clip = clipOf(s);
+  // 맨 처음 재생은 앞에 들을 소리가 없고, 휴대폰은 누른 순간에 바로 재생해야 해서 기다리지 않아요
+  if (clipPlayed) await SentenceClip.seek(v, clip.start); else v.currentTime = clip.start;
+  clipPlayed = true;
+  if (me !== clipRun) return;
+  stopAt = clip.end;
+  onReach = cb || null;
+  segFrom = clip.start; segArmed = false; segAt = performance.now(); segRetry = 0;
   const p = v.play(); if (p) p.catch(() => toast(v.isYouTube ? '영상 화면을 한 번 눌러 재생한 뒤, 다시 ▶ 연습 시작을 눌러주세요' : '▶ 버튼을 한 번 더 눌러주세요 (브라우저 자동재생 제한)'));
 }
 // 문장 끝에서 멈춘 직후 잠깐은 영상이 조금 더 흘러가도 화면이 다음 문장으로 넘어가지 않게 잡아 둡니다.
@@ -959,7 +1006,7 @@ function start() {
   step();
 }
 function stop(msg) {
-  running = false; runId++; setTimeout(() => flushPractice(), 0);
+  running = false; runId++; clipRun++; setTimeout(() => flushPractice(), 0);
   try { window.ShadowingEngine && ShadowingEngine.stopListening(); } catch (e) {} clearTimers(); stopAt = null; onReach = null; v.pause();
   if (recorder && recorder.state === 'recording') recorder.stop();
   $('#go').textContent = '▶ 연습 시작'; $('#go').classList.remove('dark');
@@ -980,6 +1027,7 @@ function step() {
   // 쉐도잉 = ① 원어민 소리와 '동시에' 따라 말하기(쉐도잉) → ② 삐 소리 뒤 멈춘 시간에 혼자 한 번 더(에코잉)
   // 녹음·채점은 ② 에코잉에서 해요 (원어민 소리가 섞이지 않아 더 정확해요)
   setPill('🔔 곧 시작 · 같이 말할 준비', 'go');
+  SentenceClip.cue(v, clipOf(s).start); // 띵동이 울리는 동안 문장 시작으로 미리 옮겨 둬요
   dingDong().then(async () => {
   if (!running || myRun !== runId) return;
   setPill('① 같이 말하세요 🗣 (쉐도잉)', 'go');
@@ -987,6 +1035,20 @@ function step() {
     if (!running) return;
     markDone(s); // 원어민 소리를 끝까지 들은 순간 '공부함'·책갈피
     // ② 에코잉: 혼자 따라 말할 시간 — 삐는 마이크가 켜져 "지금 말하세요!"가 뜰 때 나요
+    if (S.grade && isLessonRec) {
+      // 🎥 수업영상쉐도잉: 영상 문장이 끝나고 0.2초 뒤 「● 지금 말하세요!」와 삐, 마이크도 그때 바로 켜요(운영자 지시 2026-11-03, 모든 기기)
+      //   삐 소리가 끝난 뒤부터 목소리 끝을 재요 — 채점 규칙(quietNeedMs)은 그대로
+      setPill('② 따라 말하세요 🗣 (에코잉 · 말이 끝나면 자동 채점)', 'rec'); setBar(1);
+      await new Promise(r => later(r, 200));
+      if (!running || myRun !== runId) return;
+      setPill('● 지금 말하세요! 🗣', 'rec');
+      const beeped = beep();
+      const res = await listenAndGrade(s, null, () => beeped);
+      if (!running || myRun !== runId) return;
+      const mr = micRecord(res, rep + 1, S.reps); if (mr) { logAttempt(s, mr); repLogged = true; }
+      later(afterRep, 0);
+      return;
+    }
     if (S.grade) {
       setPill('② 따라 말하세요 🗣 (에코잉 · 말이 끝나면 자동 채점)', 'rec'); setBar(1);
       const g0 = performance.now();
@@ -1024,7 +1086,7 @@ function afterRep() {
 function jump(k) {
   if (!list.length) return;
   k = Math.max(0, Math.min(list.length - 1, k));
-  if (running) { clearTimers(); runId++; stopAt = null; onReach = null; if (recorder && recorder.state === 'recording') recorder.stop(); cur = k; rep = 0; setCurrent(k); step(); }
+  if (running) { clearTimers(); runId++; clipRun++; stopAt = null; onReach = null; if (recorder && recorder.state === 'recording') recorder.stop(); cur = k; rep = 0; setCurrent(k); step(); }
   else playSentence(k, heard(k));
 }
 function buildPartsLabels() { const keep = $('#part').value; buildParts(); $('#part').value = keep; }
@@ -1073,10 +1135,12 @@ function showScore(s, res) {
   box.innerHTML = `<b class="badge ${scoreClass(res.score)}">일치도 ${res.score}%</b><div class="heard">👂 인식된 발음${repTxt}: "${esc(res.heard)}"</div><div class="word-compare">${res.html}</div><div class="heard" style="font-size:.78rem"><span class="w-ok">초록</span> 맞게 말한 단어 · <span class="w-miss">빨강 줄</span> 빠뜨리거나 잘못 발음한 단어 · <span class="w-extra">주황</span> 더 말한 단어</div>`;
   box.classList.remove('hidden');
 }
-async function listenAndGrade(s, onReady) {
+async function listenAndGrade(s, onReady, beepFn) {
   if (!window.ShadowingEngine || !ShadowingEngine.listenAndScore) return { ok: false, error: 'no-engine', message: '채점 기능을 불러오지 못했어요. 새로고침해 주세요.' };
-  // 마이크가 켜져 "지금 말하세요!"가 뜨는 순간 삐(신호음 켰을 때), 학생 목소리가 멈추고 1초 뒤 채점
-  const res = await ShadowingEngine.listenAndScore(s.en, { noBeep: true, beepOnReady: true, beepFn: () => beep(), silenceMs: 1000, onReady });
+  // 마이크가 켜져 "지금 말하세요!"가 뜨는 순간 삐(신호음 켰을 때). 학생이 문장을 끝까지 말할 수 있게 기다렸다가,
+  // 사람 목소리가 다 끝나면 채점해요 — 기다리는 규칙은 피드백·교재와 같아요 (엔진의 quietNeedMs). 영상 속 문장 길이를 함께 알려 줘요.
+  const patient = ShadowingEngine.patientFor(s.en, (s.e - s.s) * 1000);
+  const res = await ShadowingEngine.listenAndScore(s.en, { noBeep: true, beepOnReady: true, beepFn: beepFn || (() => beep()), silenceMs: 100, patient, onReady });
   showScore(s, res);
   return res;
 }
@@ -1197,6 +1261,7 @@ if (window.StudyTime && MEMBER_TOKEN && !ADMIN) StudyTime.start({
     const f = StudyTime.format, bar = $('#todayBar');
     bar.innerHTML = `⏱ 오늘 쉐도잉한 시간 ${f((t.feedback || 0) + (t.book || 0) + (t.video || 0))}<span class="parts">피드백 ${f(t.feedback)} · 교재 ${f(t.book)} · <b>🎬 영상 ${f(t.video)}</b></span>`;
     bar.classList.remove('hidden'); document.body.classList.add('has-today-bar');
+    document.body.style.setProperty('--today-bar-h', bar.offsetHeight + 'px'); // 고정된 영상 카드가 이 띠 바로 아래에 오게
   },
 });
 })();

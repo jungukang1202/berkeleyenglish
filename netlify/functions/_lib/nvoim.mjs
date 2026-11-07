@@ -115,7 +115,7 @@ function decodeHtmlAttr(s) {
   return String(s).replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 
-class NvoimSession {
+export class NvoimSession {
   constructor() { this.cookies = new Map(); }
 
   _storeCookies(res) {
@@ -249,6 +249,10 @@ export async function deleteAccount(id) {
   await saveAccounts(list.filter(a => a.id !== id));
 }
 
+export async function loginWithAccount(session, account) {
+  await session.login(account.userId, decryptText(account.pw));
+}
+
 async function updateAccountLast(id, last) {
   const list = await getAccounts();
   const a = list.find(x => x.id === id);
@@ -375,7 +379,7 @@ export async function syncAll({ deadlineMs, dates, source } = {}) {
     const last = { at: new Date().toISOString(), saved: 0, pending: 0, waiting: 0, error: null };
     try {
       const session = new NvoimSession();
-      await session.login(account.userId, decryptText(account.pw));
+      await loginWithAccount(session, account); // 예전 열쇠로 풀린 비밀번호 → 지금 열쇠로 다시 저장
       for (const date of runDates) {
         const rows = (await session.listLessons(date)).filter(r => r.EvaluationSeq);
         await mapLimit(rows, 2, async (row) => {

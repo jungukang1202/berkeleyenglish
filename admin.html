@@ -21,9 +21,9 @@
   header .wrap{padding:0 16px;}
   h1{font-size:1.4rem; margin:0 0 6px; font-weight:800; letter-spacing:-0.02em; color:var(--text);}
   .sub{color:var(--muted); font-size:0.9rem; line-height:1.55;}
-  .home-link{display:inline-flex; align-items:center; gap:6px; margin-bottom:10px; font-size:1rem; font-weight:800; color:var(--accent2); text-decoration:none;}
-  .home-link:hover{color:var(--accent);}
-  .home-link .home-icon{font-size:1.15rem; line-height:1;}
+  .home-link{display:inline-flex; align-items:center; gap:10px; margin-bottom:12px; font-size:clamp(1.15rem, 5vw, 1.5rem); font-weight:800; color:#4A148C; text-decoration:none;}
+  .home-link:hover{color:#7B1FA2;}
+  .home-link .home-icon{font-size:clamp(1.9rem, 8vw, 2.4rem); line-height:1;}
   .card{background:var(--panel); border:1px solid var(--border); border-top:3px solid var(--accent); border-radius:var(--radius); padding:22px; margin-bottom:20px; box-shadow:0 8px 20px rgba(27,42,78,0.06);}
   .card h2{font-size:1.02rem; margin:0 0 4px; display:flex; align-items:center; gap:8px; color:var(--text); font-weight:800;}
   .card .card-desc{color:var(--muted); font-size:0.85rem; margin-bottom:16px;}
@@ -163,14 +163,20 @@
   .am-tile:hover{transform:translateY(-1px);}
   .am-tile.on{border-color:#0B1530 !important; box-shadow:0 0 0 3px rgba(11,21,48,0.35);}
   /* 메뉴 글상자: 진한 테두리 · 조금 더 진한 배경 */
-  .am-tile[data-go="sets"]{background:#BBDEFB; border-color:#1565C0;}
-  .am-tile[data-go="book"]{background:#F8BBD0; border-color:#C2185B;}
-  .am-tile[data-go="vrec"]{background:#FFE082; border-color:#E65100;}
+  /* 쉐도잉 기록 네 칸: 바탕색은 같게, 큰 글씨 색은 칸마다 다르게(운영자 지시 2026-11-03) */
+  .am-tile[data-go="sets"]{background:#FFF8E1; border-color:#1565C0;} .am-tile[data-go="sets"] b{color:#1565C0;}
+  .am-tile[data-go="lvrec"]{background:#FFF8E1; border-color:#6A1B9A;} .am-tile[data-go="lvrec"] b{color:#6A1B9A;}
+  .am-tile[data-go="book"]{background:#FFF8E1; border-color:#C2185B;} .am-tile[data-go="book"] b{color:#C2185B;}
+  .am-tile[data-go="vrec"]{background:#FFF8E1; border-color:#E65100;} .am-tile[data-go="vrec"] b{color:#E65100;}
   .am-tile[data-go="access"]{background:#D1C4E9; border-color:#5E35B1;}
   .am-tile[data-go="report"]{background:#B2EBF2; border-color:#00838F;}
-  .am-tile[data-go="nvoim"]{background:#C8E6C9; border-color:#2E7D32;}
+  /* 엔보임 가져오기 두 칸: 바탕색·큰 글씨 색을 서로 다르게(운영자 지시 2026-11-03) */
+  .am-tile[data-go="nvoim"]{background:#C8E6C9; border-color:#2E7D32;} .am-tile[data-go="nvoim"] b{color:#1B5E20;}
+  .am-tile[data-go="nvvideo"]{background:#FFE0B2; border-color:#E65100;} .am-tile[data-go="nvvideo"] b{color:#BF360C;}
   .am-tile[data-go="members"]{background:#FFCCBC; border-color:#D84315;}
-  .am-tile[data-go="video"]{background:#F0F4C3; border-color:#827717;}
+  /* 쉐도잉 만들기 두 칸: 바탕색은 같게, 큰 글씨 색은 다르게(운영자 지시 2026-11-03) */
+  .am-tile[data-go="video"]{background:#F0F4C3; border-color:#827717;} .am-tile[data-go="video"] b{color:#33691E;}
+  .am-tile[data-go="lvmake"]{background:#F0F4C3; border-color:#303F9F;} .am-tile[data-go="lvmake"] b{color:#303F9F;}
   .vr-time{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 14px;}
   .vr-time div{flex:1 1 120px; background:#FFF4D6; border:1px solid #F2D58A; border-radius:12px; padding:10px 12px; font-weight:800;}
   .vr-time small{display:block; font-size:0.76rem; color:var(--muted); font-weight:700;}
@@ -182,7 +188,7 @@
   .vr-tag{font-size:0.72rem; font-weight:800; border-radius:99px; padding:1px 7px; background:#EEE; color:#555; margin-left:4px; white-space:nowrap;}
   @media (max-width:640px){ .vr-table .vr-hide{display:none;} }
   #mainArea [data-aview].av-off{display:none !important;}
-  /* 🎁 학생별 교재·영상 넣어주기 */
+  /* 🎁 학생별 쉐도잉 넣어주기 */
   .acc-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:16px 0 6px; color:var(--text);}
   .acc-tools{margin-left:auto; display:flex; gap:6px;}
   .acc-list{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:6px; max-height:340px; overflow:auto; padding:2px;}
@@ -196,7 +202,19 @@
   #accessCard .acc-head b{font-size:1.05rem;}
   .acc-item.on{border-color:#1B2A4E !important; box-shadow:0 0 0 2px rgba(27,42,78,0.25); font-weight:900 !important;}
   .acc-legend{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 6px; font-size:0.86rem; font-weight:800;}
-  .acc-legend span{border:2px solid; border-radius:99px; padding:2px 10px;}
+  .acc-legend button{width:auto; margin:0; border:2px solid; border-radius:99px; padding:6px 14px; color:#000; font:inherit; cursor:pointer;}
+  .acc-legend button.on{box-shadow:0 0 0 2px #1B2A4E; font-weight:900;}
+  .acc-item.acc-off{display:none;}
+  /* 영상은 제목 대신 대표 이미지 */
+  #accVideoList{grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); max-height:600px;}
+  .acc-item.acc-thumb{position:relative; display:block; padding:6px;}
+  .acc-item.acc-thumb.acc-off{display:none;}
+  .acc-item.acc-thumb input{position:absolute; top:12px; left:12px; margin:0; z-index:1; width:22px; height:22px;}
+  .acc-item.acc-thumb img{display:block; width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:6px; margin-bottom:4px;}
+  .acc-item.acc-thumb .acc-name{display:none;}
+  .acc-item.acc-thumb.no-thumb img{display:none;}
+  .acc-item.acc-thumb.no-thumb{padding-left:40px;}
+  .acc-item.acc-thumb.no-thumb .acc-name{display:block;}
   .acc-item .meta{display:block; font-size:0.82rem; font-weight:700; color:#333;}
   .brec-pct{color:#0D47A1;}
   .brec-table{margin-bottom:6px;}
@@ -323,13 +341,16 @@
     <!-- 관리 메뉴 글상자 — 늘 위에 고정돼 있고, 누르면 그 내용만 아래에 열려요 -->
     <nav class="admin-menu" id="adminMenu">
       <button type="button" class="am-tile" data-go="sets"><b>💬 피드백쉐도잉 기록</b><span>회차 등록 · 수정 · 연습 기록</span></button>
+      <button type="button" class="am-tile" data-go="lvrec"><b>🎥 수업영상 쉐도잉 기록</b><span>회원별 수업 녹화 연습 기록</span></button>
       <button type="button" class="am-tile" data-go="book"><b>📖 교재쉐도잉 기록</b><span>교재 미리보기 · 연습 기록</span></button>
       <button type="button" class="am-tile" data-go="vrec"><b>🎬 영상쉐도잉 기록</b><span>학생별 영상 공부 상황</span></button>
-      <button type="button" class="am-tile" data-go="access"><b>🎁 학생별 넣어주기</b><span>교재 · 영상 넣어주기</span></button>
+      <button type="button" class="am-tile" data-go="access"><b>🎁 학생별 쉐도잉 넣어주기</b><span>교재 · 영상 넣어주기</span></button>
       <button type="button" class="am-tile" data-go="report"><b>📊 학습 리포트</b><span>회원별 학습 분석</span></button>
       <button type="button" class="am-tile" data-go="nvoim"><b>📥 엔보임 피드백</b><span>자동 가져오기</span></button>
+      <button type="button" class="am-tile" data-go="nvvideo"><b>🎥 수업영상</b><span>자동 가져오기</span></button>
       <button type="button" class="am-tile" data-go="members"><b>👤 회원 관리</b><span>아이디 등록 · 비번 초기화</span></button>
       <button type="button" class="am-tile" data-go="video"><b>🎬 영상 쉐도잉 만들기</b><span>YouTube · 영상 파일</span></button>
+      <button type="button" class="am-tile" data-go="lvmake"><b>🎥 수업영상 쉐도잉 만들기</b><span>학생 수업 녹화 → 한 문장씩</span></button>
     </nav>
 
     <!-- ============ 엔보임 피드백 자동 가져오기 ============ -->
@@ -385,6 +406,120 @@
         <span class="status" id="nvoimBulkStatus" style="margin:0;"></span>
       </div>
       <div id="nvoimPending"></div>
+    </div>
+
+    <!-- ============ 🎥 수업영상 쉐도잉 만들기 (js/nvoim-video.js · 학생을 고르면 그 학생의 수업 녹화로 한 문장씩) ============ -->
+    <div class="card" id="lvMakeCard" data-aview="lvmake">
+      <h2>🎥 수업영상 쉐도잉 만들기</h2>
+      <div class="card-desc">
+        학생을 고르면 엔보임에서 <b>그 학생의 수업 녹화</b>를 찾아 보여 줘요. 녹화를 고르거나 녹화 파일을 올리면 <b>영어 문장을 한 문장씩 받아써서</b> 쉐도잉을 만들고,
+        그 학생에게 바로 넣어 줘요. 학생은 「🎥 수업영상쉐도잉」에서 영상 쉐도잉과 똑같이 연습해요. 받아쓰기는 이 창에서 해요 — 끝날 때까지 창을 닫지 마세요.
+      </div>
+      <!-- 만든 수업영상이 여기서 바로 재생되며 쉐도잉 연습(학생과 같은 연습 화면 video.html, 운영자 지시 2026-11-03) -->
+      <div id="lvmPlayer" class="hidden" style="margin:10px 0 14px; border:3px solid #303F9F; border-radius:14px; overflow:hidden; background:#fff;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 12px; background:#E8EAF6;">
+          <b id="lvmPlayerTitle" style="color:#303F9F;">▶ 수업영상 쉐도잉 연습</b>
+          <span style="display:flex; gap:6px;"><a id="lvmPlayerNew" class="btn-ghost btn-small" style="text-decoration:none; border-radius:10px; font-weight:700;" target="_blank" rel="noopener">↗ 새 창</a><button type="button" class="btn-ghost btn-small" id="lvmPlayerClose">✕ 닫기</button></span>
+        </div>
+        <iframe id="lvmPlayerFrame" title="수업영상 쉐도잉 연습" allow="microphone; autoplay; fullscreen" style="display:block; width:100%; height:85vh; border:0;"></iframe>
+      </div>
+      <div class="field">
+        <label for="lvmMember">학생 선택</label>
+        <select class="full" id="lvmMember"><option value="">-- 학생을 선택하세요 --</option></select>
+      </div>
+      <div class="status" id="lvmFindStatus"></div>
+      <div id="lvmFound"></div>
+
+      <h3 class="sub-h">📁 녹화 파일로 만들기</h3>
+      <div class="card-desc" style="margin-bottom:6px;">엔보임에서 받은 수업 녹화 파일(MP4 · M4A · MP3 · WebM, 1GB 이하)을 고르세요. 10분 녹화는 받아쓰기에 2~4분쯤 걸려요.</div>
+      <div class="imp-grid imp-grid3" style="align-items:end;">
+        <div style="grid-column:span 2;"><label for="lvmFile">수업 녹화 파일</label><input type="file" id="lvmFile" class="vid-file" accept="video/*,audio/*"></div>
+        <div><label for="lvmDate">수업일</label><input type="date" id="lvmDate" class="date-input"></div>
+      </div>
+
+      <h3 class="sub-h">⚙️ 만들 때 설정</h3>
+      <div class="vid-grid">
+        <div class="field" style="margin-bottom:0;">
+          <label for="lvmParts">몇 문장 단위로 나눌까요?</label>
+          <select class="full" id="lvmParts"><option value="1" selected>1문장</option><option value="2">2문장</option><option value="3">3문장</option><option value="4">4문장</option><option value="5">5문장</option><option value="0">나누지 않음</option></select>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="lvmVisibility">공개 범위</label>
+          <select class="full" id="lvmVisibility"><option value="draft">🔒 비공개(검토 후 공개)</option><option value="assigned" selected>🎁 넣어 준 학생만</option></select>
+        </div>
+      </div>
+      <label style="display:flex; gap:8px; align-items:center; font-weight:400; margin-top:10px; cursor:pointer;">
+        <input type="checkbox" id="lvmTranslate" checked> <span style="font-size:0.85rem; color:var(--body-text);">문장마다 한국어 번역도 자동으로 넣기</span>
+      </label>
+      <label style="display:flex; gap:8px; align-items:center; font-weight:400; margin-top:6px; cursor:pointer;">
+        <input type="checkbox" id="lvmFix" checked> <span style="font-size:0.85rem; color:var(--body-text);">✨ 틀린 문장은 AI가 고쳐서 만들기 (잘못 들린 단어 · 문장부호 · 너무 긴 문장 나누기)</span>
+      </label>
+      <div class="row">
+        <button class="btn-primary" id="lvmFileBtn">🚀 이 녹화 파일로 쉐도잉 만들기</button>
+        <button class="btn-danger hidden" id="lvmCancelBtn">⏹ 중지</button>
+      </div>
+      <div id="lvmProgress" class="vid-prog hidden">
+        <div><div class="lbl"><span>① 녹화 가져오기 · 올리기</span><span id="lvmUpLabel"></span></div><div class="vid-bar"><i id="lvmUpBar"></i></div></div>
+        <div><div class="lbl"><span>② 대사 받아쓰기 · 한 문장씩 정리 · 번역</span><span id="lvmTrLabel"></span></div><div class="vid-bar"><i id="lvmTrBar"></i></div></div>
+      </div>
+      <div class="status" id="lvmStatus"></div>
+
+      <h3 class="sub-h">🎥 이 학생의 수업영상쉐도잉</h3>
+      <div id="lvmMine"><div class="empty">학생을 선택하세요.</div></div>
+    </div>
+
+    <!-- ============ 엔보임 수업영상 자동 가져오기 (js/nvoim-video.js) ============ -->
+    <div class="card" id="nvVideoCard" data-aview="nvvideo">
+      <h2>🎥 엔보임 수업영상 자동 가져오기</h2>
+      <div class="card-desc">
+        「📥 엔보임 피드백」에 등록한 엔보임 계정으로 로그인해서 <b>수강생 상세 페이지의 수업 녹화</b>를 찾아요.
+        녹화를 고르면 영상을 가져와 <b>영어 문장을 한 문장씩 받아쓰고</b>, 번역까지 해서 <b>영상 쉐도잉</b>으로 만들어요 — 학생은 기존 영상 쉐도잉과 똑같이 연습해요.
+        만든 영상은 연결된 학생에게 바로 넣어 줘요(「🎁 학생별 쉐도잉 넣어주기」에서 더 넣거나 뺄 수 있어요). 받아쓰기는 이 창에서 해요 — 끝날 때까지 창을 닫지 마세요.
+        <b>30분마다(정각·30분) 자동으로</b> 연결된 학생의 새 녹화를 찾아 아래 목록에 🆕로 모아 둬요. 「🔄 지금 바로 가져오기」는 지금 찾아요 — 「💾 저장」하면 「🎥 수업영상 쉐도잉 만들기」에서 그 학생을 고를 때 보여요.
+      </div>
+      <!-- 만든 수업영상이 여기서 바로 재생되며 쉐도잉 연습(학생과 같은 연습 화면 video.html, 운영자 지시 2026-11-03) -->
+      <div id="nvvPlayer" class="hidden" style="margin:10px 0 14px; border:3px solid #303F9F; border-radius:14px; overflow:hidden; background:#fff;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 12px; background:#E8EAF6;">
+          <b id="nvvPlayerTitle" style="color:#303F9F;">▶ 수업영상 쉐도잉 연습</b>
+          <span style="display:flex; gap:6px;"><a id="nvvPlayerNew" class="btn-ghost btn-small" style="text-decoration:none; border-radius:10px; font-weight:700;" target="_blank" rel="noopener">↗ 새 창</a><button type="button" class="btn-ghost btn-small" id="nvvPlayerClose">✕ 닫기</button></span>
+        </div>
+        <iframe id="nvvPlayerFrame" title="수업영상 쉐도잉 연습" allow="microphone; autoplay; fullscreen" style="display:block; width:100%; height:85vh; border:0;"></iframe>
+      </div>
+
+      <div class="row" style="margin-top:10px; align-items:center;">
+        <button class="btn-primary" id="nvvRunBtn">🔄 지금 바로 가져오기</button>
+        <span class="sub" id="nvvLastRun" style="margin:0;"></span>
+      </div>
+      <div class="status" id="nvvRunStatus"></div>
+      <div id="nvvAutoLog" style="margin-top:10px;"></div>
+
+      <div class="imp-grid imp-grid3" style="align-items:end;">
+        <div><label for="nvvStudent">엔보임 학생 아이디</label><input type="text" id="nvvStudent" list="nvvStudentList" placeholder="예: woo8811" autocomplete="off"><datalist id="nvvStudentList"></datalist></div>
+        <div><label for="nvvMember">넣어 줄 버클리 회원</label><select class="full" id="nvvMember"><option value="">(넣어 주지 않음)</option></select></div>
+        <div><label for="nvvAccount">엔보임 계정</label><select class="full" id="nvvAccount"></select></div>
+      </div>
+      <div class="row" style="align-items:center;">
+        <button class="btn-primary" id="nvvScanBtn">🔍 이 학생 녹화 찾기</button>
+        <button class="btn-ghost" id="nvvScanAllBtn">🔍 연결된 학생 모두 찾기</button>
+      </div>
+      <div class="status" id="nvvScanStatus"></div>
+      <div id="nvvList"></div>
+
+      <details class="imp-preview" style="margin-top:12px;">
+        <summary>🔗 녹화 파일 주소 직접 넣기</summary>
+        <div class="card-desc" style="margin:6px 0;">엔보임에서 녹화 파일(mp4 등) 주소를 복사해 넣으면 그 파일로 만들어요. 위 아이디·회원 칸도 함께 써요.</div>
+        <div class="row"><input type="text" id="nvvUrl" placeholder="https://..." autocomplete="off" style="flex:1; min-width:220px;"><button class="btn-ghost" id="nvvUrlBtn">🎬 이 주소로 만들기</button></div>
+      </details>
+
+      <div class="row">
+        <button class="btn-danger hidden" id="nvvCancelBtn">⏹ 중지</button>
+      </div>
+      <div id="nvvProgress" class="vid-prog hidden">
+        <div><div class="lbl"><span>① 엔보임에서 녹화 가져오기</span><span id="nvvUpLabel"></span></div><div class="vid-bar"><i id="nvvUpBar"></i></div></div>
+        <div><div class="lbl"><span>② 대사 받아쓰기 · 한 문장씩 정리 · 번역</span><span id="nvvTrLabel"></span></div><div class="vid-bar"><i id="nvvTrBar"></i></div></div>
+      </div>
+      <div class="status" id="nvvStatus"></div>
+
     </div>
 
     <!-- ============ 수업 피드백 리포트 ============ -->
@@ -444,9 +579,9 @@
       <div class="empty" id="memberEmpty">아직 등록된 회원이 없어요.</div>
     </div>
 
-    <!-- ============ 🎁 학생별 교재·영상 넣어주기 ============ -->
+    <!-- ============ 🎁 학생별 쉐도잉 넣어주기 ============ -->
     <div class="card" id="accessCard" data-aview="access">
-      <h2>🎁 학생별 교재·영상 넣어주기</h2>
+      <h2>🎁 학생별 쉐도잉 넣어주기</h2>
       <div class="card-desc">학생 화면의 <b>교재 쉐도잉</b>과 <b>영상 쉐도잉</b>에는 여기서 넣어 준 것만 보여요. 넣어 준 게 없으면 카테고리만 보이고 내용은 비어 있어요.</div>
       <div class="field">
         <label for="accessMember">학생 선택</label>
@@ -460,6 +595,7 @@
           <span class="acc-tools"><button class="btn-ghost btn-small" data-acc-all="video">전체 선택</button><button class="btn-ghost btn-small" data-acc-none="video">전체 해제</button></span></div>
         <div class="acc-legend" id="accVideoLegend"></div>
         <div class="acc-list" id="accVideoList"></div>
+        <div class="empty hidden" id="accVideoNone">이 레벨에 올린 영상이 없어요.</div>
         <div class="row"><button class="btn-primary" id="accSaveBtn">💾 이 학생에게 저장</button></div>
       </div>
       <div class="status" id="accStatus"></div>
@@ -674,7 +810,7 @@ This is my mother."></textarea>
     <!-- ============ 교재쉐도잉 ============ -->
     <div class="card" id="bookShadowingCard" data-aview="book">
       <h2>📖 교재쉐도잉 기록</h2>
-      <div class="card-desc">교재 문장을 유닛별로 쉐도잉해요. 위 「🎁 학생별 교재·영상 넣어주기」에서 넣어 준 학생만 회원 페이지의 「📖 교재 쉐도잉」에서 피드백 문장 쉐도잉과 같은 방식으로 연습합니다. 회원을 고르면 유닛마다 그 회원의 연습 기록을 볼 수 있어요.</div>
+      <div class="card-desc">교재 문장을 유닛별로 쉐도잉해요. 위 「🎁 학생별 쉐도잉 넣어주기」에서 넣어 준 학생만 회원 페이지의 「📖 교재 쉐도잉」에서 피드백 문장 쉐도잉과 같은 방식으로 연습합니다. 회원을 고르면 유닛마다 그 회원의 연습 기록을 볼 수 있어요.</div>
       <div class="field">
         <label for="bookMemberSelect">연습 기록 볼 회원 (선택)</label>
         <select class="full" id="bookMemberSelect"><option value="">-- 회원을 선택하세요 --</option></select>
@@ -694,6 +830,17 @@ This is my mother."></textarea>
     </div>
 
     <!-- ============ 회원별 쉐도잉 콘텐츠 ============ -->
+    <!-- ============ 🎥 수업영상 쉐도잉 기록 (엔보임 수업 녹화로 만든 영상 쉐도잉 · 피드백쉐도잉 기록과 같은 연습 기록) ============ -->
+    <div class="card" id="lessonVideoRecordCard" data-aview="lvrec">
+      <h2>🎥 수업영상 쉐도잉 기록</h2>
+      <div class="card-desc">회원을 선택하면 「🎥 엔보임 수업영상 자동 가져오기」로 만든 그 회원의 수업 녹화 쉐도잉 목록이 보여요. 녹화마다 <b>📊 연습 기록</b>을 누르면 피드백쉐도잉 기록과 똑같이 문장별 듣기 · 따라 말하기 횟수, 일치도, 날짜별 반복 횟수, 최근 기록을 볼 수 있어요.</div>
+      <div class="field">
+        <label for="lvrecMember">회원 선택</label>
+        <select class="full" id="lvrecMember"><option value="">-- 회원을 선택하세요 --</option></select>
+      </div>
+      <div id="lvrecList"></div>
+    </div>
+
     <div class="card" data-aview="sets">
       <h2>💬 피드백쉐도잉 기록</h2>
       <div class="card-desc">회원을 선택하면 그 회원의 회차(세트) 목록이 보여요. 새 회차를 추가하거나 기존 회차를 수정/삭제할 수 있습니다.</div>
@@ -757,10 +904,10 @@ vegetable, particularly"></textarea>
   </div>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261028d"></script>
+<script src="js/shadowing-engine.js?v=20261107a"></script>
 <script src="js/learning-report.js?v=20261023a"></script>
-<script src="js/video-transcript.js?v=20261023c"></script>
-<script src="js/yt-media.js?v=20261019f"></script>
+<script src="js/video-transcript.js?v=20261107a"></script>
+<script src="js/yt-media.js?v=20261107a"></script>
 <script>
 const API = {
   adminLogin: '/api/admin-login',
@@ -913,6 +1060,7 @@ function renderMemberSelect() {
   renderBookMemberSelect();
   renderAccessMemberSelect();
   renderVrecMemberSelect();
+  renderLvrecMemberSelect();
   const sel = document.getElementById('memberSelect');
   const current = sel.value;
   sel.innerHTML = '<option value="">-- 회원을 선택하세요 --</option>';
@@ -987,7 +1135,7 @@ async function loadVideoRecords() {
       </div>
       ${videos.length ? `<table class="vr-table">
         <thead><tr><th>영상</th><th>듣기 · 따라 말하기</th><th class="vr-hide">일치도</th><th class="vr-hide">마지막 공부</th></tr></thead>
-        <tbody>${rows}</tbody></table>` : '<div class="empty">넣어 준 영상도, 공부한 영상도 아직 없어요. 「🎁 학생별 넣어주기」에서 영상을 넣어 주세요.</div>'}`;
+        <tbody>${rows}</tbody></table>` : '<div class="empty">넣어 준 영상도, 공부한 영상도 아직 없어요. 「🎁 학생별 쉐도잉 넣어주기」에서 영상을 넣어 주세요.</div>'}`;
   } catch (e) {
     area.innerHTML = `<div class="empty">⚠️ ${escH(e.message)}</div>`;
   }
@@ -996,7 +1144,7 @@ vrecMember.addEventListener('change', loadVideoRecords);
 
 /* ===================== 관리 메뉴 글상자 ===================== */
 // 메뉴는 늘 보이고, 누른 글상자의 내용만 아래에 보여요. 고른 메뉴는 주소(#report 등)와 브라우저에 기억해요.
-const ADMIN_VIEWS = ['sets', 'book', 'vrec', 'access', 'report', 'nvoim', 'members', 'video'];
+const ADMIN_VIEWS = ['sets', 'lvrec', 'book', 'vrec', 'access', 'report', 'nvoim', 'nvvideo', 'members', 'video', 'lvmake'];
 function showAdminView(v, scroll) {
   if (!ADMIN_VIEWS.includes(v)) v = ADMIN_VIEWS[0];
   document.querySelectorAll('#mainArea [data-aview]').forEach(el => el.classList.toggle('av-off', el.dataset.aview !== v));
@@ -1014,13 +1162,14 @@ document.getElementById('adminMenu').addEventListener('click', e => {
 })();
 window.addEventListener('hashchange', () => showAdminView(location.hash.slice(1)));
 
-/* ===================== 🎁 학생별 교재·영상 넣어주기 ===================== */
+/* ===================== 🎁 학생별 쉐도잉 넣어주기 ===================== */
 // 학생 화면의 교재 쉐도잉·영상 쉐도잉에는 관리자가 넣어 준 것만 보여요. (/api/admin-access)
 
 const accessMember = document.getElementById('accessMember');
-let accessCache = {}; // { username: { books, videos, updatedAt } }
-let accBooks = null; // 교재 목록 (admin-textbooks)
-let accVideos = null; // 영상 목록 (admin-videos)
+let accessCache = {};      // { username: { books, videos, updatedAt } }
+let accBooks = null;       // 교재 목록 (admin-textbooks)
+let accVideos = null;      // 영상 목록 (admin-videos)
+let accVideoLv = 'all';    // 지금 보고 있는 영상 레벨 ('all' = 전체)
 const VIS_LABEL = { draft: '🔒 비공개', members: '👥 회원 공개', public: '🌐 전체 공개' };
 
 function accSummary(username) {
@@ -1048,7 +1197,7 @@ async function loadAccess() {
     if (books) accBooks = books.books || [];
     accVideos = (vids.lessons || []).filter(v => v.status === 'ready');
     // 학생 이름 옆의 '교재 n · 영상 n'을 새로 고쳐요
-    [...accessMember.options].forEach(o => { if (o.value) o.textContent = o.value + accSummary(o.value); });
+    [...accessMember.options].forEach(o => { if (o.value) o.textContent = memberLabel(o.value) + accSummary(o.value); });
     renderAccessLists();
     statusEl.textContent = '';
   } catch (e) {
@@ -1077,16 +1226,32 @@ function renderAccessLists() {
   document.getElementById('accessArea').classList.toggle('hidden', !username);
   if (!username || !accBooks || !accVideos) return;
   const a = accessCache[username] || { books: [], videos: [] };
-  const item = (kind, id, on, title, meta, c) => `<label class="acc-item${on ? ' on' : ''}" style="background:${c.bg}; border-color:${c.bd};"><input type="checkbox" data-kind="${kind}" value="${escH(id)}"${on ? ' checked' : ''}><span>${escH(title)}<span class="meta">${escH(meta)}</span></span></label>`;
+  // thumb(YouTube 영상): 제목 대신 대표 이미지를 보여줘요. 이미지를 못 불러오면 제목을 보여줘요. 제목은 이미지에 마우스를 올리면 보여요.
+  const item = (kind, id, on, title, meta, c, lv, thumb) => `<label class="acc-item${on ? ' on' : ''}${thumb ? ' acc-thumb' : ''}"${lv == null ? '' : ` data-lv="${lv}"`} style="background:${c.bg}; border-color:${c.bd};"${thumb ? ` title="${escH(title)}"` : ''}><input type="checkbox" data-kind="${kind}" value="${escH(id)}"${on ? ' checked' : ''}>${thumb ? `<img src="${escH(thumb)}" alt="${escH(title)}" loading="lazy" onload="if(this.naturalWidth<=120)this.closest('label').classList.add('no-thumb')" onerror="this.closest('label').classList.add('no-thumb')">` : ''}<span><span class="acc-name">${escH(title)}</span><span class="meta">${escH(meta)}</span></span></label>`;
   const series = [...new Set(accBooks.map(b => accBookSeries(b.title)))];
   document.getElementById('accBookList').innerHTML = accBooks.map(b =>
     item('book', b.id, a.books.includes(b.id), b.title, `${b.units.length}유닛`, accBookColor(series.indexOf(accBookSeries(b.title))))).join('') || '<div class="empty">교재가 없어요.</div>';
-  document.getElementById('accVideoLegend').innerHTML = ACC_LEVELS.map(x => `<span style="background:${x.bg}; border-color:${x.bd};">${x.label}</span>`).join('');
-  const order = v => ACC_LEVELS.indexOf(accLevel(v.level)); // 유아 → 1-2 → … → 7-9 → 레벨 없음 순서로
+  const chip = (lv, label, bg, bd) => `<button type="button" data-acc-lv="${lv}" style="background:${bg}; border-color:${bd};">${label}</button>`;
+  document.getElementById('accVideoLegend').innerHTML = chip('all', '전체', '#FFFFFF', '#1B2A4E') + ACC_LEVELS.map(x => chip(x.lv, x.label, x.bg, x.bd)).join('');
+  const order = v => ACC_LEVELS.indexOf(accLevel(v.level));   // 유아 → 1-2 → … → 7-9 → 레벨 없음 순서로
   document.getElementById('accVideoList').innerHTML = accVideos.slice().sort((x, y) => order(x) - order(y)).map(v =>
     item('video', v.id, a.videos.includes(v.id), v.title || '(제목 없음)',
-      [v.level ? (v.level === 'kids' ? '유아' : 'Lv ' + v.level) : '', VIS_LABEL[v.visibility] || '', v.visibility === 'draft' ? '비공개라 학생에게 안 보여요' : ''].filter(Boolean).join(' · '), accLevel(v.level))).join('') || '<div class="empty">올린 영상이 없어요.</div>';
+      [v.level ? (v.level === 'kids' ? '유아' : 'Lv ' + v.level) : '', VIS_LABEL[v.visibility] || '', v.visibility === 'draft' ? '비공개라 학생에게 안 보여요' : ''].filter(Boolean).join(' · '), accLevel(v.level), accLevel(v.level).lv,
+      v.youtubeId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.youtubeId)}/mqdefault.jpg` : '')).join('') || '<div class="empty">올린 영상이 없어요.</div>';
+  applyAccLevel();
   updateAccCounts();
+}
+
+// 영상 레벨 카테고리: 누르면 그 레벨 영상만 보여요. 숨긴 영상도 화면 안에 남아 있어서 체크한 것은 그대로 저장돼요.
+function applyAccLevel() {
+  const items = [...document.querySelectorAll('#accVideoList .acc-item')];
+  items.forEach(l => l.classList.toggle('acc-off', accVideoLv !== 'all' && l.dataset.lv !== accVideoLv));
+  document.querySelectorAll('#accVideoLegend [data-acc-lv]').forEach(b => {
+    const on = b.dataset.accLv === accVideoLv;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on);
+  });
+  document.getElementById('accVideoNone').classList.toggle('hidden', !items.length || items.some(l => !l.classList.contains('acc-off')));
 }
 
 function updateAccCounts() {
@@ -1099,9 +1264,11 @@ function updateAccCounts() {
 accessMember.addEventListener('change', () => { document.getElementById('accStatus').textContent = ''; renderAccessLists(); });
 document.getElementById('accessArea').addEventListener('change', e => { if (e.target.matches('input[data-kind]')) updateAccCounts(); });
 document.getElementById('accessArea').addEventListener('click', e => {
+  if (e.target.dataset.accLv != null) { accVideoLv = e.target.dataset.accLv; applyAccLevel(); return; }
   const all = e.target.dataset.accAll, none = e.target.dataset.accNone;
   if (!all && !none) return;
-  document.querySelectorAll(`#accessArea input[data-kind="${all || none}"]`).forEach(c => { c.checked = !!all; });
+  // 레벨을 골라 둔 때는 보이는 영상만 선택·해제해요
+  document.querySelectorAll(`#accessArea input[data-kind="${all || none}"]`).forEach(c => { if (!c.closest('.acc-off')) c.checked = !!all; });
   updateAccCounts();
 });
 document.getElementById('accSaveBtn').addEventListener('click', async () => {
@@ -1158,7 +1325,7 @@ function bookStats(b, summary) {
 function bookRecordTable(books, stats, assigned, username) {
   const list = books.filter(b => assigned.has(b.id) || stats[b.id].units)
     .sort((x, y) => String(stats[y.id].last || '').localeCompare(String(stats[x.id].last || '')));
-  if (!list.length) return `<div class="empty">${escH(memberLabel(username))} 학생에게 넣어 준 교재도, 공부한 교재도 아직 없어요. 「🎁 학생별 넣어주기」에서 교재를 넣어 주세요.</div>`;
+  if (!list.length) return `<div class="empty">${escH(memberLabel(username))} 학생에게 넣어 준 교재도, 공부한 교재도 아직 없어요. 「🎁 학생별 쉐도잉 넣어주기」에서 교재를 넣어 주세요.</div>`;
   return `<h3 class="sub-h">📊 ${escH(memberLabel(username))} — 교재별 연습 기록</h3>
     <table class="vr-table brec-table"><thead><tr><th>교재</th><th>공부한 양</th><th>듣기 · 따라 말하기</th><th class="vr-hide">일치도</th><th class="vr-hide">마지막 공부</th></tr></thead><tbody>${list.map(b => {
       const st = stats[b.id];
@@ -1300,6 +1467,52 @@ async function loadSets() {
     listEl.innerHTML = `<div class="empty">⚠️ ${e.message}</div>`;
   }
 }
+
+/* ===================== 🎥 수업영상 쉐도잉 기록 ===================== */
+// 엔보임 수업 녹화로 만든 영상 쉐도잉(/api/admin-nvoim-video?records=) + 연습 기록(/api/admin-practice의 'video-<영상ID>') — 피드백쉐도잉 기록과 같은 버튼·같은 기록 화면
+const lvrecMember = document.getElementById('lvrecMember');
+function renderLvrecMemberSelect() {
+  const current = lvrecMember.value;
+  lvrecMember.innerHTML = '<option value="">-- 회원을 선택하세요 --</option>' + membersCache.map(m => `<option value="${escH(m.username)}">${escH(memberLabel(m.username))}</option>`).join('');
+  if (membersCache.some(m => m.username === current)) lvrecMember.value = current;
+}
+async function loadLessonVideoRecords() {
+  const username = lvrecMember.value;
+  const listEl = document.getElementById('lvrecList');
+  if (!username) { listEl.innerHTML = ''; return; }
+  listEl.innerHTML = '<div class="empty">불러오는 중...</div>';
+  try {
+    const [data, practice] = await Promise.all([
+      apiFetch(`/api/admin-nvoim-video?records=${encodeURIComponent(username)}`),
+      apiFetch(`${API.practice}?username=${encodeURIComponent(username)}`).catch(() => ({ summary: {} })),
+    ]);
+    if (lvrecMember.value !== username) return;
+    const list = data.recordings || [];
+    const sum = (practice && practice.summary) || {};
+    if (!list.length) { listEl.innerHTML = '<div class="empty">아직 이 회원의 수업영상 쉐도잉이 없어요. 「🎥 엔보임 수업영상 자동 가져오기」에서 만들어 주세요.</div>'; return; }
+    listEl.innerHTML = '';
+    list.forEach(v => {
+      const sid = 'video-' + v.id;
+      const dateStr = v.createdAt ? (d => `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)(new Date(v.createdAt)) : '-';
+      const el = document.createElement('div');
+      el.className = 'set-item set-stack';
+      el.innerHTML = `
+        <div>
+          <div class="title" title="${escH(v.title)}">${escH(v.title)}</div>
+          <div class="meta">${v.date ? `📅 수업일 ${Number(v.date.slice(5, 7))}/${Number(v.date.slice(8))}(${'일월화수목금토'[new Date(v.date + 'T00:00:00Z').getUTCDay()]}) · ` : ''}등록 ${dateStr} · 문장 ${v.sentenceCount}개${v.assigned ? '' : ' · <span style="color:var(--bad)">학생에게 안 넣어 줌</span>'}</div>
+        </div>
+        <div class="set-btns">
+          <a class="btn-ghost btn-small" style="text-decoration:none; border-radius:10px; font-weight:700;" href="video.html?id=${encodeURIComponent(v.id)}&admin=1" target="_blank" rel="noopener">▶ 연습 화면</a>
+          <button class="btn-ghost btn-small practice-set-btn${hasPractice(sum[sid]) ? ' has-practice' : ''}" title="${practiceButtonTitle(sum[sid])}">${practiceButtonLabel(sum[sid])}</button>
+        </div>`;
+      el.querySelector('.practice-set-btn').addEventListener('click', () => openPracticeStats(username, sid, v.title));
+      listEl.appendChild(el);
+    });
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty">⚠️ ${escH(e.message)}</div>`;
+  }
+}
+lvrecMember.addEventListener('change', loadLessonVideoRecords);
 
 /* ===================== 미리보기 (회원 화면 그대로 보기) ===================== */
 
@@ -1482,7 +1695,7 @@ async function openPracticeStats(username, id, title) {
       if (!confirm(`"${title}" 회차의 연습 기록을 모두 지울까요? 되돌릴 수 없어요.`)) return;
       try {
         await apiFetch(API.practice, { method: 'POST', body: JSON.stringify({ action: 'clear', username, id }) });
-        closePreview(); if (/^book-/.test(id)) loadBookUnits(); else loadSets();
+        closePreview(); if (/^book-/.test(id)) loadBookUnits(); else if (/^video-/.test(id)) loadLessonVideoRecords(); else loadSets();
       } catch (e) { alert('⚠️ ' + e.message); }
     });
   } catch (e) {
@@ -1904,7 +2117,6 @@ document.querySelectorAll('#reportCard .report-tab').forEach(tab => tab.addEvent
 /* ===================== 시작 ===================== */
 if (getToken()) showMain(); else showLogin();
 </script>
-<script src="js/video-admin.js?v=20261023f"></script>
 <script src="js/book-admin.js?v=20261027b"></script>
 <script>
 /* 📚 교재 만들기(js/book-admin.js)를 youngcle.kr식 관리 메뉴에 연결 */
@@ -1919,5 +2131,7 @@ if (getToken()) showMain(); else showLogin();
   fire();
 })();
 </script>
+<script src="js/video-admin.js?v=20261107a"></script>
+<script src="js/nvoim-video.js?v=20261107a"></script>
 </body>
 </html>

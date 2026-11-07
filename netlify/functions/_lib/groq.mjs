@@ -77,3 +77,84 @@ export async function groqChat({ apiKey, models, prompt, outTokens, temperature 
 // 대략적인 토큰 수 (영어 ≈ 4글자/토큰, 한글 ≈ 1.5글자/토큰)
 export const tokensEn = text => Math.ceil(String(text || '').length / 4);
 export const tokensKo = text => Math.ceil(String(text || '').length / 1.5);
+
+// ---------------------------------------------------------------------------
+// 아래는 영클 사이트와 같은 공용 함수 (수업영상 받아쓰기 · 문장 나누기 · 틀린 문장 고치기에서 써요)
+// chat()은 한 모델이 한도(429)에 걸려도 다음 모델로 넘어가요 (버클리 groqChat과 같은 방식).
+const CHAT = 'https://api.groq.com/openai/v1/chat/completions';
+const STT = 'https://api.groq.com/openai/v1/audio/transcriptions';
+// 대화 모델: 앞에서부터 써 보고, Groq에서 없어진 모델(404)이나 못 쓰는 모델(400)이면 다음 모델로 넘어가요.
+//   (예전 llama-3.3-70b-versatile이 없어져서 문장부호·번역·고치기가 모두 멈췄던 일이 있었어요)
+export const CHAT_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
+export const CHAT_MODEL = CHAT_MODELS[0];
+let workingModel = 0; // 한 번 되는 모델을 찾으면 다음 요청부터 그 모델부터 써요
+export const STT_MODEL = 'whisper-large-v3-turbo';
+
+export class GroqError extends Error {
+  constructor(status, retryAfter) { super('groq HTTP ' + status); this.status = status; this.retryAfter = retryAfter; }
+}
+
+function key() {
+  const k = process.env.GROQ_API_KEY;
+  if (!k) throw new GroqError(500);
+  return k;
+}
+
+async function call(url, init, timeoutMs) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, Object.assign({ signal: ctl.signal }, init));
+    if (!r.ok) throw new GroqError(r.status, Number(r.headers.get('retry-after')) || 0);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+// effort: gpt-oss가 얼마나 깊게 생각할지 — 기본은 빨리('low'), 수업영상 문장 나누기는 더 똑똑하게('high', 운영자 지시 2026-11-03)
+export async function chat(messages, { json = false, temperature = 0, timeoutMs = 24000, effort = 'low', models = null } = {}) {
+  let lastErr = null;
+  const list = models || CHAT_MODELS;
+  for (let k = models ? 0 : workingModel; k < list.length; k++) {
+    const model = list[k];
+    // gpt-oss는 생각하는 모델이라 '짧게 생각하기'로 빨리 답하게 해요
+    const extra = /gpt-oss/.test(model) ? { reasoning_effort: effort, max_completion_tokens: effort === 'low' ? 8000 : 20000 } : {};
+    try {
+      const data = await call(CHAT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key()}` },
+        body: JSON.stringify({ model, messages, temperature, ...extra, ...(json ? { response_format: { type: 'json_object' } } : {}) }),
+      }, timeoutMs);
+      if (!models && !(lastErr && lastErr.status === 429)) workingModel = k; // 잠깐 한도에 걸려 넘어간 건 기억하지 않아요
+      return String((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '');
+    } catch (e) {
+      lastErr = e;
+      if (!(e instanceof GroqError) || ![400, 404, 413, 429].includes(e.status)) throw e; // 없는 모델 · 한도 초과는 다음 모델로
+    }
+  }
+  throw lastErr;
+}
+
+// model: 수업 녹화(/api/admin-lesson-transcribe)는 더 정확한 'whisper-large-v3' — 나머지는 그대로 STT_MODEL
+// language: null이면 언어를 정하지 않아요(수업 녹화 — 한국어로 한 말은 한글로 받아써서 쉐도잉에서 빼요)
+export async function transcribe(buf, contentType, prompt, model = STT_MODEL, language = 'en') {
+  const form = new FormData();
+  form.append('file', new Blob([buf], { type: contentType }), 'audio.wav');
+  form.append('model', model);
+  if (language) form.append('language', language);
+  form.append('response_format', 'verbose_json');
+  form.append('timestamp_granularities[]', 'word');
+  form.append('timestamp_granularities[]', 'segment');
+  form.append('temperature', '0');
+  if (prompt) form.append('prompt', String(prompt).slice(-300));
+  return call(STT, { method: 'POST', headers: { Authorization: `Bearer ${key()}` }, body: form }, 25000);
+}
+
+// 실패 응답: 사용량 한도(429)면 몇 초 뒤 다시 하라고 알려줘요
+export function groqErrorResponse(e, jsonResponse) {
+  if (e instanceof GroqError) {
+    if (e.status === 500) return jsonResponse({ error: 'GROQ_API_KEY not configured' }, 500);
+    if (e.status === 429) return jsonResponse({ error: 'rate_limited', retryAfter: e.retryAfter || 10 }, 429);
+    return jsonResponse({ error: e.message }, 502);
+  }
+  return jsonResponse({ error: e && e.name === 'AbortError' ? 'groq timeout' : 'groq request failed' }, 502);
+}

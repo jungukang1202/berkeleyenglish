@@ -27,6 +27,27 @@ function parseList(text, n) {
   return out;
 }
 
+// 정해 둔 번역(운영자 지시): 영어 낱말 → 꼭 이 한국어로. 다른 말로 번역하면 바꿔 넣어요. 낱말을 더하려면 여기에 한 줄.
+const GLOSSARY = [
+  // florist → 꽃가게 운영하는 사람 (운영자 지시 2026-11-03) — 사람을 가리키는 다른 번역만 바꿔요(꽃집·꽃가게 같은 가게 이름은 그대로)
+  { word: 'florist', en: /\bflorists?\b/i, ko: '꽃가게 운영하는 사람',
+    wrong: /플로리스트|(?:꽃집|꽃가게|화원)\s*(?:주인|사장님|사장|운영자|직원|아저씨|아주머니|아줌마)|꽃\s*장수|꽃\s*판매원/g },
+];
+const glossaryNote = 'Always translate these words exactly like this: ' + GLOSSARY.map(g => `"${g.word}" -> "${g.ko}"`).join(', ') + '.';
+// 받침으로 끝나는 말로 바꿨을 때 뒤 조사도 맞춰요(예요→이에요, 가→이, 를→을, 는→은, 와→과, 로→으로, 랑→이랑, 야→이야, 였→이었)
+const PARTICLE = [[/^예요/, '이에요'], [/^였/, '이었'], [/^야(?![가-힣])/, '이야'], [/^가(?![가-힣])/, '이'], [/^를/, '을'], [/^는/, '은'], [/^와/, '과'], [/^로/, '으로'], [/^랑/, '이랑'], [/^라고/, '이라고'], [/^라서/, '이라서'], [/^면/, '이면']];
+function applyGlossary(en, ko) {
+  for (const g of GLOSSARY) {
+    if (!g.en.test(en) || ko.includes(g.ko)) continue;
+    ko = ko.replace(new RegExp('(?:' + g.wrong.source + ')([가-힣]*)', 'g'), (m, ...rest) => {
+      let tail = rest[rest.length - 3] || '';
+      for (const [re, to] of PARTICLE) if (re.test(tail)) { tail = tail.replace(re, to); break; }
+      return g.ko + tail;
+    });
+  }
+  return ko;
+}
+
 export default async (req) => {
   if (!requireAuth(req, 'admin')) return jsonResponse({ error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);
@@ -44,6 +65,7 @@ export default async (req) => {
     '- Keep names as they sound in Korean (e.g. Bluey → 블루이, Bingo → 빙고).',
     '- Match the tone: casual speech → 반말/구어체, polite speech → 존댓말.',
     '- Translate every line separately. Do not merge or skip lines.',
+    '- ' + glossaryNote,
     `- Reply ONLY with a JSON array of exactly ${list.length} Korean strings, in the same order.`,
     '',
     JSON.stringify(list),
@@ -55,7 +77,7 @@ export default async (req) => {
     accept: content => {
       const arr = parseList(content, list.length);
       if (arr.length !== list.length) return null; // 개수가 안 맞으면 다른 모델로
-      const ko = arr.map(x => (/[가-힣]/.test(x) ? x : '')); // 한글이 없는 답은 버림
+      const ko = arr.map((x, i) => (/[가-힣]/.test(x) ? applyGlossary(list[i], x) : '')); // 한글이 없는 답은 버림 · 정해 둔 번역으로
       return ko.filter(Boolean).length >= list.length * 0.5 ? ko : null;
     },
   });

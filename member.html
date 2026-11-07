@@ -27,9 +27,9 @@
   header .wrap{padding:0 16px;}
   h1{font-size:1.4rem; margin:0 0 6px; font-weight:800; letter-spacing:-0.02em; color:var(--text);}
   .sub{color:var(--muted); font-size:0.9rem; line-height:1.55;}
-  .home-link{display:inline-flex; align-items:center; gap:6px; margin-bottom:10px; font-size:1rem; font-weight:800; color:var(--accent2); text-decoration:none;}
-  .home-link:hover{color:var(--accent);}
-  .home-link .home-icon{font-size:1.15rem; line-height:1;}
+  .home-link{display:inline-flex; align-items:center; gap:10px; margin-bottom:12px; font-size:clamp(1.15rem, 5vw, 1.5rem); font-weight:800; color:#4A148C; text-decoration:none;}
+  .home-link:hover{color:#7B1FA2;}
+  .home-link .home-icon{font-size:clamp(1.9rem, 8vw, 2.4rem); line-height:1;}
   .card{background:var(--panel); border:1px solid var(--border); border-top:3px solid var(--accent); border-radius:var(--radius); padding:22px; margin-bottom:20px; box-shadow:0 8px 20px rgba(27,42,78,0.06);}
   .card h2{font-size:1.02rem; margin:0 0 4px; display:flex; align-items:center; gap:8px; color:var(--text); font-weight:800;}
   .card .card-desc{color:var(--muted); font-size:0.85rem; margin-bottom:16px;}
@@ -125,6 +125,22 @@
   .book-theme[data-book="nl1"] .item{background:#FFF3E8; border-color:#F3C7A2;} /* Nlife Step 1: 살구 */
   .book-theme[data-book="nl2"] .item{background:#F3EEFA; border-color:#CDBDE8;} /* Nlife Step 2: 연보라 */
   .book-theme[data-book="nl3"] .item{background:#E9F4FB; border-color:#AFD1EA;} /* Nlife Step 3: 하늘 */
+  .book-theme[data-book="tt3"] .item{background:#E3F3FC; border-color:#9FD0EE;} /* Topic Talk Level 3: 하늘 */
+  .book-theme[data-book="tt5"] .item{background:#FDEEF4; border-color:#F2BBD0;} /* Topic Talk Level 5: 분홍 */
+  .book-theme[data-book="tt6"] .item{background:#FFF6D6; border-color:#EFD67E;} /* Topic Talk Level 6: 노랑 */
+  .book-theme[data-book="tt7"] .item{background:#E6F7EE; border-color:#A8DEC1;} /* Topic Talk Level 7: 민트 */
+  .book-theme[data-book="tt8"] .item{background:#EFEBFB; border-color:#C4B8EC;} /* Topic Talk Level 8: 보라 */
+  .book-theme[data-book="tt9"] .item{background:#FDEDE3; border-color:#F2C0A0;} /* Topic Talk Level 9: 살구 */
+  .book-theme[data-book="mo1"] .item{background:#FDE9E9; border-color:#F3B4B4;} /* Momentum A Book 1: 장미 */
+  .book-theme[data-book="mo2"] .item{background:#FFEFE2; border-color:#F5C8A4;} /* Momentum A Book 2: 복숭아 */
+  .book-theme[data-book="mo3"] .item{background:#FBF3DC; border-color:#E9D7A0;} /* Momentum A Book 3: 모래 */
+  .book-theme[data-book="mo5"] .item{background:#F9EAF4; border-color:#E6BAD7;} /* Momentum A Book 5: 자두 */
+  .book-theme[data-book="mo6"] .item{background:#E8F5F3; border-color:#ADDAD3;} /* Momentum A Book 6: 청록 */
+  .book-theme[data-book="mb1"] .item{background:#E4F0FC; border-color:#A9CDF0;} /* Momentum B Book 1: 파랑 */
+  .book-theme[data-book="mb2"] .item{background:#E6F6FA; border-color:#A6DCE8;} /* Momentum B Book 2: 물빛 */
+  .book-theme[data-book="mb3"] .item{background:#ECEBFB; border-color:#BDB9EC;} /* Momentum B Book 3: 남보라 */
+  .book-theme[data-book="mc1"] .item{background:#F4E9FB; border-color:#D5B5EE;} /* Momentum C Part 1: 보라 */
+  .book-theme[data-book="mc2"] .item{background:#FBE9F3; border-color:#EFB7D6;} /* Momentum C Part 2: 진분홍 */
   .book-theme .variant-item{background:rgba(255,255,255,0.7);}
   /* 교재 표지 카드 */
   .book-shelf{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:12px;}
@@ -160,6 +176,22 @@
   .book-tile[data-book="nl1"]{background:#FFF3E8; border-color:#F3C7A2;}
   .book-tile[data-book="nl2"]{background:#F3EEFA; border-color:#CDBDE8;}
   .book-tile[data-book="nl3"]{background:#E9F4FB; border-color:#AFD1EA;}
+  .book-tile[data-book="tt3"]{background:#E3F3FC; border-color:#9FD0EE;}
+  .book-tile[data-book="tt5"]{background:#FDEEF4; border-color:#F2BBD0;}
+  .book-tile[data-book="tt6"]{background:#FFF6D6; border-color:#EFD67E;}
+  .book-tile[data-book="tt7"]{background:#E6F7EE; border-color:#A8DEC1;}
+  .book-tile[data-book="tt8"]{background:#EFEBFB; border-color:#C4B8EC;}
+  .book-tile[data-book="tt9"]{background:#FDEDE3; border-color:#F2C0A0;}
+  .book-tile[data-book="mo1"]{background:#FDE9E9; border-color:#F3B4B4;}
+  .book-tile[data-book="mo2"]{background:#FFEFE2; border-color:#F5C8A4;}
+  .book-tile[data-book="mo3"]{background:#FBF3DC; border-color:#E9D7A0;}
+  .book-tile[data-book="mo5"]{background:#F9EAF4; border-color:#E6BAD7;}
+  .book-tile[data-book="mo6"]{background:#E8F5F3; border-color:#ADDAD3;}
+  .book-tile[data-book="mb1"]{background:#E4F0FC; border-color:#A9CDF0;}
+  .book-tile[data-book="mb2"]{background:#E6F6FA; border-color:#A6DCE8;}
+  .book-tile[data-book="mb3"]{background:#ECEBFB; border-color:#BDB9EC;}
+  .book-tile[data-book="mc1"]{background:#F4E9FB; border-color:#D5B5EE;}
+  .book-tile[data-book="mc2"]{background:#FBE9F3; border-color:#EFB7D6;}
   .book-tile.on{border-color:#1B2A4E; box-shadow:0 0 0 3px rgba(27,42,78,0.18);}
   body.book-window #bookShelf{display:none;} /* 교재 새 창: 고른 교재만 보여요 */
   .book-picked{font-weight:800; color:#000; margin:4px 0 8px; background:#FDEBF1; border:1px solid #F2BFD0; border-radius:10px; padding:10px 12px;}
@@ -184,8 +216,9 @@
   .goal-bar{flex:1; height:14px; background:#FFE3D3; border-radius:999px; overflow:hidden;}
   .goal-bar i{display:block; height:100%; width:0; background:linear-gradient(90deg, #FF5F6D, #FF8A3D); border-radius:999px; transition:width .6s ease;}
   .goal-num{flex:0 0 auto; font-weight:900; font-size:0.95rem; min-width:88px; text-align:right;}
-  .goal-cheer{font-weight:900; font-size:1rem; color:#E8452C;}
+  .goal-cheer{font-weight:900; font-size:1.45rem; line-height:1.35; color:#E8452C;}
   @media (max-width:640px){
+    .goal-cheer{font-size:1.2rem;}
     .goal-banner{padding:18px 16px;}
     .goal-line{font-size:1.25rem;}
     .goal-stop{font-size:1.5rem;}
@@ -211,6 +244,10 @@
   .hub-tile[data-hub="feedback"]{background:#BBDEFB; border-color:#1565C0;}
   .hub-tile[data-hub="book"]{background:#F8BBD0; border-color:#C2185B;}
   .hub-tile[data-hub="video"]{background:#FFE082; border-color:#E65100;}
+  .hub-tile[data-hub="lesson"]{background:#C5CAE9; border-color:#303F9F;}
+  /* 넣어 준 카테고리만 보여요(운영자 지시 2026-11-03): 내용이 확인되기 전·내용이 없는 글상자는 숨겨요 */
+  .hub-tile.hub-off{display:none;}
+  .hub-none{margin:0; padding:16px; border-radius:16px; border:2px dashed var(--border); background:var(--panel); font-weight:800; color:var(--text); text-align:center;}
   .hub-icon{font-size:1.8rem; line-height:1;}
   .hub-name{font-size:1.08rem; font-weight:800; color:#000;}
   .hub-desc{font-size:0.86rem; font-weight:700; color:#222; line-height:1.45;}
@@ -227,6 +264,7 @@
   /* 휴대폰(좁은 화면): 글상자 세 개를 한 줄에 작게 — 기본 모양보다 뒤에 있어야 적용돼요 */
   @media (max-width:640px){
     .hub{gap:6px;}
+    .hub.hub-4{grid-template-columns:repeat(2, 1fr) !important;}  /* 글상자 네 개면 두 줄로 */
     .study-today .st-box{font-size:1.05rem; padding:10px 12px;}
     .hub-sticky.compact .st-day{font-size:0.88rem; padding:5px 8px;}
     .hub-sticky.compact .st-day .st-parts{display:block; margin:0; font-size:0.76rem;}
@@ -303,25 +341,31 @@
     <!-- 처음 화면: 글상자를 누르면 그 쉐도잉만 있는 화면(member.html?view=…)이 열려요 -->
     <div class="hub-sticky" id="hubSticky">
     <div class="hub" id="hubTiles">
-      <a class='hub-tile' data-hub='feedback' href='/member?view=feedback'>
+      <a class='hub-tile hub-off' data-hub='feedback' href='/member?view=feedback'>
         <span class="hub-icon">💬</span><b class="hub-name">피드백쉐도잉</b>
         <span class="hub-desc">수업 피드백에서 교정받은 문장을 한 문장씩 듣고 따라 말해요.</span>
         <span class="hub-meta" id="hubMetaFeedback">불러오는 중...</span>
         <span class="hub-time" id="hubTimeFeedback">⏱ 오늘 0초</span>
       </a>
-      <a class='hub-tile' data-hub='book' href='/member?view=book'>
+      <a class='hub-tile hub-off' data-hub='book' href='/member?view=book'>
         <span class="hub-icon">📖</span><b class="hub-name">교재 쉐도잉</b>
         <span class="hub-desc">선생님이 넣어 준 교재의 문장을 유닛별로 쉐도잉해요.</span>
         <span class="hub-meta" id="hubMetaBook">불러오는 중...</span>
         <span class="hub-time" id="hubTimeBook">⏱ 오늘 0초</span>
       </a>
-      <a class='hub-tile' data-hub='video' href='/member?view=video'>
+      <a class='hub-tile hub-off' data-hub='video' href='/member?view=video'>
         <span class="hub-icon">🎬</span><b class="hub-name">영상 쉐도잉</b>
         <span class="hub-desc">선생님이 넣어 준 영어 영상으로 듣기 · 쉐도잉 · 에코잉을 해요.</span>
         <span class="hub-meta" id="hubMetaVideo">불러오는 중...</span>
         <span class="hub-time" id="hubTimeVideo">⏱ 오늘 0초</span>
       </a>
+      <a class="hub-tile hub-off" data-hub="lesson" href="member.html?view=lesson">
+        <span class="hub-icon">🎥</span><b class="hub-name">수업영상쉐도잉</b>
+        <span class="hub-desc">내 엔보임 수업 녹화로 만든 영상으로 선생님 문장을 듣고 따라 말해요.</span>
+        <span class="hub-meta" id="hubMetaLesson">불러오는 중...</span>
+      </a>
     </div>
+    <div class="hub-none hidden" id="hubNone">선생님이 아직 쉐도잉을 넣어 주지 않았어요. 선생님께 말씀해 주세요.</div>
     <div class="study-today" id="studyToday"><div class="st-box st-day">⏱ 오늘 쉐도잉한 시간 0초</div></div>
     </div>
     <a class='hub-back hidden' href='/member' id='hubBack'>← 내 쉐도잉 처음으로</a>
@@ -368,6 +412,14 @@
     </div>
     </div>
 
+    <div data-view="lesson">
+    <div class="card" id="lessonVideoCard">
+      <h2>🎥 수업영상쉐도잉</h2>
+      <div class="card-desc">내 엔보임 수업 녹화로 만든 영상이에요. 영상을 누르면 영상 쉐도잉과 똑같은 연습 화면이 열려요. (최근 수업이 먼저 보여요)</div>
+      <div class="vgrid" id="lessonVideoList"><div class="empty">불러오는 중...</div></div>
+    </div>
+    </div>
+
     <div class="card" id="reportCard" data-view="home">
       <h2>📊 나의 학습 리포트</h2>
       <div class="card-desc">수업 횟수 · 출결 · 쉐도잉 평균 일치도 · 공부한 문장과 단어를 그래프로 정리해 드려요. 매달 1일에 지난달 리포트가 자동으로 만들어져요.</div>
@@ -401,7 +453,7 @@
   </footer>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261028d"></script>
+<script src="js/shadowing-engine.js?v=20261107a"></script>
 <script src="js/study-time.js?v=20261023c"></script>
 <script src="js/learning-report.js?v=20261023a"></script>
 <script>
@@ -442,9 +494,14 @@ function showLogin() {
   document.getElementById('goalMe').classList.add('hidden');
 }
 // ?view=feedback|book|video → 그 쉐도잉만 보여요. 없으면 처음 화면(글상자 세 개 + 학습 리포트)
-const VIEWS = { feedback: '💬 피드백쉐도잉', book: '📖 교재 쉐도잉', video: '🎬 영상 쉐도잉' };
+const VIEWS = { feedback: '💬 피드백쉐도잉', book: '📖 교재 쉐도잉', video: '🎬 영상 쉐도잉', lesson: '🎥 수업영상쉐도잉' };
 const viewFromUrl = () => { const v = new URLSearchParams(location.search).get('view'); return VIEWS[v] ? v : 'home'; };
 let VIEW = viewFromUrl();
+// 수업영상 연습 화면(video.html)의 「← 목록」은 영상 쉐도잉으로 오지만, 수업영상에서 들어갔으면 수업영상으로 돌려보내요
+try {
+  if (VIEW === 'video' && sessionStorage.getItem('yc:lessonBack') && /video\.html/.test(document.referrer)) { VIEW = 'lesson'; history.replaceState(null, '', 'member.html?view=lesson'); }
+  sessionStorage.removeItem('yc:lessonBack');
+} catch (e) {}
 const HOME_H1 = document.querySelector('header h1').textContent, HOME_TITLE = document.title;
 // 글상자 세 개는 어느 화면에서나 늘 보여요(위에 고정). 고른 쉐도잉만 아래에 열려요.
 function applyView() {
@@ -471,6 +528,22 @@ document.getElementById('hubBack').addEventListener('click', e => { e.preventDef
 window.addEventListener('popstate', () => { VIEW = viewFromUrl(); applyView(); });
 applyView();
 function setHubMeta(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+// 넣어 준 카테고리만 보여요(운영자 지시 2026-11-03): 피드백 회차가 있으면 피드백, 넣어 준 교재가 있으면 교재,
+// 넣어 준 영상이 있으면 영상, 넣어 준 수업 녹화 영상이 있으면 수업영상 글상자가 보여요. (불러오지 못했으면 그대로 보여요)
+const hubShown = {};
+function setHubShown(key, shown) {
+  hubShown[key] = !!shown;
+  const tile = document.querySelector(`#hubTiles .hub-tile[data-hub="${key}"]`);
+  if (tile) tile.classList.toggle('hub-off', !shown);
+  const on = [...document.querySelectorAll('#hubTiles .hub-tile:not(.hub-off)')].length;
+  const hub = document.getElementById('hubTiles');
+  hub.style.gridTemplateColumns = `repeat(${Math.max(1, on)}, 1fr)`;
+  hub.classList.toggle('hub-4', on >= 4);
+  const all = ['feedback', 'book', 'video', 'lesson'].every(k => k in hubShown);
+  document.getElementById('hubNone').classList.toggle('hidden', !(all && !on));
+  // 보이지 않는 카테고리 화면에 있으면 처음 화면으로
+  if (VIEW === key && !shown) goView('home');
+}
 
 /* ===================== 🔥 듣기 1000번 · 따라 말하기 1000번 배너 ===================== */
 // 지금까지의 연습 횟수를 불러와 막대로 보여주고, 연습할 때마다 바로 늘려요. 1000번을 넘기면 다음 1000번에 도전!
@@ -584,10 +657,11 @@ async function loadSets() {
   const statusEl = document.getElementById('setStatus');
   statusEl.textContent = '불러오는 중...'; statusEl.className = 'status';
   try {
-    const data = await apiFetch(API.sets);
+    const data = await apiFetch(API.sets).catch(e => { setHubShown('feedback', true); throw e; });
     if (data.me) { try { if (data.me.name) localStorage.setItem(NAME_KEY, data.me.name); else localStorage.removeItem(NAME_KEY); } catch (e) {} renderWelcome(); }
-    const sets = data.sets || [];
+    const sets = (data.sets || []).slice().sort((a, b) => !!a.practice - !!b.practice); // 공부한 회차는 맨 뒤로
     setHubMeta('hubMetaFeedback', sets.length ? `수업 회차 ${sets.length}개` : '아직 등록된 회차가 없어요');
+    setHubShown('feedback', sets.length > 0);
     setSelect.innerHTML = '';
     if (!sets.length) {
       setSelect.innerHTML = '<option value="">등록된 회차가 아직 없어요</option>';
@@ -684,6 +758,7 @@ function renderSet(set, counts) {
 // 고른 레벨은 video.html과 같은 저장값(vs:level)을 써서 두 화면이 같은 레벨을 보여줘요.
 
 let videosCache = [];
+let lessonVideos = [];   // 🎥 수업영상쉐도잉: 엔보임 수업 녹화로 만든 영상
 let videoProgress = {};
 const fmtLen = t => { t = Math.max(0, Math.round(t || 0)); const m = Math.floor(t / 60), s = t % 60; return `${m}:${String(s).padStart(2, '0')}`; };
 function getVideoLevel() { try { return JSON.parse(localStorage.getItem('vs:level')) || 'all'; } catch (e) { return 'all'; } }
@@ -692,13 +767,21 @@ function setVideoLevel(lv) { try { localStorage.setItem('vs:level', JSON.stringi
 async function loadVideos() {
   const box = document.getElementById('videoList');
   try {
-    const d = await apiFetch('/api/member-videos');
-    videosCache = d.lessons || [];
+    const [d, rec] = await Promise.all([apiFetch('/api/member-videos'), apiFetch('/api/member-lesson-videos').catch(() => ({ ids: [] }))]);
+    const recIds = new Set(rec.ids || []);
+    const all = d.lessons || [];
+    videosCache = all.filter(v => !recIds.has(v.id));
+    lessonVideos = all.filter(v => recIds.has(v.id));
     setHubMeta('hubMetaVideo', videosCache.length ? `영상 ${videosCache.length}개` : '넣어 준 영상이 아직 없어요');
+    setHubMeta('hubMetaLesson', lessonVideos.length ? `수업 영상 ${lessonVideos.length}개` : '넣어 준 수업 영상이 아직 없어요');
     videoProgress = d.progress || {};
     renderVideos();
+    renderLessonVideos();
+    setHubShown('video', videosCache.length > 0);
+    setHubShown('lesson', lessonVideos.length > 0);
   } catch (e) {
     box.innerHTML = `<div class="empty">⚠️ ${ShadowingEngine.escapeHTML(e.message)}</div>`;
+    setHubShown('video', true); setHubShown('lesson', false);
   }
 }
 
@@ -709,7 +792,8 @@ function renderVideos() {
   // 전체: 레벨 순서(👶 유아 → Lv 1-2 → 3-4 → 5-6 → 7-9 → 레벨 없음)로, 같은 레벨 안에서는 원래 순서 그대로
   const LV_ORDER = ['kids', '1-2', '3-4', '5-6', '7-9'];
   const lvRank = v => { const i = LV_ORDER.indexOf(v.level || ''); return i < 0 ? LV_ORDER.length : i; };
-  const list = lv === 'all' ? videosCache.slice().sort((a, b) => lvRank(a) - lvRank(b)) : videosCache.filter(v => v.level === lv);
+  const finished = v => !v.watchOnly && v.sentenceCount > 0 && !!videoProgress[v.id] && videoProgress[v.id].done >= v.sentenceCount; // 다 공부한 영상은 맨 뒤로
+  const list = (lv === 'all' ? videosCache.slice().sort((a, b) => lvRank(a) - lvRank(b)) : videosCache.filter(v => v.level === lv)).sort((a, b) => finished(a) - finished(b));
   const box = document.getElementById('videoList');
   document.getElementById('vLvTabs').classList.toggle('hidden', !videosCache.length); // 넣어 준 영상이 없으면 레벨 탭도 숨겨요
   if (!list.length) {
@@ -733,6 +817,31 @@ function renderVideos() {
     </a>`;
   }).join('');
 }
+
+// 🎥 수업영상쉐도잉 목록: 영상 쉐도잉과 같은 모양, 최근 수업이 먼저 · 다 공부한 영상은 맨 뒤로
+function renderLessonVideos() {
+  const esc = ShadowingEngine.escapeHTML;
+  const box = document.getElementById('lessonVideoList');
+  const finished = v => v.sentenceCount > 0 && !!videoProgress[v.id] && videoProgress[v.id].done >= v.sentenceCount;
+  const list = lessonVideos.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).sort((a, b) => finished(a) - finished(b));
+  if (!list.length) { box.innerHTML = '<div class="empty">선생님이 넣어 준 수업 영상이 아직 없어요.</div>'; return; }
+  box.innerHTML = list.map(v => {
+    const p = videoProgress[v.id];
+    const pct = v.sentenceCount && p ? Math.min(100, Math.round(p.done / v.sentenceCount * 100)) : 0;
+    const len = (v.clipEnd || v.duration || 0) - (v.clipStart || 0);
+    return `<a class="vitem" data-lesson="1" href="video.html?id=${encodeURIComponent(v.id)}">
+      <div class="vthumb"><b>▶</b></div>
+      <div class="vbody">
+        <div class="vtitle">${esc(v.title)}</div>
+        <div class="vprog"><i style="width:${pct}%"></i></div>
+        <div class="vmeta">${len > 0 ? `<span>⏱ ${fmtLen(len)}</span>` : ''}<span>💬 ${v.sentenceCount}문장${pct ? ` · ✓ ${pct}%` : ''}${p && p.last != null ? ' · 🔖 이어서' : ''}</span></div>
+      </div>
+    </a>`;
+  }).join('');
+}
+document.getElementById('lessonVideoList').addEventListener('click', e => {
+  if (e.target.closest('a.vitem')) { try { sessionStorage.setItem('yc:lessonBack', '1'); } catch (_) {} }
+});
 
 document.getElementById('vLvTabs').addEventListener('click', e => {
   const b = e.target.closest('[data-lv]'); if (!b) return;
@@ -776,6 +885,22 @@ const BOOK_COVERS = {
   nl1: { img: 'images/textbooks/nlife.png', step: 'Step 1' },
   nl2: { img: 'images/textbooks/nlife.png', step: 'Step 2' },
   nl3: { img: 'images/textbooks/nlife.png', step: 'Step 3' },
+  tt3: { img: 'images/textbooks/topic-talk-3.png' },
+  tt5: { img: 'images/textbooks/topic-talk-5.png' },
+  tt6: { img: 'images/textbooks/topic-talk-6.png' },
+  tt7: { img: 'images/textbooks/topic-talk-7.png' },
+  tt8: { img: 'images/textbooks/topic-talk-8.png' },
+  tt9: { img: 'images/textbooks/topic-talk-9.png' },
+  mo1: { img: 'images/textbooks/momentum-a.png', step: 'Book 1' },
+  mo2: { img: 'images/textbooks/momentum-a.png', step: 'Book 2' },
+  mo3: { img: 'images/textbooks/momentum-a.png', step: 'Book 3' },
+  mo5: { img: 'images/textbooks/momentum-a.png', step: 'Book 5' },
+  mo6: { img: 'images/textbooks/momentum-a.png', step: 'Book 6' },
+  mb1: { img: 'images/textbooks/momentum-b.png', step: 'Book 1' },
+  mb2: { img: 'images/textbooks/momentum-b.png', step: 'Book 2' },
+  mb3: { img: 'images/textbooks/momentum-b.png', step: 'Book 3' },
+  mc1: { img: 'images/textbooks/momentum-c.png', step: 'Part 1' },
+  mc2: { img: 'images/textbooks/momentum-c.png', step: 'Part 2' },
 };
 let booksList = [];
 let selectedBook = null;
@@ -786,7 +911,8 @@ const unitsOfBook = id => ((booksList.find(b => b.id === id) || {}).units || [])
 
 function renderBookShelf() {
   const esc = ShadowingEngine.escapeHTML;
-  document.getElementById('bookShelf').innerHTML = booksList.map(b => {
+  // 다 공부한 교재(공부한 양 100%)는 맨 뒤로
+  document.getElementById('bookShelf').innerHTML = booksList.slice().sort((a, b) => (bookStudyPercent(a) >= 100) - (bookStudyPercent(b) >= 100)).map(b => {
     const c = BOOK_COVERS[b.id] || (b.cover ? { img: b.cover } : {}); // 직접 만든 교재는 올린 표지 그림
     const done = b.units.filter(u => unitsById[u.id] && unitsById[u.id].practice).length;
     const pct = bookStudyPercent(b);
@@ -810,7 +936,9 @@ function selectBook(bookId) {
   renderBookShelf();
   document.getElementById('bookUnitPicker').classList.remove('hidden');
   document.getElementById('bookPicked').textContent = `📘 ${book.title}${(BOOK_COVERS[bookId] || {}).step && !book.title.includes(BOOK_COVERS[bookId].step) ? ' ' + BOOK_COVERS[bookId].step : ''} — 유닛을 골라 주세요`;
-  bookSelect.innerHTML = book.units.map(u => `<option value="${u.id}">${ShadowingEngine.escapeHTML(unitOptionLabel(unitsById[u.id]))}</option>`).join('');
+  // 공부한 유닛은 맨 뒤로 (피드백 회차와 같은 기준)
+  const practiced = u => !!(unitsById[u.id] && unitsById[u.id].practice);
+  bookSelect.innerHTML = book.units.slice().sort((a, b) => practiced(a) - practiced(b)).map(u => `<option value="${u.id}">${ShadowingEngine.escapeHTML(unitOptionLabel(unitsById[u.id]))}</option>`).join('');
   let last = null; try { last = localStorage.getItem('textbook_unit_' + bookId); } catch (e) {}
   if (last && book.units.some(u => u.id === last)) bookSelect.value = last;
   updateBookStatus();
@@ -857,9 +985,10 @@ function updateBookStatus() {
 async function loadBooks() {
   const statusEl = document.getElementById('bookStatus');
   try {
-    const { books } = await apiFetch(API.textbooks);
+    const { books } = await apiFetch(API.textbooks).catch(e => { setHubShown('book', true); throw e; });
     booksList = books || [];
     setHubMeta('hubMetaBook', booksList.length ? `교재 ${booksList.length}권` : '넣어 준 교재가 아직 없어요');
+    setHubShown('book', booksList.length > 0);
     unitsById = {};
     booksList.forEach(b => b.units.forEach(u => { unitsById[u.id] = u; }));
     renderBookShelf();

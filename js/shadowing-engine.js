@@ -150,7 +150,7 @@
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
   let __activePracticeWrap = null; // 지금 연습 중인 문장 카드 (공부 시간을 피드백/교재로 나눠 재는 데 사용)
-  const ENGINE_VERSION = '2026-10-28d'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-11-07a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -877,9 +877,40 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   // (소리 크기를 못 재는 기기면 아무 일도 안 하고, 예전처럼 정해진 시간까지 녹음해요)
   // 학생 목소리가 멈추고 이만큼 조용하면 '말 끝' → 바로 채점하고 다음으로 (피드백·교재·영상 쉐도잉 모두)
   // 모든 따라 말하기가 이 함수 하나를 거쳐요(교재·영상 쉐도잉도 같은 엔진) → 교재나 영상을 새로 넣어도 이 기능은 그대로 적용돼요.
-  const SILENCE_MS = 1000; // 말이 멈추고 1초 뒤 채점 (0.2초는 단어 사이 숨 쉬는 틈에도 끊겨 인식이 잘렸어요)
-  function __watchSilence(stream, onSilence, meter, quietLimitMs) {
+  const SILENCE_MS = 200;
+  // 피드백·교재·영상 쉐도잉 모두: 조용함이 얼마나 이어져야 '목소리가 다 끝났다'고 볼지 (운영자 지시 2026-11-04: 말하는 도중에는 절대 넘어가지 않게, 끝나면 0.1초 후)
+  //   said(문장의 끝 단어까지 글자로 확인됨) → 0.1초 — 말을 끝냈다는 증거가 있을 때만 바로 채점해요.
+  //   글자를 못 받는 기기·끝 단어를 못 알아들은 경우: 소리만으로는 쉬는 것과 끝난 것을 구별할 수 없어서
+  //   문장 길이의 0.7배 이상 말했으면 0.9초, 그보다 적으면 1.5초(숨 쉬거나 생각하는 중) 기다려요.
+  function quietNeedMs(voicedMs, targetMs, said) {
+    if (said) return 100;
+    return voicedMs >= targetMs * 0.7 ? 900 : 1500;
+  }
+  // 받아쓴 말에 문장의 끝 단어까지 들어왔는지 (PC Chrome처럼 말하는 동안 글자가 나오는 기기).
+  // 문장 안에 같은 단어가 앞에도 있을 수 있어서 거의 모든 단어를 들은 뒤에만 인정해요. 끝 단어 발음이 조금 달라도 괜찮아요.
+  function heardToEnd(target, heard) {
+    const toks = t => String(t || '').toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(Boolean);
+    const T = toks(target), H = toks(heard);
+    if (!T.length || H.length < Math.max(T.length - 2, T.length * 0.8)) return false;
+    const last = T[T.length - 1], near = w => w === last || (last.length > 3 && w.slice(0, 3) === last.slice(0, 3));
+    return H.slice(-2).some(near);
+  }
+  // 쉐도잉 따라 말하기의 기다리는 규칙. 문장을 말하는 데 걸리는 시간(ms)을 알면 넘겨요 (영상 속 문장 길이). 모르면 단어당 0.33초로 잡아요.
+  function patientFor(text, ms) {
+    const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+    return { targetMs: Math.max(600, Math.min(30000, Math.max(ms || 0, words * 330))), relQuiet: 0.08, relQuietEnd: 0.125 };
+  }
+  // extra(선택): 끝까지 기다려야 할 때 (patientFor가 만들어요)
+  //   targetMs: 문장을 말하는 데 걸리는 시간 (있으면 quietNeedMs로 끝을 판단) · state.said: 끝 단어까지 들렸는지
+  //   relQuiet: 목소리 최고점의 몇 배 아래를 '조용함'으로 볼지
+  function __watchSilence(stream, onSilence, meter, quietLimitMs, extra) {
     const quietLimit = quietLimitMs || SILENCE_MS;
+    const targetMs = extra && extra.targetMs;
+    const isSaid = () => !!(extra && extra.state && extra.state.said);
+    const minSpeak = (extra && extra.minSpeakMs) || 500;
+    const relQuiet = extra && extra.relQuiet != null ? extra.relQuiet : 0.12;
+    // relQuietEnd: 문장을 다 말한 뒤의 기준 — 방이 조금 시끄러워도 목소리가 끊긴 걸 바로 알아채요
+    const relQuietEnd = extra && extra.relQuietEnd != null ? extra.relQuietEnd : relQuiet;
     let ctx = null, timer = null, stopped = false;
     const stop = () => { stopped = true; clearInterval(timer); try { ctx && ctx.close(); } catch (e) {} };
     try {
@@ -893,7 +924,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       src.connect(an);
       const data = new Float32Array(an.fftSize);
       const t0 = Date.now();
-      let noise = 0, noiseN = 0, loudFrames = 0, speechAt = 0, quietMs = 0, level = 0, voicePeak = 0;
+      let noise = 0, noiseN = 0, loudFrames = 0, speechAt = 0, quietMs = 0, level = 0, voicePeak = 0, voicedMs = 200;
       timer = setInterval(() => {
         if (stopped) return;
         an.getFloatTimeDomainData(data);
@@ -908,6 +939,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         // 휴대폰을 조금 멀리 두고 말해도 '말소리'로 알아보도록 기준을 낮게 잡아요 (예전 0.015 · 소음의 2.5배)
         const th = Math.max(0.006, floor * 1.8);
         if (!speechAt) {
+          if (targetMs && elapsed > 10000) { stop(); onSilence(); return; } // 10초가 지나도 말을 시작하지 않으면 그만 기다려요
           loudFrames = rms > th ? loudFrames + 1 : 0;
           if (loudFrames >= 4) speechAt = Date.now(); // 0.2초 이상 소리가 나면 '말 시작'
           return;
@@ -919,23 +951,27 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         // 방이 시끄러워서 '완전히 조용'해지지 않아도 사람 목소리가 끊긴 걸 바로 알아채요.
         level = level * 0.6 + rms * 0.4;
         if (level > voicePeak) voicePeak = level;
-        quietMs = rms < Math.max(th * 0.7, voicePeak * 0.12) ? quietMs + 50 : 0;
-        if (quietMs >= quietLimit && Date.now() - speechAt >= 500) { stop(); onSilence(); }
-      }, 50); // 0.05초마다 재서 말이 끝난 순간을 더 빨리 알아채요
+        const rel = !targetMs || isSaid() ? relQuietEnd : relQuiet;
+        const quiet = rms < Math.max(th * 0.7, voicePeak * rel);
+        if (!quiet) voicedMs += 50 + (quietMs <= 150 ? quietMs : 0); // 단어 사이 짧은 틈은 말한 시간에 넣어요
+        quietMs = quiet ? quietMs + 50 : 0;
+        const need = targetMs ? quietNeedMs(voicedMs, targetMs, isSaid()) : quietLimit;
+        if (quietMs >= need && Date.now() - speechAt >= minSpeak) { stop(); onSilence(); }
+      }, 50);   // 0.05초마다 재서 말이 끝난 순간을 더 빨리 알아채요
     } catch (e) { stop(); }
     return stop;
   }
 
   // Chrome 내장 인식은 말이 끝난 걸 1초 넘게 늦게 알아채요. 마이크 소리 크기를 따로 재서
   // 학생 목소리가 멈추고 SILENCE_MS 뒤 바로 인식을 끝내요 (결과는 끝낸 순간까지 들은 말). 돌려주는 함수로 정리해요.
-  function __stopRecognitionOnSilence(recognition, silenceMs) {
+  function __stopRecognitionOnSilence(recognition, silenceMs, extra) {
     let stream = null, stopWatch = null, closed = false;
     const cleanup = () => { closed = true; try { stopWatch && stopWatch(); } catch (e) {} if (stream) stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} }); };
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }).then(st => {
         if (closed) { st.getTracks().forEach(t => t.stop()); return; }
         stream = st;
-        stopWatch = __watchSilence(st, () => { try { recognition.stop(); } catch (e) {} }, { peak: 0, measured: false }, silenceMs);
+        stopWatch = __watchSilence(st, () => { try { recognition.stop(); } catch (e) {} }, { peak: 0, measured: false }, silenceMs, extra);
       }).catch(() => {}); // 따로 못 재면 Chrome이 스스로 끝낼 때까지 기다려요
     }
     return cleanup;
@@ -995,7 +1031,8 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       };
 
       const words = targetText.trim().split(/\s+/).filter(Boolean).length;
-      const seconds = Math.min(25, 3 + words * 0.65);
+      // 최대 녹음 시간 (끝까지 기다리기 모드는 천천히 말하는 학생도 끝까지 들을 수 있게 더 길게)
+      const seconds = opts && opts.patient ? Math.min(60, 5 + words * 1.2) : Math.min(25, 3 + words * 0.65);
       recorder.start();
       __warmAudioConvert(); // 말하는 동안 소리 변환기를 미리 준비 → 말이 끝나면 바로 채점
       const meter = { peak: 0, measured: false };
@@ -1008,7 +1045,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         await new Promise(r => setTimeout(r, 100));
         if (settled || recorder.state === 'inactive') return;
       }
-      stopWatch = __watchSilence(stream, () => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} }, meter, opts && opts.silenceMs);
+      stopWatch = __watchSilence(stream, () => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) {} }, meter, opts && opts.silenceMs, opts && opts.patient);
       timer = setTimeout(() => { try { recorder.state !== 'inactive' && recorder.stop(); } catch (e) { settle({ ok: false, error: 'no-speech' }); } }, seconds * 1000);
     });
   }
@@ -1206,6 +1243,11 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
 
         const recognition = getSharedRecognition();
         runState.activeRecognition = recognition;
+        // 긴 문장도 끝까지: Chrome이 짧게 쉬는 곳에서 스스로 끝내지 않게 이어 듣고, 말하는 동안 글자를 받아 끝 단어까지 말했는지 알아봐요
+        const patient = patientFor(targetText);
+        patient.state = { said: false };
+        recognition.continuous = true;
+        recognition.interimResults = true;
 
         // 마이크가 완전히 닫힌 뒤(onend)에만 다음 단계로 넘어갑니다. 예전에는 오류(onerror)가 나는 즉시 넘어가서
         // 마이크가 아직 열려 있는 채로 다음 반복이 시작됐고, 그러면 다음 마이크가 바로 실패해서
@@ -1213,14 +1255,17 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         const hardStop = setTimeout(() => {
           try { recognition.abort(); } catch (e) {}
           setTimeout(() => settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }), 1000);
-        }, 20000);
+        }, 60000);
         let stopOnSilence = null;
         recognition.onstart = async () => {
           if (onReady) onReady();
-          try { await playBeep(); } catch (e) {} // "지금 말씀하세요!"와 함께 삐 — 삐가 끝난 뒤부터 목소리를 재요
-          if (!settled) stopOnSilence = __stopRecognitionOnSilence(recognition, SILENCE_MS);
+          try { await playBeep(); } catch (e) {}   // "지금 말씀하세요!"와 함께 삐 — 삐가 끝난 뒤부터 목소리를 재요
+          if (!settled) stopOnSilence = __stopRecognitionOnSilence(recognition, SILENCE_MS, patient);
         };
-        recognition.onresult = (event) => { heard = Array.from(event.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim() || heard; };
+        recognition.onresult = (event) => {
+          heard = Array.from(event.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim() || heard;
+          if (heardToEnd(targetText, heard)) patient.state.said = true;
+        };
         recognition.onerror = (event) => { lastError = event.error; };
         recognition.onend = () => { if (stopOnSilence) stopOnSilence(); settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }); };
         const tryStart = (canRetry) => {
@@ -1238,7 +1283,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     // 따라 말하기 한 번: 평소엔 브라우저 내장 음성 인식, 이 기기에서 그게 안 되면 서버 받아쓰기.
     function runOneRecognition(onReady) {
       // '삐'는 마이크가 켜져 "🗣️ 지금 말씀하세요!"가 뜨는 순간에 나요 ("마이크 준비 중"에는 소리 없음)
-      if (__sttMode === 'server') return recordAndTranscribe(targetText, onReady, { beepOnReady: true });
+      if (__sttMode === 'server') return recordAndTranscribe(targetText, onReady, { beepOnReady: true, patient: patientFor(targetText) });
       return Promise.resolve(runState.stopped ? { ok: false, error: 'aborted' } : runBrowserRecognition(onReady)).then(result => {
         if (noteBrowserSTTResult(result)) result.switchedToServer = true;
         return result;
@@ -2011,16 +2056,23 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       const settle = (val) => { if (!settled) { settled = true; clearTimeout(hardStop); __standaloneActive = null; resolve(val); } };
       if (!__standaloneRec) { __standaloneRec = new SpeechRecognitionCtor(); __standaloneRec.lang = 'en-US'; __standaloneRec.maxAlternatives = 1; }
       const recognition = __standaloneRec;
-      recognition.interimResults = false;
+      // 영상 쉐도잉: 말하는 동안 글자를 받아서 문장 끝 단어까지 말했는지 알아봐요
+      recognition.interimResults = !!(opts.patient && opts.patient.targetMs);
+      if (opts.patient) opts.patient.state = { said: false };
+      // 끝까지 기다리기(영상 쉐도잉): Chrome이 짧게 쉬는 곳에서 스스로 끝내지 않게 이어 듣고, 끝은 우리 소리 감시가 정해요
+      recognition.continuous = !!opts.patient;
       let stopOnSilence = null;
       __standaloneActive = () => { try { recognition.abort(); } catch (e) {} settle({ ok: false, error: 'aborted' }); };
-      const hardStop = setTimeout(() => { try { recognition.abort(); } catch (e) {} setTimeout(() => settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }), 1000); }, 20000);
+      const hardStop = setTimeout(() => { try { recognition.abort(); } catch (e) {} setTimeout(() => settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }), 1000); }, opts.patient ? 60000 : 20000);
       recognition.onstart = async () => {
         if (onReady) onReady();
         if (opts.beepOnReady) { try { await ((opts.beepFn) || playBeep)(); } catch (e) {} } // 삐가 끝난 뒤부터 목소리를 재요
-        if (!settled) stopOnSilence = __stopRecognitionOnSilence(recognition, opts.silenceMs || SILENCE_MS);
+        if (!settled) stopOnSilence = __stopRecognitionOnSilence(recognition, opts.silenceMs || SILENCE_MS, opts.patient);
       };
-      recognition.onresult = (event) => { heard = Array.from(event.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim() || heard; };
+      recognition.onresult = (event) => {
+        heard = Array.from(event.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim() || heard;
+        if (opts.patient && opts.patient.state && heardToEnd(opts.target, heard)) opts.patient.state.said = true;
+      };
       recognition.onerror = (event) => { lastError = event.error; };
       recognition.onend = () => { if (stopOnSilence) stopOnSilence(); settle(heard ? { ok: true, heard } : { ok: false, error: lastError || 'no-speech' }); };
       const tryStart = (canRetry) => {
@@ -2034,10 +2086,10 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     opts = opts || {};
     let result;
     if (__sttMode === 'server' || !SpeechRecognitionCtor) {
-      result = await recordAndTranscribe(targetText, opts.onReady, { noBeep: !!opts.noBeep, beepOnReady: !!opts.beepOnReady, beepFn: opts.beepFn, silenceMs: opts.silenceMs });
+      result = await recordAndTranscribe(targetText, opts.onReady, { noBeep: !!opts.noBeep, beepOnReady: !!opts.beepOnReady, beepFn: opts.beepFn, silenceMs: opts.silenceMs, patient: opts.patient });
     } else {
       if (!opts.noBeep && !opts.beepOnReady) await playBeep();
-      result = await __browserRecognizeOnce(opts.onReady, opts);
+      result = await __browserRecognizeOnce(opts.onReady, Object.assign({}, opts, { target: targetText }));
       if (noteBrowserSTTResult(result)) result.switchedToServer = true;
     }
     if (result.ok) {
@@ -2071,6 +2123,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   global.ShadowingEngine = {
     speechText,
     listenAndScore,
+    patientFor,
     stopListening,
     scoreRecording,
     VERSION: ENGINE_VERSION,
