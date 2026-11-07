@@ -272,9 +272,10 @@
     let raw = String(text || '').replace(/\r/g, '').replace(/ /g, ' ');
     // 줄바꿈 없이 한 줄로 붙어서 복사된 경우: 시간(0:00)이 나올 때마다 줄을 나눠요
     // (시간 바로 뒤에 '1초' 같은 숫자가 붙어 와도 시간으로 봐요: "0:011초little fox")
-    const STAMP = /(?<![\d:])((?:\d{1,2}:)?\d{1,2}:\d{2})(?!:)/g;
+    // (옛 Safari는 뒤돌아보기 정규식(?<!…)을 몰라서 앞 글자를 함께 잡아요)
+    const STAMP = /(^|[^\d:])((?:\d{1,2}:)?\d{1,2}:\d{2})(?!:)/g;
     const stamps = (raw.match(STAMP) || []).length;
-    if (stamps >= 3 && raw.split('\n').filter(l => l.trim()).length < stamps / 2) raw = raw.replace(STAMP, '\n$1');
+    if (stamps >= 3 && raw.split('\n').filter(l => l.trim()).length < stamps / 2) raw = raw.replace(STAMP, '$1\n$2');
     const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
     const TS = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:\.\d+)?$/;
     const toSec = m => (Number(m[1] || 0) * 3600) + Number(m[2]) * 60 + Number(m[3]);

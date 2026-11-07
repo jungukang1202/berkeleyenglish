@@ -887,6 +887,7 @@ async function playSentence(k, cb) {
   const s = list[k]; if (!s) return;
   setCurrent(k);
   const me = ++clipRun; stopAt = null; onReach = null;
+  unlockMedia(); // 문장을 눌러 들을 때도 (Safari)
   v.pause();
   v.playbackRate = S.rate;
   // 한 문장을 끝까지, 앞 문장 소리 없이: 시작으로 옮겨진 뒤에 재생하고, 문장 끝이 잘리지 않을 때 멈춰요 (규칙은 yt-media.js SentenceClip)
@@ -1000,9 +1001,19 @@ function beep() {
 
 function updateRep() { $('#repTxt').textContent = running && S.mode !== 'listen' ? `${rep + 1}/${S.reps}회` : ''; }
 let runId = 0; // 정지하거나 문장을 옮기면 바뀜 → 이미 울리고 있던 띵동/삐 뒤의 재생은 취소
+// Safari(맥·아이폰·아이패드)는 버튼을 누른 그 순간이 아니면 소리 있는 재생을 막아요. 띵동(1초) 뒤에 재생하면 막혀서,
+// 처음 「연습 시작」을 누른 순간에 한 번 재생했다가 바로 멈춰 두면 그 뒤로는 재생이 허락돼요. (Chrome은 그대로)
+const IS_SAFARI = /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
+let mediaUnlocked = false;
+function unlockMedia() {
+  if (mediaUnlocked || !IS_SAFARI || !v || !v.paused) return;
+  mediaUnlocked = true;
+  try { const p = v.play(); if (p && p.catch) p.catch(() => {}); v.pause(); } catch (e) {}
+}
 function start() {
   if (!list.length) return;
   audioCtx(); // 버튼을 누른 순간에 소리 장치를 켜 둬야 휴대폰에서도 신호음이 나요
+  unlockMedia();
   running = true; rep = 0; runId++; repLogged = false;
   pSession = Date.now().toString(36).slice(-8);
   $('#go').textContent = '■ 정지'; $('#go').classList.add('dark');

@@ -724,7 +724,7 @@
   function toSentences(toks, text) {
     // 한글 단어도 한 단어로 세요(시간이 밀리지 않게) — 한글 줄은 나중에 빼요
     const nW = p => p.split(/\s+/).filter(Boolean).length;
-    const parts = String(text).split(/(?<=[.?!]["')\]]*)\s+/).map(p => p.trim()).filter(p => nW(p));
+    const parts = String(text).replace(/([.?!]["')\]]*)\s+/g, '$1\u0001').split('\u0001').map(p => p.trim()).filter(p => nW(p));
     if (!parts.length) return [];
     const counts = parts.map(nW), total = counts.reduce((x, c) => x + c, 0);
     const out = [];
