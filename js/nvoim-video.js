@@ -586,6 +586,35 @@
     return runs.slice(0, 60).map(([a, b]) => [Math.max(0, a - 0.5), Math.min(pcm.length / SR, b + 0.5)]);
   }
   const HALLUCINATION = /^(thank you\.?|thanks for watching.*|you\.?|bye\.?|\.+)$/i;
+  // 소리가 없는 곳에 받아쓰기가 지어낸 줄 빼기(운영자 지시 2026-11-07):
+  //   Whisper는 조용한 곳에서도 "Thank you." · "You." · 앞에 준 예문(I am fine, thank you.)을 지어내요.
+  //   녹화 소리 크기를 20ms마다 재서, 줄이 있는 시간 동안 실제 목소리가 거의 없으면 그 줄(과 단어)은 버려요.
+  function voiceMap(pcm) {
+    const SR = VT.SR, fr = Math.floor(SR * 0.02), n = Math.floor(pcm.length / fr);
+    const rms = new Float32Array(n);
+    for (let k = 0; k < n; k++) { let e = 0; for (let i = k * fr; i < (k + 1) * fr; i++) e += pcm[i] * pcm[i]; rms[k] = Math.sqrt(e / fr); }
+    const sorted = Array.from(rms).sort((a, b) => a - b);
+    const thr = Math.max(0.02, (sorted[Math.floor(n * 0.2)] || 0) * 4);
+    // t0~t1(이 pcm 안의 초) 중 목소리가 있는 20ms 칸의 비율
+    return (t0, t1) => {
+      const a = Math.max(0, Math.floor(t0 / 0.02)), b = Math.min(n, Math.ceil(t1 / 0.02));
+      if (b <= a) return 0;
+      let on = 0; for (let k = a; k < b; k++) if (rms[k] > thr) on++;
+      return on / (b - a);
+    };
+  }
+  // 이 줄 시간 안에 실제 목소리가 충분히 있는지: 목소리 시간이 0.3초 이상이고, 줄 길이의 15%나 단어당 0.12초 중 작은 쪽 이상
+  //   (받아쓰기가 짧은 말을 긴 시간으로 늘려 적어도 진짜 말은 남게). 조용할 때 자주 지어내는 줄(Thank you. · You.)은 0.6초 이상.
+  function hasVoice(voiced, t0, t1, text) {
+    const dur = Math.max(0.3, t1 - t0), sec = voiced(t0, t0 + dur) * dur, w = Math.max(1, wordsOf(text).length);
+    return sec >= Math.max(HALLUCINATION.test(String(text || '').trim()) ? 0.6 : 0.3, Math.min(dur * 0.15, w * 0.12));
+  }
+  // 받아쓴 결과에서 목소리가 없는 줄을 빼요. base = 이 결과 시간 0초가 pcm의 몇 초인지
+  function keepVoiced(d, voiced, base) {
+    const segs = (d.segments || []).filter(x => hasVoice(voiced, base + x.s, base + x.e, x.text));
+    const inSeg = w => segs.some(x => w.s >= x.s - 0.3 && w.e <= x.e + 0.3);
+    return { segments: segs, words: (d.words || []).filter(w => inSeg(w) && voiced(base + w.s - 0.1, base + w.e + 0.1) > 0) };
+  }
 
   async function transcribe(file, duration, onProg, title) {
     const from = await teacherStart(file, onProg);
@@ -598,16 +627,20 @@
     const raw = whole.subarray(Math.min(whole.length, Math.floor(from * VT.SR)));
     if (raw.length < VT.SR) throw new Error('선생님 얼굴이 나온 뒤의 소리가 없어요.');
     const pcm = louder(raw);
-    const pieces = VT.splitAudio(pcm, LESSON_PIECE).map(p => Object.assign(p, { offset: p.offset + from }));
+    const voiced = voiceMap(pcm);
+    const pieces = VT.splitAudio(pcm, LESSON_PIECE).map(p => Object.assign(p, { at: p.offset, offset: p.offset + from }));
     const results = [];
     let prompt = '';
     for (let i = 0; i < pieces.length; i++) {
       check();
       const label = l => onProg((i + 0.3) / pieces.length * 0.65, `${l} (${i + 1}/${pieces.length})`);
       label(`받아쓰는 중… ${VT.fmt(pieces[i].offset)}~`);
+      const pLen = pieces[i].pcm.length / VT.SR;
+      if (voiced(pieces[i].at, pieces[i].at + pLen) < 0.02) { results.push({ offset: pieces[i].offset, segments: [], words: [] }); prompt = ''; continue; } // 목소리가 없는 조각은 받아쓰지 않아요
       let d = await askLesson(pieces[i].pcm, prompt, '', label);
       d = { segments: d.segments || [], words: d.words || [] };
       if (hangulShare(d.segments) > 0.3) d = mergeEnglish(d, await askLesson(pieces[i].pcm, prompt, 'en', label));
+      d = keepVoiced(d, voiced, pieces[i].at);
       results.push({ offset: pieces[i].offset, segments: d.segments, words: d.words });
       const last = d.segments.filter(s => !HANGUL.test(s.text)).slice(-1)[0];
       prompt = last ? last.text.slice(-120) : '';
@@ -618,7 +651,7 @@
       const [a, b] = gaps[g];
       const label = l => onProg(0.65 + (g + 0.5) / gaps.length * 0.1, `${l} (${g + 1}/${gaps.length})`);
       label(`🔎 빠진 대사 다시 받아쓰는 중… ${VT.fmt(from + a)}`);
-      const d = await askLesson(pcm.subarray(Math.floor(a * VT.SR), Math.floor(b * VT.SR)), '', '', label);
+      const d = keepVoiced(await askLesson(pcm.subarray(Math.floor(a * VT.SR), Math.floor(b * VT.SR)), '', '', label), voiced, a);
       // 앞뒤로 이미 받아쓴 말과 겹치는 줄은 빼요(같은 말이 두 번 들어가지 않게)
       const known = t => results.some(r => (r.words || []).some(w => t >= w.s + r.offset - 0.1 && t <= w.e + r.offset + 0.1));
       // 단어 시간이 틀려도 걸러지게: 앞뒤 4초 안에 이미 받아쓴 글에 그 줄 단어가 60% 넘게 있으면 같은 말이에요
@@ -910,7 +943,7 @@
       box.innerHTML = recordings.length ? recordings.map(v => `
         <div class="set-item set-stack">
           <div><div class="title">${esc(v.title)}</div><div class="meta">${v.date ? `📅 수업일 ${esc(v.date)} · ` : ''}문장 ${v.sentenceCount}개${v.assigned ? '' : ' · <span style="color:var(--bad)">학생에게 안 넣어 줌</span>'}</div></div>
-          <div class="set-btns"><button class="btn-primary btn-small" data-lvmplay="${esc(v.id)}" data-title="${esc(v.title)}">▶ 위에서 연습</button><a class="btn-ghost btn-small" style="text-decoration:none; border-radius:10px; font-weight:700;" href="video.html?id=${encodeURIComponent(v.id)}&admin=1" target="_blank" rel="noopener">↗ 새 창</a></div>
+          <div class="set-btns"><button class="btn-primary btn-small" data-lvmplay="${esc(v.id)}" data-title="${esc(v.title)}">▶ 위에서 연습</button><a class="btn-ghost btn-small" style="text-decoration:none; border-radius:10px; font-weight:700;" href="video.html?id=${encodeURIComponent(v.id)}&admin=1" target="_blank" rel="noopener">↗ 새 창</a><button class="btn-ghost btn-small" data-lvmclean="${esc(v.id)}" title="녹화 소리를 다시 재서, 목소리가 없는 곳에 생긴 문장을 지워요">🧹 소리 없는 문장 빼기</button></div>
         </div>`).join('') : '<div class="empty">아직 이 학생의 수업영상 쉐도잉이 없어요.</div>';
     } catch (e) { box.innerHTML = `<div class="empty">⚠️ ${esc(e.message)}</div>`; }
   }
@@ -950,7 +983,37 @@
   }
   const openLvmPlayer = (id, title) => openPlayer('lvm', id, title);
   ['lvm', 'nvv'].forEach(p => $(p + 'PlayerClose').addEventListener('click', () => { $(p + 'PlayerFrame').src = 'about:blank'; $(p + 'Player').classList.add('hidden'); }));
+  // 🧹 이미 만든 수업영상에서 소리 없는 곳에 생긴 문장 빼기(운영자 지시 2026-11-07)
+  async function cleanSilent(id, btn) {
+    if (busy) { alert('다른 영상을 만드는 중이에요. 끝난 뒤에 해 주세요.'); return; }
+    busy = true; cancelled = false; ctl = new AbortController(); btn.disabled = true;
+    const say = t => { btn.textContent = t; };
+    try {
+      say('⏳ 영상 받는 중…');
+      const { lesson, streamUrl } = await apiFetch(`${VAPI.videos}?id=${encodeURIComponent(id)}`);
+      if (!streamUrl) throw new Error('직접 올린 녹화만 할 수 있어요.');
+      const r = await fetch(streamUrl, { signal: ctl.signal });
+      if (!r.ok) throw new Error('영상을 받지 못했어요 (HTTP ' + r.status + ')');
+      const file = new File([await r.blob()], 'lesson', { type: lesson.mime || 'video/mp4' });
+      say('⏳ 소리 재는 중…');
+      let ex;
+      try { ex = await VT.extractAudio(file); }
+      catch (e) { ex = await VT.extractAudio(await toWavWithFfmpeg(file, (f, l) => say('⏳ ' + l))); }
+      const voiced = voiceMap(louder(ex.pcm));
+      const all = lesson.sentences || [];
+      const keep = all.filter(x => hasVoice(voiced, x.s, x.e, x.en));
+      const drop = all.length - keep.length;
+      if (!drop) { alert('소리 없는 곳에 생긴 문장이 없어요. 그대로 둘게요.'); return; }
+      if (!keep.length) { alert(`문장 ${all.length}개가 모두 목소리가 없는 곳이에요. 녹화에 소리가 없거나 아주 작은 것 같아요 — 바꾸지 않았어요.`); return; }
+      if (!confirm(`문장 ${all.length}개 중 ${drop}개가 목소리가 없는 곳에 있어요. 지우고 ${keep.length}개만 남길까요?\n(이 영상의 연습 기록 문장 번호는 새로 매겨져요)`)) return;
+      await apiFetch(VAPI.videos, { method: 'POST', body: JSON.stringify({ action: 'update', id, sentences: keep }) });
+      alert(`✅ ${drop}개를 지우고 ${keep.length}개 문장을 남겼어요.`);
+      loadLvmRecords();
+    } catch (e) { if (!e.cancelled && e.name !== 'AbortError') alert('⚠️ ' + e.message); }
+    finally { busy = false; ctl = null; btn.disabled = false; btn.textContent = '🧹 소리 없는 문장 빼기'; }
+  }
   $('lvMakeCard').addEventListener('click', e => {
+    const c = e.target.closest('[data-lvmclean]'); if (c) { cleanSilent(c.dataset.lvmclean, c); return; }
     const b = e.target.closest('[data-lvmplay]'); if (!b) return;
     openLvmPlayer(b.dataset.lvmplay, b.dataset.title);
   });

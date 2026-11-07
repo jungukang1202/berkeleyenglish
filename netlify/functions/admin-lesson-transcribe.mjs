@@ -29,7 +29,11 @@ export default async (req) => {
     let d;
     try { d = await transcribe(buf, type, prompt, 'whisper-large-v3', lang); }
     catch (e) { if (e instanceof GroqError && (e.status === 429 || e.status === 500)) throw e; d = await transcribe(buf, type, prompt, undefined, lang); }
-    const silent = x => typeof x.no_speech_prob === 'number' && x.no_speech_prob > NO_SPEECH_PROB && !(typeof x.avg_logprob === 'number' && x.avg_logprob > -1);
+    // 조용한 곳에서 앞에 준 예문을 그대로 따라 쓴 줄(I am fine, thank you. 등)도 버려요
+    const norm = t => String(t || '').toLowerCase().replace(/[^a-z가-힣 ]+/g, '').replace(/\s+/g, ' ').trim();
+    const promptLines = new Set(LESSON_PROMPT.split(/(?<=[.?!])\s+/).map(norm).filter(Boolean));
+    const echo = x => promptLines.has(norm(x.text)) && typeof x.no_speech_prob === 'number' && x.no_speech_prob > 0.2;
+    const silent = x => echo(x) || (typeof x.no_speech_prob === 'number' && x.no_speech_prob > NO_SPEECH_PROB && !(typeof x.avg_logprob === 'number' && x.avg_logprob > -1));
     const dropped = (d.segments || []).filter(silent);
     const segments = (d.segments || []).filter(x => !silent(x)).map(x => ({ s: x.start, e: x.end, text: String(x.text || '').trim(), lp: typeof x.avg_logprob === 'number' ? +x.avg_logprob.toFixed(3) : null })).filter(x => x.text);
     const inDropped = w => dropped.some(g => w.start >= g.start - 0.05 && w.end <= g.end + 0.05) && !segments.some(g => w.start >= g.s - 0.05 && w.end <= g.e + 0.05);
