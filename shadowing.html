@@ -393,7 +393,7 @@ let __voiceGen = 0;
 let __lastTtsEnd = 0;
 // 지금 재생 중인 카드의 '멈춤' 함수. 다른 카드를 누르면 이걸 불러서 앞 카드의 반복을 완전히 멈춥니다(소리 겹침 방지).
 let __activeShadowStop = null;
-const ENGINE_VERSION = '2026-10-28d'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+const ENGINE_VERSION = '2026-11-10a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
 // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
 const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
 function __dbg(msg) {
@@ -1112,6 +1112,55 @@ const __NUM_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, se
 const __NUM_SCALES = { hundred: 100, thousand: 1000, million: 1000000 };
 const __NUM_ORD = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16, seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20, thirtieth: 30, fortieth: 40, fiftieth: 50, sixtieth: 60, seventieth: 70, eightieth: 80, ninetieth: 90, hundredth: 100, thousandth: 1000 };
 const __CONTRACT = { "can't": 'can not', cannot: 'can not', "won't": 'will not', "shan't": 'shall not', "ain't": 'is not', "let's": 'let us' };
+// ── 일치도는 미국 영어 기준(운영자 지시 2026-11-10): 원어민(미국)이 자연스럽게 말하면 100%가 나오게 ──
+// 원어민은 단어를 붙여서·줄여서 말하고(gonna, I'd, it's), 받아쓰기는 그 소리를 그대로 적어요.
+// 그래서 또박또박 끊어 읽는 한국식 발음보다 원어민 발음이 오히려 낮게 나오던 문제를 막으려고, 뜻과 소리가 같은 표기는 같은 단어로 봐요.
+// ① 원어민이 줄여 말한 소리 → 원래 말 (gonna = going to, wanna = want to, 'cause = because …)
+const __REDUCED = {
+  gonna: 'going to', wanna: 'want to', gotta: 'got to', hafta: 'have to', hasta: 'has to', oughta: 'ought to',
+  kinda: 'kind of', sorta: 'sort of', lotta: 'lot of', lotsa: 'lots of', outta: 'out of', gimme: 'give me', lemme: 'let me',
+  dunno: 'do not know', "c'mon": 'come on', cmon: 'come on', "y'all": 'you all', em: 'them', cuz: 'because', coz: 'because', cos: 'because',
+  til: 'until', ok: 'okay', alright: 'all right', ya: 'you', yknow: 'you know', "y'know": 'you know', whaddya: 'what do you', watcha: 'what are you',
+  whatcha: 'what are you', gotcha: 'got you', betcha: 'bet you', didja: 'did you', wouldja: 'would you', couldja: 'could you',
+};
+// 같은 말인데 줄여 쓰기도 하는 것 (heard 'cause' ↔ 원문 'because'), 'till' ↔ 'until'
+const __ALSO = { cause: ['because'], till: ['until'], because: ['cause'], until: ['till', 'til'] };
+// ② 영국식 철자 → 미국식 철자 (colour = color, realise = realize, centre = center, travelled = traveled …)
+const __BRIT = {
+  grey: 'gray', greys: 'grays', programme: 'program', programmes: 'programs', cheque: 'check', cheques: 'checks', tyre: 'tire', tyres: 'tires',
+  mum: 'mom', mums: 'moms', mummy: 'mommy', maths: 'math', aeroplane: 'airplane', aeroplanes: 'airplanes', jewellery: 'jewelry', pyjamas: 'pajamas',
+  mould: 'mold', plough: 'plow', enrol: 'enroll', enrolment: 'enrollment', fulfil: 'fulfill', fulfilment: 'fulfillment', skilful: 'skillful',
+  wilful: 'willful', practise: 'practice', practised: 'practiced', practises: 'practices', practising: 'practicing', judgement: 'judgment',
+  ageing: 'aging', storey: 'story', storeys: 'stories', kerb: 'curb', draught: 'draft', manoeuvre: 'maneuver', cosy: 'cozy', sceptical: 'skeptical',
+  learnt: 'learned', spelt: 'spelled', dreamt: 'dreamed', burnt: 'burned', spoilt: 'spoiled', smelt: 'smelled', leapt: 'leaped', spilt: 'spilled',
+  doughnut: 'donut', doughnuts: 'donuts', gaol: 'jail', moustache: 'mustache', axe: 'ax', annexe: 'annex', disc: 'disk', discs: 'disks',
+};
+function __american(w) {
+  if (__BRIT[w]) return __BRIT[w];
+  return w
+    .replace(/^(colo|favo|hono|labo|neighbo|behavio|humo|flavo|harbo|rumo|savo|vapo|odo|endeavo|armo|parlo|vigo|rigo|tumo|splendo|cando|clamo|valo)ur/, '$1r')
+    .replace(/^(real|organ|recogn|apolog|critic|memor|emphas|special|priorit|summar|final|categor|minim|maxim|optim|util|visual|character|civil|modern|normal|personal|standard|sympath|symbol|author|custom|familiar|global|hospital|ideal|legal|local|neutral|popular|terror|central|capital|harmon|immun|mobil|natural|organ|real|personal|computer|energ|fantas|general|human|industrial|journal|liberal|material|moral|rational|social|sterl|stabil|tranquil|visual|vocal|western|glamor|agon|scrutin|baptis|colon|jeopard|hypnot|item|patron|polar|vandal|fertil|steril|equal|fossil|subsid|synchron|tyrann|pressur|euthan|ostrac|anglic|american|westerni|digit|monopol|catalog|dramat|emphas)is(e|es|ed|ing|ation|ations|er|ers|able)$/, '$1iz$2')
+    .replace(/^(anal|paral|catal|breathal|dial|electrol|hydrol)ys(e|es|ed|ing|er|ers)$/, '$1yz$2')
+    .replace(/^(cent|theat|met|lit|fib|calib|sab|spect|somb|lust|meag|kilomet|centimet|millimet|manoeuv)re(s|d)?$/, '$1er$2')
+    .replace(/^(travel|cancel|model|label|fuel|signal|level|counsel|marvel|quarrel|dial|tunnel|total|jewel|rival|channel|pedal|duel|equal|panel|shovel|snorkel|spiral|yodel|grovel|libel|refuel|initial|unravel)l(ed|ing|er|ers)$/, '$1$2')
+    .replace(/^(catal|dial|anal|monol|prol|epil|homol)ogue(s|d)?$/, '$1og$2')
+    .replace(/^(lic|def|off|pret)ence(s)?$/, '$1ense$2');
+}
+// ③ 소리가 같은 단어 (받아쓰기가 다른 철자로 적어도 발음은 같아요): to = too = two, for = four, know = no …
+const __HOMO = {};
+[['2', 'to', 'too'], ['4', 'for', 'fore'], ['1', 'won'], ['8', 'ate'], ['there', 'their'], ['here', 'hear'], ['know', 'no'], ['right', 'write', 'rite'],
+ ['by', 'buy', 'bye'], ['see', 'sea'], ['where', 'wear', 'ware'], ['whole', 'hole'], ['our', 'hour'], ['wait', 'weight'], ['week', 'weak'], ['new', 'knew'],
+ ['would', 'wood'], ['i', 'eye'], ['meet', 'meat'], ['piece', 'peace'], ['son', 'sun'], ['flower', 'flour'], ['which', 'witch'], ['whether', 'weather'],
+ ['allowed', 'aloud'], ['break', 'brake'], ['made', 'maid'], ['mail', 'male'], ['plane', 'plain'], ['road', 'rode'], ['tale', 'tail'], ['through', 'threw', 'thru'],
+ ['way', 'weigh'], ['night', 'knight'], ['not', 'knot'], ['blue', 'blew'], ['pair', 'pear', 'pare'], ['so', 'sew', 'sow'], ['some', 'sum'], ['steal', 'steel'],
+ ['stair', 'stare'], ['heal', 'heel'], ['hi', 'high'], ['dear', 'deer'], ['fair', 'fare'], ['great', 'grate'], ['knows', 'nose'], ['principal', 'principle'],
+ ['role', 'roll'], ['seen', 'scene'], ['sale', 'sail'], ['tea', 'tee'], ['bear', 'bare'], ['be', 'bee'], ['sent', 'cent', 'scent'], ['die', 'dye'],
+ ['flew', 'flu'], ['hair', 'hare'], ['higher', 'hire'], ['in', 'inn'], ['oh', 'owe'],
+ ['ad', 'add'], ['band', 'banned'], ['cell', 'sell'], ['dew', 'due', 'do'], ['knew', 'new'], ['missed', 'mist'], ['passed', 'past'], ['rain', 'reign', 'rein'],
+ ['sight', 'site', 'cite'], ['soul', 'sole'], ['stationary', 'stationery'], ['threw', 'through'], ['vary', 'very'], ['waist', 'waste'], ['weak', 'week'],
+ ['wore', 'war'], ['yolk', 'yoke'], ['guessed', 'guest'], ['which', 'witch'], ['berry', 'bury'], ['merry', 'marry', 'mary'], ['than', 'then']].forEach(g => g.forEach(w => { if (!__HOMO[w]) __HOMO[w] = g[0]; }));
+// 대명사 뒤 's · 'd 는 두 가지 뜻이라 둘 다 맞게 봐요 (it's = it is / it has, I'd = I would / I had)
+const __PRON = /^(i|you|he|she|it|we|they|that|this|there|here|what|where|who|when|why|how|everyone|everybody|somebody|someone|nobody|nothing|something|everything|let)$/;
 function __numKind(w) {
   if (__NUM_ONES[w] != null) return 'ones';
   if (__NUM_TENS[w] != null) return 'tens';
@@ -1125,6 +1174,7 @@ function __numKeys(n, ord) {
   if (!ord && n >= 1100 && n <= 2099 && n % 100 >= 10 && !(n >= 2000 && n < 2010)) return [String(Math.floor(n / 100)), String(n % 100)];
   return [String(n) + sfx];
 }
+// → 단어 [{ k: 비교 열쇠, r: 원래 글자(붙여 쓰기 비교용), alt: [같게 볼 열쇠], d: 화면에 보일 글자 }]
 function __scoreTokens(s) {
   let t = String(s || '').toLowerCase()
     .replace(/[‘’ʼ`]/g, "'")
@@ -1137,18 +1187,26 @@ function __scoreTokens(s) {
   const raw = t.split(/\s+/).map(w => w.replace(/^'+|'+$/g, '')).filter(Boolean);
   const words = [];
   raw.forEach(w => {
+    const push = (x, d, alt) => x.split(' ').forEach((p, k) => words.push({ w: __american(p), d: k ? '' : d, alt: k === x.split(' ').length - 1 ? alt : undefined }));
+    if (__REDUCED[w]) { push(__REDUCED[w], w); return; }
     let x = __CONTRACT[w];
-    if (!x) x = w.replace(/n't$/, ' not').replace(/'m$/, ' am').replace(/'re$/, ' are').replace(/'ve$/, ' have').replace(/'ll$/, ' will');
-    if (x === w) { words.push({ w, d: w }); return; }
-    x.split(' ').forEach((p, k) => words.push({ w: p, d: k ? '' : w })); // 화면에는 원래 모양(I'm)으로 보여줘요
+    if (x) { push(x, w); return; }
+    let m = w.match(/^([a-z]+)'s$/);
+    if (m && __PRON.test(m[1])) { push(m[1] + ' is', w, ['has']); return; }
+    m = w.match(/^([a-z]+)'d$/);
+    if (m && __PRON.test(m[1])) { push(m[1] + ' would', w, ['had']); return; }
+    x = w.replace(/n't$/, ' not').replace(/'m$/, ' am').replace(/'re$/, ' are').replace(/'ve$/, ' have').replace(/'ll$/, ' will');
+    if (x === w) { words.push({ w: __american(w), d: w, alt: __ALSO[w] }); return; }
+    push(x, w); // 화면에는 원래 모양(I'm)으로 보여줘요
   });
   const out = [];
+  const add = (k, d, alt, r) => out.push({ k: __HOMO[k] || k, r: r || k, d, alt: alt && alt.map(a => __HOMO[a] || a) });
   for (let i = 0; i < words.length;) {
     const w = words[i].w;
     let m = w.match(/^(\d+)(st|nd|rd|th)$/);
-    if (m) { __numKeys(Number(m[1]), true).forEach((k, q) => out.push({ k, d: q ? '' : words[i].d })); i++; continue; }
-    if (/^\d+$/.test(w)) { __numKeys(Number(w), false).forEach((k, q) => out.push({ k, d: q ? '' : words[i].d })); i++; continue; }
-    if (!__numKind(w)) { out.push({ k: w, d: words[i].d }); i++; continue; }
+    if (m) { __numKeys(Number(m[1]), true).forEach((k, q) => add(k, q ? '' : words[i].d)); i++; continue; }
+    if (/^\d+$/.test(w)) { __numKeys(Number(w), false).forEach((k, q) => add(k, q ? '' : words[i].d)); i++; continue; }
+    if (!__numKind(w)) { add(w, words[i].d, words[i].alt); i++; continue; }
     // 글자로 쓴 숫자 덩어리 읽기: twenty four · one hundred and five · twenty-first
     let total = 0, cur = 0, last = null, j = i, ord = false;
     while (j < words.length) {
@@ -1168,25 +1226,39 @@ function __scoreTokens(s) {
       else { const v = __NUM_SCALES[x]; if (!(last === 'ones' || last === 'tens') || cur === 0) break; if (v === 100) cur *= 100; else { total += cur * v; cur = 0; } }
       last = kind; j++;
     }
-    if (j === i) { out.push({ k: w, d: words[i].d }); i++; continue; }
+    if (j === i) { add(w, words[i].d); i++; continue; }
     const disp = words.slice(i, j).map(o => o.d).filter(Boolean).join(' ');
-    __numKeys(total + cur, ord).forEach((k, q) => out.push({ k, d: q ? '' : disp }));
+    __numKeys(total + cur, ord).forEach((k, q) => add(k, q ? '' : disp, undefined, j === i + 1 ? w : undefined)); // 한 단어 숫자는 붙여 쓰기 비교에 원래 글자(one)를 써요
     i = j;
   }
   return out;
 }
+// ④ 붙여 쓰기·띄어 쓰기만 다른 말은 같게 (every day = everyday, any more = anymore, high school = highschool)
+function __joinSplit(A, B) {
+  const one = new Set(B.map(x => x.r));
+  const out = [];
+  for (let i = 0; i < A.length; i++) {
+    if (i + 1 < A.length && !one.has(A[i].r) && one.has(A[i].r + A[i + 1].r)) {
+      const r = A[i].r + A[i + 1].r;
+      out.push({ k: __HOMO[r] || r, r, d: [A[i].d, A[i + 1].d].filter(Boolean).join(' ') }); i++;
+    } else out.push(A[i]);
+  }
+  return out;
+}
+const __same = (a, b) => a.k === b.k || !!(a.alt && a.alt.includes(b.k)) || !!(b.alt && b.alt.includes(a.k));
 function compareWords(target, heard) {
-  const tw = __scoreTokens(target);
-  const hw = __scoreTokens(heard);
+  let tw = __scoreTokens(target);
+  let hw = __scoreTokens(heard);
+  tw = __joinSplit(tw, hw); hw = __joinSplit(hw, tw);
   const dp = Array.from({ length: tw.length + 1 }, () => new Array(hw.length + 1).fill(0));
   for (let i = tw.length - 1; i >= 0; i--)
     for (let j = hw.length - 1; j >= 0; j--)
-      dp[i][j] = tw[i].k === hw[j].k ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      dp[i][j] = __same(tw[i], hw[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
 
   const span = (cls, o) => (o.d ? `<span class="${cls}">${escapeHTML(o.d)}</span>` : '');
   let i = 0, j = 0, html = '', matched = 0;
   while (i < tw.length && j < hw.length) {
-    if (tw[i].k === hw[j].k) { html += span('w-ok', tw[i]); matched++; i++; j++; }
+    if (__same(tw[i], hw[j])) { html += span('w-ok', tw[i]); matched++; i++; j++; }
     else if (dp[i + 1][j] >= dp[i][j + 1]) { html += span('w-miss', tw[i]); i++; }
     else { html += span('w-extra', hw[j]); j++; }
   }
