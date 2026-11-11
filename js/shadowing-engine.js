@@ -150,7 +150,7 @@
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
   let __activePracticeWrap = null; // 지금 연습 중인 문장 카드 (공부 시간을 피드백/교재로 나눠 재는 데 사용)
-  const ENGINE_VERSION = '2026-11-10a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-11-11a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -882,19 +882,23 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   //   said(문장의 끝 단어까지 글자로 확인됨) → 0.1초 — 말을 끝냈다는 증거가 있을 때만 바로 채점해요.
   //   글자를 못 받는 기기·끝 단어를 못 알아들은 경우: 소리만으로는 쉬는 것과 끝난 것을 구별할 수 없어서
   //   문장 길이의 0.7배 이상 말했으면 0.9초, 그보다 적으면 1.5초(숨 쉬거나 생각하는 중) 기다려요.
+  // (운영자 지시 2026-11-11: 말을 끝냈는데 너무 오래 기다려요 → 0.9초·1.5초에서 0.6초·1.1초로 줄였어요)
   function quietNeedMs(voicedMs, targetMs, said) {
     if (said) return 100;
-    return voicedMs >= targetMs * 0.7 ? 900 : 1500;
+    return voicedMs >= targetMs * 0.7 ? 600 : 1100;
   }
   // 받아쓴 말에 문장의 끝 단어까지 들어왔는지 (PC Chrome처럼 말하는 동안 글자가 나오는 기기).
   // 문장 안에 같은 단어가 앞에도 있을 수 있어서 거의 모든 단어를 들은 뒤에만 인정해요. 끝 단어 발음이 조금 달라도 괜찮아요.
+  // 채점과 같은 방식으로 비교해요: I'm = I am, 25 = twenty-five, gonna = going to … (예전엔 줄임말·숫자가 있으면 끝을 못 알아채 오래 기다렸어요)
   function heardToEnd(target, heard) {
-    const toks = t => String(t || '').toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(Boolean);
-    const T = toks(target), H = toks(heard);
-    if (!T.length || H.length < Math.max(T.length - 2, T.length * 0.8)) return false;
-    const last = T[T.length - 1], near = w => w === last || (last.length > 3 && w.slice(0, 3) === last.slice(0, 3));
-    return H.slice(-2).some(near);
+    const T = __scoreTokens(speechText(target)), H = __scoreTokens(heard);
+    if (!T.length || !H.length) return false;
+    const last = T[T.length - 1];
+    const near = h => __same(last, h) || (String(last.r).length > 3 && String(h.r).slice(0, 3) === String(last.r).slice(0, 3));
+    if (!H.slice(-2).some(near)) return false;
+    return compareWords(speechText(target), heard).score >= 65;
   }
+
   // 쉐도잉 따라 말하기의 기다리는 규칙. 문장을 말하는 데 걸리는 시간(ms)을 알면 넘겨요 (영상 속 문장 길이). 모르면 단어당 0.33초로 잡아요.
   function patientFor(text, ms) {
     const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
@@ -924,7 +928,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
       src.connect(an);
       const data = new Float32Array(an.fftSize);
       const t0 = Date.now();
-      let noise = 0, noiseN = 0, loudFrames = 0, speechAt = 0, quietMs = 0, level = 0, voicePeak = 0, voicedMs = 200;
+      let noise = 0, noiseN = 0, loudFrames = 0, speechAt = 0, quietMs = 0, level = 0, voicePeak = 0, voicedMs = 200, roomLevel = Infinity;
       timer = setInterval(() => {
         if (stopped) return;
         an.getFloatTimeDomainData(data);
@@ -941,7 +945,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         if (!speechAt) {
           if (targetMs && elapsed > 10000) { stop(); onSilence(); return; } // 10초가 지나도 말을 시작하지 않으면 그만 기다려요
           loudFrames = rms > th ? loudFrames + 1 : 0;
-          if (loudFrames >= 4) speechAt = Date.now(); // 0.2초 이상 소리가 나면 '말 시작'
+          if (loudFrames >= 4) { speechAt = Date.now(); if (window.__sdbg) window.__sdbg.push(['start', speechAt, rms]); } // 0.2초 이상 소리가 나면 '말 시작'
           return;
         }
         // 학생 목소리가 0.5초 동안 들리지 않으면 바로 녹음을 끝내고 다음으로 넘어가요 (예전 1초)
@@ -951,12 +955,18 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
         // 방이 시끄러워서 '완전히 조용'해지지 않아도 사람 목소리가 끊긴 걸 바로 알아채요.
         level = level * 0.6 + rms * 0.4;
         if (level > voicePeak) voicePeak = level;
+        // 방 소리(선풍기·에어컨·교실 소음): 말하는 동안 가장 조용했던 크기. 목소리가 끝나면 소리가 이만큼으로 내려가요.
+        //   (예전엔 방이 시끄러우면 '조용함'을 못 알아채 말을 끝낸 뒤에도 한참 기다렸어요)
+        if (Date.now() - speechAt > 300 && level < roomLevel) roomLevel = level; // 말 시작 직후(소리가 커지는 중)는 빼요
         const rel = !targetMs || isSaid() ? relQuietEnd : relQuiet;
-        const quiet = rms < Math.max(th * 0.7, voicePeak * rel);
+        const quiet = rms < Math.max(th * 0.7, voicePeak * rel, Math.min(roomLevel * 1.6, voicePeak * 0.35));
+        // 문장 길이의 3배 + 3초가 지나도 계속 소리가 나면(소음) 그만 기다리고 채점해요
+        if (targetMs && Date.now() - speechAt > targetMs * 3 + 3000) { stop(); onSilence(); return; }
         if (!quiet) voicedMs += 50 + (quietMs <= 150 ? quietMs : 0); // 단어 사이 짧은 틈은 말한 시간에 넣어요
         quietMs = quiet ? quietMs + 50 : 0;
         const need = targetMs ? quietNeedMs(voicedMs, targetMs, isSaid()) : quietLimit;
-        if (quietMs >= need && Date.now() - speechAt >= minSpeak) { stop(); onSilence(); }
+        if (window.__sdbg && quiet !== window.__sdbgQ) { window.__sdbgQ = quiet; window.__sdbg.push([quiet ? 'quiet' : 'voice', Date.now(), +rms.toFixed(4), +voicePeak.toFixed(4), +roomLevel.toFixed(4)]); }
+        if (quietMs >= need && Date.now() - speechAt >= minSpeak) { if (window.__sdbg) window.__sdbg.push(['end', Date.now(), need]); stop(); onSilence(); }
       }, 50);   // 0.05초마다 재서 말이 끝난 순간을 더 빨리 알아채요
     } catch (e) { stop(); }
     return stop;
