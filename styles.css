@@ -180,7 +180,7 @@ a {
 }
 
 /* 노트북·태블릿 폭: 메뉴 글자가 다 들어가지 않아 오른쪽 버튼들이 화면 밖으로 밀려나므로 ☰ 메뉴로 바꿔요 */
-@media (min-width: 769px) and (max-width: 1360px) {
+@media (min-width: 769px) and (max-width: 1400px) {
   .site-header .site-nav {
     display: none;
   }
@@ -231,7 +231,7 @@ a {
 }
 
 /* 회원 상자가 관리자 옆에 생겨서: 넓은 PC는 같은 회원 로그인 글자를 메뉴에서 빼고, 태블릿은 짧은 이름, 휴대폰은 로고 글자를 두 줄로 */
-@media not all and (max-width: 1360px) {
+@media not all and (max-width: 1400px) {
   .site-nav a[href$="member.html"] {
     display: none;
   }
