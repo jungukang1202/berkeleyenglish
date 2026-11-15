@@ -2,12 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
-<script>/* 🛡️ 자동 조종 브라우저(Selenium·Playwright·Puppeteer 같은 로봇)는 이 화면을 쓸 수 없어요 */
-if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.documentElement.innerHTML = '<head><meta charset="utf-8"><title>접근 제한</title></head><body style="font-family:sans-serif;padding:40px;line-height:1.6">🤖 자동 프로그램(로봇·AI)으로는 이 화면을 쓸 수 없어요.<br>사람이 보통 브라우저(Chrome·Safari·Edge)로 열어 주세요.</body>'; }
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="원어민 선생님이 등록해준 문장/단어로 듣기+따라 말하기(쉐도잉) 연습을 하는 회원 전용 페이지">
+<meta name="robots" content="noindex, nofollow">
 <meta name="color-scheme" content="light">
 <link rel="icon" type="image/png" href="images/버클리원어민영어회화-badge.png">
 <title>내 쉐도잉 연습 | 버클리원어민영어회화</title>
@@ -248,6 +245,14 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
   .hub-tile[data-hub="book"]{background:#F8BBD0; border-color:#C2185B;}
   .hub-tile[data-hub="video"]{background:#FFE082; border-color:#E65100;}
   .hub-tile[data-hub="lesson"]{background:#C5CAE9; border-color:#303F9F;}
+  .hub-tile[data-hub="highlight"]{background:#F0F4C3; border-color:#AD1457;} /* ✂️ 수업영상 하이라이트(영클 연세점에서 옮겨 옴 2026-11-13) */
+  .hl-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap:12px;}
+  .hl-card{border:3px solid #AD1457; border-radius:14px; padding:12px; background:#FFF; display:flex; flex-direction:column; gap:8px;}
+  .hl-card video{width:100%; max-height:60vh; background:#000; border-radius:10px;}
+  .hl-card .hl-title{font-weight:900; color:#AD1457;}
+  .hl-card .hl-meta{font-size:0.82rem; font-weight:700; color:#333;}
+  .hl-dl{align-self:flex-start; background:#AD1457; color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:800; font-size:0.95rem; cursor:pointer;}
+  .hl-dl:disabled{opacity:0.7; cursor:default;}
   /* 넣어 준 카테고리만 보여요(운영자 지시 2026-11-03): 내용이 확인되기 전·내용이 없는 글상자는 숨겨요 */
   .hub-tile.hub-off{display:none;}
   .hub-none{margin:0; padding:16px; border-radius:16px; border:2px dashed var(--border); background:var(--panel); font-weight:800; color:var(--text); text-align:center;}
@@ -268,6 +273,7 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
   @media (max-width:640px){
     .hub{gap:6px;}
     .hub.hub-4{grid-template-columns:repeat(2, 1fr) !important;}  /* 글상자 네 개면 두 줄로 */
+    .hub.hub-5{grid-template-columns:repeat(3, 1fr) !important;}  /* 다섯 개(수업영상 하이라이트까지)면 세 개 · 두 개 */
     .study-today .st-box{font-size:1.05rem; padding:10px 12px;}
     .hub-sticky.compact .st-day{font-size:0.88rem; padding:5px 8px;}
     .hub-sticky.compact .st-day .st-parts{display:block; margin:0; font-size:0.76rem;}
@@ -367,6 +373,11 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
         <span class="hub-desc">내 엔보임 수업 녹화로 만든 영상으로 선생님 문장을 듣고 따라 말해요.</span>
         <span class="hub-meta" id="hubMetaLesson">불러오는 중...</span>
       </a>
+      <a class="hub-tile hub-off" data-hub="highlight" href="member.html?view=highlight">
+        <span class="hub-icon">✂️</span><b class="hub-name">수업영상 하이라이트</b>
+        <span class="hub-desc">선생님이 내 수업에서 즐겁게 참여한 순간을 3~6분 영상으로 모아 줬어요. 보고 내려받을 수 있어요.</span>
+        <span class="hub-meta" id="hubMetaHighlight">불러오는 중...</span>
+      </a>
     </div>
     <div class="hub-none hidden" id="hubNone">선생님이 아직 쉐도잉을 넣어 주지 않았어요. 선생님께 말씀해 주세요.</div>
     <div class="study-today" id="studyToday"><div class="st-box st-day">⏱ 오늘 쉐도잉한 시간 0초</div></div>
@@ -415,6 +426,14 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
     </div>
     </div>
 
+    <div data-view="highlight">
+    <div class="card" id="highlightCard">
+      <h2>✂️ 수업영상 하이라이트</h2>
+      <div class="card-desc">선생님이 내 수업 녹화에서 열심히 참여하고 즐겁게 수업한 부분을 모아 만든 영상이에요. 영어·한글 자막이 있어요. 「⬇️ 내려받기」를 누르면 내 기기에 저장돼요.</div>
+      <div class="hl-grid" id="highlightList"><div class="empty">불러오는 중...</div></div>
+    </div>
+    </div>
+
     <div data-view="lesson">
     <div class="card" id="lessonVideoCard">
       <h2>🎥 수업영상쉐도잉</h2>
@@ -456,7 +475,7 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
   </footer>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261111a"></script>
+<script src="js/shadowing-engine.js?v=20261113a"></script>
 <script src="js/study-time.js?v=20261023c"></script>
 <script src="js/learning-report.js?v=20261023a"></script>
 <script>
@@ -497,7 +516,7 @@ function showLogin() {
   document.getElementById('goalMe').classList.add('hidden');
 }
 // ?view=feedback|book|video → 그 쉐도잉만 보여요. 없으면 처음 화면(글상자 세 개 + 학습 리포트)
-const VIEWS = { feedback: '💬 피드백쉐도잉', book: '📖 교재 쉐도잉', video: '🎬 영상 쉐도잉', lesson: '🎥 수업영상쉐도잉' };
+const VIEWS = { feedback: '💬 피드백쉐도잉', book: '📖 교재 쉐도잉', video: '🎬 영상 쉐도잉', lesson: '🎥 수업영상쉐도잉', highlight: '✂️ 수업영상 하이라이트' };
 const viewFromUrl = () => { const v = new URLSearchParams(location.search).get('view'); return VIEWS[v] ? v : 'home'; };
 let VIEW = viewFromUrl();
 // 수업영상 연습 화면(video.html)의 「← 목록」은 영상 쉐도잉으로 오지만, 수업영상에서 들어갔으면 수업영상으로 돌려보내요
@@ -542,7 +561,8 @@ function setHubShown(key, shown) {
   const hub = document.getElementById('hubTiles');
   hub.style.gridTemplateColumns = `repeat(${Math.max(1, on)}, 1fr)`;
   hub.classList.toggle('hub-4', on >= 4);
-  const all = ['feedback', 'book', 'video', 'lesson'].every(k => k in hubShown);
+  hub.classList.toggle('hub-5', on >= 5);
+  const all = ['feedback', 'book', 'video', 'lesson', 'highlight'].every(k => k in hubShown);
   document.getElementById('hubNone').classList.toggle('hidden', !(all && !on));
   // 보이지 않는 카테고리 화면에 있으면 처음 화면으로
   if (VIEW === key && !shown) goView('home');
@@ -620,6 +640,7 @@ function showPractice() {
   loadSets();
   loadVideos();
   loadBooks();
+  loadHighlights();
   loadReportMonths();
   loadGoal();
   startStudyTime();
@@ -755,6 +776,56 @@ function renderSet(set, counts) {
     onAttempt: rec => { queuePractice(set.id, rec); markSetStudied(set.id, rec); },
   });
 }
+
+/* ===================== ✂️ 수업영상 하이라이트 (영클 연세점에서 옮겨 옴 2026-11-13) ===================== */
+// 관리자가 「🎁 학생별 쉐도잉 넣어주기」에서 넣어 준 하이라이트만 보여요. 넣어 준 하이라이트가 있는 학생에게만 글상자가 보여요.
+let highlightsCache = [];
+async function loadHighlights() {
+  const box = document.getElementById('highlightList'), esc = ShadowingEngine.escapeHTML;
+  try {
+    highlightsCache = (await apiFetch('/api/member-highlights')).highlights || [];
+  } catch (e) { highlightsCache = []; }
+  const mm = s => `${Math.floor(s / 60)}분 ${String(Math.round(s % 60)).padStart(2, '0')}초`;
+  setHubMeta('hubMetaHighlight', `하이라이트 ${highlightsCache.length}개`);
+  box.innerHTML = highlightsCache.map((h, i) => `
+    <div class="hl-card">
+      <div class="hl-title">✂️ ${esc(h.title)} 하이라이트</div>
+      <div class="hl-meta">${h.duration ? mm(h.duration) + ' · ' : ''}${(h.size / 1e6).toFixed(1)}MB${h.subs && /한글/.test(h.subs) ? ' · 🔤 영어·한글 자막' : ''}</div>
+      <video src="${esc(h.url)}" controls playsinline preload="metadata"></video>
+      <button type="button" class="hl-dl" data-hldl="${i}">⬇️ 내려받기</button>
+    </div>`).join('') || '<div class="empty">아직 하이라이트 영상이 없어요.</div>';
+  setHubShown('highlight', highlightsCache.length > 0);
+}
+// 내려받기: 서버는 한 번에 조각(3.5MB) 하나씩만 보내서, 조각을 차례로 받아 한 파일로 모아 저장해요
+document.getElementById('highlightList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-hldl]'); if (!b || b.disabled) return;
+  const h = highlightsCache[Number(b.dataset.hldl)]; if (!h) return;
+  b.disabled = true;
+  try {
+    const parts = [];
+    for (let at = 0; at < h.size;) {
+      let r = null;
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        try { r = await fetch(h.url, { headers: { Range: `bytes=${at}-` } }); if (r.ok) break; } catch (err) {}
+        r = null; await new Promise(res => setTimeout(res, 1000 * attempt));
+      }
+      if (!r) throw new Error('인터넷 연결을 확인해 주세요.');
+      const buf = await r.arrayBuffer();
+      if (!buf.byteLength) throw new Error('파일을 받지 못했어요.');
+      parts.push(buf); at += buf.byteLength;
+      b.textContent = `⬇️ 받는 중… ${Math.min(100, Math.round(at / h.size * 100))}%`;
+    }
+    const url = URL.createObjectURL(new Blob(parts, { type: 'video/mp4' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${h.title.replace(/[\\/:*?"<>|]+/g, '')} 하이라이트.mp4`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    b.textContent = '✅ 내려받았어요';
+  } catch (err) {
+    alert('내려받지 못했어요: ' + err.message);
+    b.textContent = '⬇️ 내려받기';
+  } finally { b.disabled = false; }
+});
 
 /* ===================== 영상 쉐도잉 목록 ===================== */
 // video.html과 같은 목록(/api/member-videos)을 여기서도 보여주고, 누르면 그 영상의 연습 화면(video.html?id=)으로 가요.

@@ -17,10 +17,19 @@ function nvoimStore() {
 
 /* ===================== 비밀번호 암호화 ===================== */
 
-function cryptoKey() {
-  const secret = process.env.NVOIM_SECRET || process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD;
-  if (!secret) throw new Error('SESSION_SECRET (또는 ADMIN_PASSWORD) 환경변수가 필요합니다.');
+// 암호화 열쇠는 사이트 비밀 설정에서 만들어요: NVOIM_SECRET → SESSION_SECRET → ADMIN_PASSWORD 중 처음 있는 것.
+// 이 설정이 바뀌면(예: SESSION_SECRET을 새로 넣거나 관리자 비밀번호를 바꿈) 예전에 저장한 비밀번호를 못 풀어요.
+// 그래서 풀 때는 세 가지를 모두 차례로 써 보고, 예전 열쇠로 풀렸으면 지금 열쇠로 다시 저장해요(loginWithAccount).
+function secretCandidates() {
+  return [...new Set([process.env.NVOIM_SECRET, process.env.SESSION_SECRET, process.env.ADMIN_PASSWORD].filter(Boolean))];
+}
+function keyFrom(secret) {
   return crypto.createHash('sha256').update('nvoim-import:' + secret).digest();
+}
+function cryptoKey() {
+  const secret = secretCandidates()[0];
+  if (!secret) throw new Error('SESSION_SECRET (또는 ADMIN_PASSWORD) 환경변수가 필요합니다.');
+  return keyFrom(secret);
 }
 
 export function encryptText(text) {
@@ -30,10 +39,24 @@ export function encryptText(text) {
   return { iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: data.toString('base64') };
 }
 
+export const PASSWORD_LOCKED = '저장된 엔보임 비밀번호를 열 수 없어요 (사이트 비밀 설정이 바뀌었어요). 이 계정의 비밀번호를 다시 넣어 주세요.';
+
+// → { text, old }  old: 예전 열쇠로 풀렸으면 true (지금 열쇠로 다시 저장해야 해요)
+function decryptAny(enc) {
+  const list = secretCandidates();
+  for (let i = 0; i < list.length; i++) {
+    try {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', keyFrom(list[i]), Buffer.from(enc.iv, 'base64'));
+      decipher.setAuthTag(Buffer.from(enc.tag, 'base64'));
+      const text = Buffer.concat([decipher.update(Buffer.from(enc.data, 'base64')), decipher.final()]).toString('utf8');
+      return { text, old: i > 0 };
+    } catch (e) { /* 다음 열쇠로 */ }
+  }
+  throw new Error(PASSWORD_LOCKED);
+}
+
 export function decryptText(enc) {
-  const decipher = crypto.createDecipheriv('aes-256-gcm', cryptoKey(), Buffer.from(enc.iv, 'base64'));
-  decipher.setAuthTag(Buffer.from(enc.tag, 'base64'));
-  return Buffer.concat([decipher.update(Buffer.from(enc.data, 'base64')), decipher.final()]).toString('utf8');
+  return decryptAny(enc).text;
 }
 
 /* ===================== 날짜(한국 시간) ===================== */
@@ -249,8 +272,19 @@ export async function deleteAccount(id) {
   await saveAccounts(list.filter(a => a.id !== id));
 }
 
+async function reencryptPassword(id, password) {
+  const list = await getAccounts();
+  const a = list.find(x => x.id === id);
+  if (!a) return;
+  a.pw = encryptText(password);
+  await saveAccounts(list);
+}
+
+// 등록된 계정으로 로그인 (예전 열쇠로 풀린 비밀번호는 지금 열쇠로 다시 저장) — 수업영상 가져오기(nvoim-video.mjs)도 써요
 export async function loginWithAccount(session, account) {
-  await session.login(account.userId, decryptText(account.pw));
+  const pw = decryptAny(account.pw);
+  await session.login(account.userId, pw.text);
+  if (pw.old) await reencryptPassword(account.id, pw.text);
 }
 
 async function updateAccountLast(id, last) {

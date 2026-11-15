@@ -10,7 +10,8 @@ const GROQ_STT_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_STT_MODEL = 'whisper-large-v3-turbo';
 const MAX_BYTES = 4 * 1024 * 1024; // 4MB (약 1분 이상 분량이라 문장 하나에는 충분)
 const TIMEOUT_MS = 15000;
-const NO_SPEECH_PROB = 0.6;
+const NO_SPEECH_PROB = 0.6;     // 이보다 높고 받아쓴 내용에 자신이 없으면 '말 없음'
+const NO_SPEECH_STRONG = 0.85;  // 이보다 높으면 무조건 '말 없음'
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
@@ -50,11 +51,13 @@ export default async (req) => {
     if (!r.ok) return json({ error: 'groq stt error ' + r.status }, 502);
     const data = await r.json();
     // Whisper는 아무 말도 없는 녹음에서 "Thank you." 같은 문장을 지어내는 경우가 있어서,
-    // "말소리가 없을 확률"이 높은 구간은 버립니다.
+    // "말소리가 없을 확률"이 높은 구간은 버립니다. 단, 멀리서 작게 말한 목소리도 이 확률이 꽤 높게 나와서,
+    // Whisper 원래 기준처럼 '받아쓴 내용에 자신이 없을 때(avg_logprob < -1)'만 버리고, 아주 높으면(0.85↑) 그냥 버려요.
     const segs = Array.isArray(data.segments) ? data.segments : null;
+    const silent = s => typeof s.no_speech_prob === 'number'
+      && (s.no_speech_prob > NO_SPEECH_STRONG || (s.no_speech_prob > NO_SPEECH_PROB && (typeof s.avg_logprob !== 'number' || s.avg_logprob < -1)));
     const text = segs
-      ? segs.filter(s => !(typeof s.no_speech_prob === 'number' && s.no_speech_prob > NO_SPEECH_PROB))
-            .map(s => s.text).join(' ')
+      ? segs.filter(s => !silent(s)).map(s => s.text).join(' ')
       : (data.text || '');
     return json({
       text: text.replace(/\s+/g, ' ').trim(),

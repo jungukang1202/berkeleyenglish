@@ -150,7 +150,7 @@
   // 지금 재생 중인 카드의 '멈춤' 함수(다른 카드를 누르면 앞 카드를 완전히 멈춰 소리 겹침 방지)
   let __activeShadowStop = null;
   let __activePracticeWrap = null; // 지금 연습 중인 문장 카드 (공부 시간을 피드백/교재로 나눠 재는 데 사용)
-  const ENGINE_VERSION = '2026-11-11a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
+  const ENGINE_VERSION = '2026-11-13a'; // 배포할 때마다 바꿔서, 기기마다 최신 코드인지 화면 맨 아래에서 확인할 수 있게 합니다.
   // 화면 진단 표시(주소 끝 ?debug=1): 띵동·음성이 실제로 재생됐는지/막혔는지 오른쪽 아래에 보여줍니다.
   const __DEBUG_ON = /[?&]debug=1\b/.test(location.search);
   function __dbg(msg) {
@@ -1139,16 +1139,36 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
   // ③ 소리가 같은 단어 (받아쓰기가 다른 철자로 적어도 발음은 같아요): to = too = two, for = four, know = no …
   const __HOMO = {};
   [['2', 'to', 'too'], ['4', 'for', 'fore'], ['1', 'won'], ['8', 'ate'], ['there', 'their'], ['here', 'hear'], ['know', 'no'], ['right', 'write', 'rite'],
-   ['by', 'buy', 'bye'], ['see', 'sea'], ['where', 'wear', 'ware'], ['whole', 'hole'], ['our', 'hour'], ['wait', 'weight'], ['week', 'weak'], ['new', 'knew'],
+   ['by', 'buy', 'bye'], ['see', 'sea', 'c'], ['where', 'wear', 'ware'], ['whole', 'hole'], ['our', 'hour'], ['wait', 'weight'], ['week', 'weak'], ['new', 'knew'],
    ['would', 'wood'], ['i', 'eye'], ['meet', 'meat'], ['piece', 'peace'], ['son', 'sun'], ['flower', 'flour'], ['which', 'witch'], ['whether', 'weather'],
    ['allowed', 'aloud'], ['break', 'brake'], ['made', 'maid'], ['mail', 'male'], ['plane', 'plain'], ['road', 'rode'], ['tale', 'tail'], ['through', 'threw', 'thru'],
    ['way', 'weigh'], ['night', 'knight'], ['not', 'knot'], ['blue', 'blew'], ['pair', 'pear', 'pare'], ['so', 'sew', 'sow'], ['some', 'sum'], ['steal', 'steel'],
    ['stair', 'stare'], ['heal', 'heel'], ['hi', 'high'], ['dear', 'deer'], ['fair', 'fare'], ['great', 'grate'], ['knows', 'nose'], ['principal', 'principle'],
-   ['role', 'roll'], ['seen', 'scene'], ['sale', 'sail'], ['tea', 'tee'], ['bear', 'bare'], ['be', 'bee'], ['sent', 'cent', 'scent'], ['die', 'dye'],
-   ['flew', 'flu'], ['hair', 'hare'], ['higher', 'hire'], ['in', 'inn'], ['oh', 'owe'],
+   ['role', 'roll'], ['seen', 'scene'], ['sale', 'sail'], ['tea', 'tee', 't'], ['bear', 'bare'], ['be', 'bee', 'b'], ['sent', 'cent', 'scent'], ['die', 'dye'],
+   ['flew', 'flu'], ['hair', 'hare'], ['higher', 'hire'], ['in', 'inn'], ['oh', 'owe', 'o'],
    ['ad', 'add'], ['band', 'banned'], ['cell', 'sell'], ['dew', 'due', 'do'], ['knew', 'new'], ['missed', 'mist'], ['passed', 'past'], ['rain', 'reign', 'rein'],
    ['sight', 'site', 'cite'], ['soul', 'sole'], ['stationary', 'stationery'], ['threw', 'through'], ['vary', 'very'], ['waist', 'waste'], ['weak', 'week'],
-   ['wore', 'war'], ['yolk', 'yoke'], ['guessed', 'guest'], ['which', 'witch'], ['berry', 'bury'], ['merry', 'marry', 'mary'], ['than', 'then']].forEach(g => g.forEach(w => { if (!__HOMO[w]) __HOMO[w] = g[0]; }));
+   ['wore', 'war'], ['yolk', 'yoke'], ['guessed', 'guest'], ['which', 'witch'], ['berry', 'bury'], ['merry', 'marry', 'mary'], ['than', 'then'],
+   ['you', 'u', 'yew', 'ewe'], ['are', 'r'], ['why', 'y'], ['or', 'oar', 'ore'], ['aunt', 'ant'], ['board', 'bored'], ['been', 'bean'], ['build', 'billed'],
+   ['cereal', 'serial'], ['choose', 'chews'], ['duel', 'dual'], ['find', 'fined'], ['flee', 'flea'], ['grown', 'groan'], ['hall', 'haul'], ['heard', 'herd'],
+   ['horse', 'hoarse'], ['him', 'hymn'], ['idol', 'idle'], ['need', 'knead'], ['lesson', 'lessen'], ['loan', 'lone'], ['main', 'mane'], ['manner', 'manor'],
+   ['medal', 'meddle'], ['minor', 'miner'], ['morning', 'mourning'], ['pale', 'pail'], ['pain', 'pane'], ['patience', 'patients'], ['pause', 'paws'],
+   ['peak', 'peek', 'pique'], ['poll', 'pole'], ['pray', 'prey'], ['presents', 'presence'], ['profit', 'prophet'], ['wrap', 'rap'], ['real', 'reel'],
+   ['ring', 'wring'], ['rows', 'rose'], ['seem', 'seam'], ['sees', 'seas', 'seize'], ['shoe', 'shoo'], ['side', 'sighed'], ['steak', 'stake'], ['sweet', 'suite'],
+   ['tax', 'tacks'], ['tide', 'tied'], ['toe', 'tow'], ['vain', 'vein', 'vane'], ['weighed', 'wade'], ['worn', 'warn'], ['wine', 'whine'], ['whale', 'wail'],
+   ['colonel', 'kernel'], ['counsel', 'council'], ['creek', 'creak'], ['dough', 'doe'], ['feet', 'feat'], ['fur', 'fir'], ['flare', 'flair'], ['gate', 'gait'],
+   ['genes', 'jeans'], ['hey', 'hay'], ['holy', 'wholly'], ['lie', 'lye'], ['might', 'mite'], ['mousse', 'moose'], ['navel', 'naval'], ['none', 'nun'],
+   ['packed', 'pact'], ['pedal', 'peddle'], ['pie', 'pi'], ['pour', 'pore'], ['raise', 'rays', 'raze'], ['root', 'route'], ['sign', 'sine'], ['sleigh', 'slay'],
+   ['sore', 'soar'], ['style', 'stile'], ['straight', 'strait'], ['tense', 'tents'], ['thrown', 'throne'], ['told', 'tolled'], ['veil', 'vale'], ['wave', 'waive'],
+   ['wrote', 'rote'], ['queue', 'cue', 'q'], ['cheap', 'cheep'], ['chilly', 'chili', 'chile'], ['cymbal', 'symbol'],
+   ['hare', 'hair'], ['jewel', 'joule'], ['knit', 'nit'], ['knob', 'nob'], ['knock', 'nock'], ['mall', 'maul'],
+   ['muscle', 'mussel'], ['rack', 'wrack'], ['rest', 'wrest'], ['sole', 'soul'], ['tail', 'tale'], ['weather', 'whether'], ['wear', 'where']].forEach(g => g.forEach(w => { if (!__HOMO[w]) __HOMO[w] = g[0]; }));
+  // ⑤ 줄임말과 소리가 같은 단어 (받아쓰기가 your / you're, its / it's 처럼 다르게 적어도 같은 소리예요) — 운영자 지시 2026-11-13
+  //   줄임말을 풀어서(you're = you are) 비교한 점수와, 이 표로 한 단어로 묶어서 비교한 점수 중 높은 쪽을 써요
+  const __CHOMO = {};
+  [['your', "you're", 'yore'], ['its', "it's"], ['were', "we're"], ['whose', "who's"], ['there', 'their', "they're"], ['theirs', "there's"],
+   ['aisle', 'isle', "i'll"], ['heal', 'heel', "he'll"], ['wheel', "we'll"], ['weed', "we'd"], ['heed', "he'd"], ['yule', "you'll"], ['weave', "we've"],
+   ['eyed', "i'd"], ['wont', "won't"], ['lets', "let's"], ['shell', "she'll"]].forEach(g => g.forEach(w => { __CHOMO[w] = g[0]; }));
   // 대명사 뒤 's · 'd 는 두 가지 뜻이라 둘 다 맞게 봐요 (it's = it is / it has, I'd = I would / I had)
   const __PRON = /^(i|you|he|she|it|we|they|that|this|there|here|what|where|who|when|why|how|everyone|everybody|somebody|someone|nobody|nothing|something|everything|let)$/;
   function __numKind(w) {
@@ -1165,7 +1185,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     return [String(n) + sfx];
   }
   // → 단어 [{ k: 비교 열쇠, r: 원래 글자(붙여 쓰기 비교용), alt: [같게 볼 열쇠], d: 화면에 보일 글자 }]
-  function __scoreTokens(s) {
+  function __scoreTokens(s, keep) {
     let t = String(s || '').toLowerCase()
       .replace(/[‘’ʼ`]/g, "'")
       .replace(/(\d),(?=\d{3}\b)/g, '$1')       // 1,000 → 1000
@@ -1177,6 +1197,7 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     const raw = t.split(/\s+/).map(w => w.replace(/^'+|'+$/g, '')).filter(Boolean);
     const words = [];
     raw.forEach(w => {
+      if (keep && __CHOMO[w]) { words.push({ w: __CHOMO[w], d: w }); return; } // ⑤ 줄임말과 소리가 같은 단어
       const push = (x, d, alt) => x.split(' ').forEach((p, k) => words.push({ w: __american(p), d: k ? '' : d, alt: k === x.split(' ').length - 1 ? alt : undefined }));
       if (__REDUCED[w]) { push(__REDUCED[w], w); return; }
       let x = __CONTRACT[w];
@@ -1236,9 +1257,23 @@ const STT_DEBUG = /[?&]debug=1\b/.test(location.search); // 주소 끝에 &debug
     return out;
   }
   const __same = (a, b) => a.k === b.k || !!(a.alt && a.alt.includes(b.k)) || !!(b.alt && b.alt.includes(a.k));
+  // 줄임말을 풀어서 비교한 점수와, 줄임말·소리가 같은 단어를 한 단어로 묶어 비교한 점수 중 높은 쪽(같으면 풀어서 비교한 쪽)
   function compareWords(target, heard) {
-    let tw = __scoreTokens(target);
-    let hw = __scoreTokens(heard);
+    const a = __compareOnce(target, heard, false);
+    if (a.score >= 100 || !__keepHelps(target, heard)) return a;
+    const b = __compareOnce(target, heard, true);
+    return b.score > a.score ? b : a;
+  }
+  // 원문과 받아쓴 말에 같은 소리의 다른 철자(your ↔ you're …)가 함께 있을 때만 한 단어로 묶어 비교해요
+  // (줄임말을 빼먹고 말했을 때 점수가 오르지 않게)
+  function __keepHelps(target, heard) {
+    const forms = s => { const m = {}; String(s || '').toLowerCase().replace(/[‘’ʼ`]/g, "'").replace(/[^a-z'\s]/g, ' ').split(/\s+/).forEach(w => { w = w.replace(/^'+|'+$/g, ''); const k = __CHOMO[w]; if (k) (m[k] = m[k] || []).push(w); }); return m; };
+    const T = forms(target), H = forms(heard);
+    return Object.keys(T).some(k => H[k] && T[k].join(' ') !== H[k].join(' ')); // 철자나 순서가 다르면
+  }
+  function __compareOnce(target, heard, keep) {
+    let tw = __scoreTokens(target, keep);
+    let hw = __scoreTokens(heard, keep);
     tw = __joinSplit(tw, hw); hw = __joinSplit(hw, tw);
     const dp = Array.from({ length: tw.length + 1 }, () => new Array(hw.length + 1).fill(0));
     for (let i = tw.length - 1; i >= 0; i--)

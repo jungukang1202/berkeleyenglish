@@ -48,9 +48,33 @@ export function canSeeBook(b, username) {
   return false;
 }
 
+// 📖 기본 교재 37권(builtin-books.mjs)을 처음 한 번 교재 저장소에 넣어요. (2026-11-13, 영클 연세점에서 옮겨 옴)
+//   · 이미 같은 ID 교재가 있으면(예전에 옮겨 왔거나 고친 교재) 건드리지 않아요.
+//   · 새로 넣는 교재는 '넣어 준 학생만'(assigned) — 관리자가 「🎁 학생별 넣어주기」로 넣어 줘야 학생에게 보여요.
+//   · 넣고 나면 표시를 남겨서, 관리자가 지운 교재가 다시 생기지 않아요.
+const seedStore = () => getStore({ name: 'textbook-seed', consistency: 'strong' });
+const SEED_KEY = 'builtin-v1';
+let seedChecked = false;
+async function seedBuiltinBooks(existingIds) {
+  if (seedChecked) return false;
+  const ms = seedStore();
+  if (await ms.get(SEED_KEY)) { seedChecked = true; return false; }
+  const { default: BUILTIN } = await import('./builtin-books.mjs');
+  const add = BUILTIN.filter(b => !existingIds.has(b.id));
+  await Promise.all(add.map(b => saveBook(null, { newId: b.id, title: b.title, units: b.units, visibility: 'assigned' })));
+  await ms.set(SEED_KEY, JSON.stringify({ at: new Date().toISOString(), added: add.map(b => b.id) }));
+  seedChecked = true;
+  return add.length > 0;
+}
+
 export async function listBooks() {
   const s = store();
-  const { blobs } = await s.list();
+  let { blobs } = await s.list();
+  if (!seedChecked) {
+    try {
+      if (await seedBuiltinBooks(new Set(blobs.map(x => x.key)))) ({ blobs } = await s.list());
+    } catch (e) { console.log('[books] builtin seed failed', e && e.message); }
+  }
   const recs = await Promise.all(blobs.map(x => s.get(x.key, { type: 'json' })));
   return recs.filter(Boolean).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
 }

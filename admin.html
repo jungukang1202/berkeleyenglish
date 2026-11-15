@@ -158,8 +158,25 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
   .sub-h{font-size:0.9rem; margin:18px 0 6px; color:var(--text); font-weight:800; display:flex; align-items:center; gap:8px;}
   /* 📖 교재쉐도잉: 교재별 접기 */
   /* 관리 메뉴 글상자 (스크롤해도 위에 고정) */
-  .admin-menu{position:sticky; top:0; z-index:20; display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; padding:10px 0; margin-bottom:8px; background:var(--bg, #F8F4EA);}
-  @media (max-width:640px){ .admin-menu{display:flex; overflow-x:auto; -webkit-overflow-scrolling:touch;} .am-tile{flex:0 0 140px;} }
+  .admin-menu{position:sticky; top:0; z-index:20; padding:10px 0; margin-bottom:8px; background:var(--bg, #F8F4EA);}
+  .am-row, .am-sub{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px;}
+  .am-sub{display:none; margin-top:8px; padding:8px; border-radius:16px; border:2px dashed;}
+  .am-sub.open{display:grid;}
+  @media (max-width:640px){ .am-row, .am-sub.open{display:flex; overflow-x:auto; -webkit-overflow-scrolling:touch;} .am-tile, .am-group{flex:0 0 140px;} }
+  /* 묶음 글상자 기록 · 가져오기 · 만들기: 바탕색을 서로 다르게 (영클 연세점과 같게, 2026-11-13) */
+  .am-group{display:flex; flex-direction:column; gap:3px; text-align:left; padding:11px 12px; border-radius:14px; border:3px solid; cursor:pointer; font:inherit; color:#000; box-shadow:0 2px 6px rgba(27,42,78,0.06);}
+  .am-group b{font-size:1.05rem; font-weight:800;}
+  .am-group span{font-size:0.76rem; font-weight:700; color:#222;}
+  .am-group b::after{content:" ▾"; font-size:0.8em;}
+  .am-group.open b::after{content:" ▴";}
+  .am-group:hover{transform:translateY(-1px);}
+  .am-group.on, .am-group.open{box-shadow:0 0 0 3px rgba(11,21,48,0.35);}
+  .am-group[data-grp="rec"]{background:#FFF176; border-color:#F9A825;} .am-group[data-grp="rec"] b{color:#5D4037;}
+  .am-sub[data-grp="rec"]{background:#FFFDE7; border-color:#F9A825;}
+  .am-group[data-grp="get"]{background:#81D4FA; border-color:#0277BD;} .am-group[data-grp="get"] b{color:#01579B;}
+  .am-sub[data-grp="get"]{background:#E1F5FE; border-color:#0277BD;}
+  .am-group[data-grp="make"]{background:#F48FB1; border-color:#AD1457;} .am-group[data-grp="make"] b{color:#880E4F;}
+  .am-sub[data-grp="make"]{background:#FCE4EC; border-color:#AD1457;}
   .am-tile{display:flex; flex-direction:column; gap:3px; text-align:left; padding:11px 12px; border-radius:14px; border:3px solid; cursor:pointer; font:inherit; color:#000; box-shadow:0 2px 6px rgba(27,42,78,0.06);}
   .am-tile b{font-size:0.92rem; font-weight:800; color:#000;}
   .am-tile span{font-size:0.76rem; font-weight:700; color:#222;}
@@ -180,6 +197,18 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
   /* 쉐도잉 만들기 두 칸: 바탕색은 같게, 큰 글씨 색은 다르게(운영자 지시 2026-11-03) */
   .am-tile[data-go="video"]{background:#F0F4C3; border-color:#827717;} .am-tile[data-go="video"] b{color:#33691E;}
   .am-tile[data-go="lvmake"]{background:#F0F4C3; border-color:#303F9F;} .am-tile[data-go="lvmake"] b{color:#303F9F;}
+  /* ✂️ 수업영상 하이라이트(영클 연세점에서 옮겨 옴 2026-11-13): 만들기 칸과 같은 바탕, 큰 글씨는 진한 분홍 */
+  .am-tile[data-go="lvhl"]{background:#F0F4C3; border-color:#AD1457;} .am-tile[data-go="lvhl"] b{color:#AD1457;}
+  .am-tile[data-go="lvmake"], .am-tile[data-go="lvhl"]{align-items:center; justify-content:center; text-align:center;} .am-tile[data-go="lvmake"] span, .am-tile[data-go="lvhl"] span{text-wrap:balance;}
+  .am-tile[data-go="lvmake"] b, .am-tile[data-go="lvhl"] b{font-size:0.88rem; white-space:nowrap;}
+  .am-tile[data-go="lvmake"], .am-tile[data-go="lvhl"]{grid-column:span 2; min-height:92px; padding:16px 18px;}
+  @media (max-width:640px){ .am-tile[data-go="lvmake"], .am-tile[data-go="lvhl"]{flex:0 0 200px;} }
+  #hlMember{background:#E91E63; color:#fff; border:3px solid #AD1457; font-weight:800;}
+  #hlMember option{background:#fff; color:#222; font-weight:600;}
+  /* 「🎁 넣어주기」의 ✂️ 수업영상 하이라이트: 연두 바탕 · 진한 분홍 테두리 (학생 화면 글상자와 같은 색) */
+  .acc-item.acc-hl{background:#F0F4C3; border-color:#AD1457;}
+  .acc-item.acc-hl a{font-size:0.82rem; font-weight:800; color:#AD1457; margin-left:6px;}
+  #accHlLegend button{background:#F0F4C3; border-color:#AD1457;}
   .vr-time{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 14px;}
   .vr-time div{flex:1 1 120px; background:#FFF4D6; border:1px solid #F2D58A; border-radius:12px; padding:10px 12px; font-weight:800;}
   .vr-time small{display:block; font-size:0.76rem; color:var(--muted); font-weight:700;}
@@ -343,17 +372,30 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
 
     <!-- 관리 메뉴 글상자 — 늘 위에 고정돼 있고, 누르면 그 내용만 아래에 열려요 -->
     <nav class="admin-menu" id="adminMenu">
-      <button type="button" class="am-tile" data-go="sets"><b>💬 피드백쉐도잉 기록</b><span>회차 등록 · 수정 · 연습 기록</span></button>
-      <button type="button" class="am-tile" data-go="lvrec"><b>🎥 수업영상 쉐도잉 기록</b><span>회원별 수업 녹화 연습 기록</span></button>
-      <button type="button" class="am-tile" data-go="book"><b>📖 교재쉐도잉 기록</b><span>교재 미리보기 · 연습 기록</span></button>
-      <button type="button" class="am-tile" data-go="vrec"><b>🎬 영상쉐도잉 기록</b><span>학생별 영상 공부 상황</span></button>
-      <button type="button" class="am-tile" data-go="access"><b>🎁 학생별 쉐도잉 넣어주기</b><span>교재 · 영상 넣어주기</span></button>
-      <button type="button" class="am-tile" data-go="report"><b>📊 학습 리포트</b><span>회원별 학습 분석</span></button>
-      <button type="button" class="am-tile" data-go="nvoim"><b>📥 엔보임 피드백</b><span>자동 가져오기</span></button>
-      <button type="button" class="am-tile" data-go="nvvideo"><b>🎥 수업영상</b><span>자동 가져오기</span></button>
-      <button type="button" class="am-tile" data-go="members"><b>👤 회원 관리</b><span>아이디 등록 · 비번 초기화</span></button>
-      <button type="button" class="am-tile" data-go="video"><b>🎬 영상 쉐도잉 만들기</b><span>YouTube · 영상 파일</span></button>
-      <button type="button" class="am-tile" data-go="lvmake"><b>🎥 수업영상 쉐도잉 만들기</b><span>학생 수업 녹화 → 한 문장씩</span></button>
+      <!-- 기록 · 가져오기 · 만들기는 묶음 글상자 — 누르면 그 아래 칸이 나타나요 (영클 연세점과 같게, 2026-11-13) -->
+      <div class="am-row">
+        <button type="button" class="am-group" data-grp="rec"><b>📋 기록</b><span>피드백 · 교재 · 수업영상 · 영상</span></button>
+        <button type="button" class="am-group" data-grp="get"><b>📥 가져오기</b><span>엔보임 피드백 · 수업영상</span></button>
+        <button type="button" class="am-group" data-grp="make"><b>🛠️ 만들기</b><span>영상 · 수업영상 쉐도잉</span></button>
+        <button type="button" class="am-tile" data-go="report"><b>📊 학습 리포트</b><span>회원별 학습 분석</span></button>
+        <button type="button" class="am-tile" data-go="access"><b>🎁 학생별 쉐도잉 넣어주기</b><span>교재 · 영상 넣어주기</span></button>
+        <button type="button" class="am-tile" data-go="members"><b>👤 회원 관리</b><span>아이디 등록 · 비번 초기화</span></button>
+      </div>
+      <div class="am-sub" data-grp="rec">
+        <button type="button" class="am-tile" data-go="sets"><b>💬 피드백쉐도잉 기록</b><span>회차 등록 · 수정 · 연습 기록</span></button>
+        <button type="button" class="am-tile" data-go="book"><b>📖 교재쉐도잉 기록</b><span>교재 미리보기 · 연습 기록</span></button>
+        <button type="button" class="am-tile" data-go="lvrec"><b>🎥 수업영상 쉐도잉 기록</b><span>회원별 수업 녹화 연습 기록</span></button>
+        <button type="button" class="am-tile" data-go="vrec"><b>🎬 영상쉐도잉 기록</b><span>학생별 영상 공부 상황</span></button>
+      </div>
+      <div class="am-sub" data-grp="get">
+        <button type="button" class="am-tile" data-go="nvoim"><b>📥 엔보임 피드백</b><span>자동 가져오기</span></button>
+        <button type="button" class="am-tile" data-go="nvvideo"><b>🎥 수업영상</b><span>자동 가져오기</span></button>
+      </div>
+      <div class="am-sub" data-grp="make">
+        <button type="button" class="am-tile" data-go="video"><b>🎬 영상 쉐도잉</b><span>YouTube · 영상 파일</span></button>
+        <button type="button" class="am-tile" data-go="lvmake"><b>🎥 수업영상 쉐도잉</b><span>학생 수업 녹화 → 한 문장씩</span></button>
+        <button type="button" class="am-tile" data-go="lvhl"><b>✂️ 수업영상 하이라이트</b><span>참여도 높은 3~6분 편집 · 내려받기</span></button>
+      </div>
     </nav>
 
     <!-- ============ 엔보임 피드백 자동 가져오기 ============ -->
@@ -471,6 +513,33 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
       <div id="lvmMine"><div class="empty">학생을 선택하세요.</div></div>
     </div>
 
+    <!-- ============ ✂️ 수업영상 하이라이트 (js/lesson-highlight.js · 영클 연세점에서 옮겨 옴 2026-11-13) ============ -->
+    <div class="card" id="hlCard" data-aview="lvhl">
+      <h2>✂️ 수업영상 하이라이트</h2>
+      <div class="card-desc">
+        학생을 고르면 「🎥 수업영상 자동 가져오기」에서 <b>💾 저장한 녹화</b>와 이미 만든 수업영상이 보여요. 「✂️ 하이라이트 만들기」를 누르면 녹화 전체를 분석해
+        <b>학생이 활발하게 참여하고 선생님과 즐겁게 수업한 부분</b>을 골라 <b>3~6분</b> 영상(영어·한글 자막)으로 편집해요. 다 되면 미리 보고 파일로 내려받을 수 있고, 그 학생 이름으로 저장돼요.
+        학생 화면에는 「🎁 학생별 쉐도잉 넣어주기」에서 넣어 줘야 보여요. 편집은 이 창에서 해요 — 끝날 때까지 창을 닫지 마세요.
+      </div>
+      <div class="field">
+        <label for="hlMember">학생 선택</label>
+        <select class="full" id="hlMember"><option value="">-- 학생을 선택하세요 --</option></select>
+      </div>
+      <div class="status" id="hlListStatus"></div>
+      <div id="hlList"></div>
+      <div class="field" style="margin-top:12px;">
+        <label for="hlFile">📁 만든 하이라이트 파일 올리기 — 내려받아 둔 하이라이트(mp4)를 이 학생 이름으로 저장해요</label>
+        <div class="row"><input type="file" id="hlFile" accept="video/mp4,video/*"><button class="btn-primary btn-small" id="hlUploadBtn">💾 저장하기</button></div>
+      </div>
+      <div class="row"><button class="btn-danger hidden" id="hlCancelBtn">⏹ 중지</button></div>
+      <div id="hlProgress" class="vid-prog hidden">
+        <div><div class="lbl"><span>✂️ 녹화 받기 · 분석 · 편집</span><span id="hlLabel"></span></div><div class="vid-bar"><i id="hlBar"></i></div></div>
+      </div>
+      <div class="status" id="hlStatus"></div>
+      <div id="hlResult"></div>
+      <div id="hlSaved"></div>
+    </div>
+
     <!-- ============ 엔보임 수업영상 자동 가져오기 (js/nvoim-video.js) ============ -->
     <div class="card" id="nvVideoCard" data-aview="nvvideo">
       <h2>🎥 엔보임 수업영상 자동 가져오기</h2>
@@ -585,7 +654,7 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
     <!-- ============ 🎁 학생별 쉐도잉 넣어주기 ============ -->
     <div class="card" id="accessCard" data-aview="access">
       <h2>🎁 학생별 쉐도잉 넣어주기</h2>
-      <div class="card-desc">학생 화면의 <b>교재 쉐도잉</b>과 <b>영상 쉐도잉</b>에는 여기서 넣어 준 것만 보여요. 넣어 준 게 없으면 카테고리만 보이고 내용은 비어 있어요.</div>
+      <div class="card-desc">학생 화면의 <b>교재 쉐도잉</b>, <b>영상 쉐도잉</b>, <b>✂️ 수업영상 하이라이트</b>에는 여기서 넣어 준 것만 보여요. 넣어 준 게 없으면 카테고리만 보이고 내용은 비어 있어요.</div>
       <div class="field">
         <label for="accessMember">학생 선택</label>
         <select class="full" id="accessMember"><option value="">-- 회원을 선택하세요 --</option></select>
@@ -599,6 +668,11 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
         <div class="acc-legend" id="accVideoLegend"></div>
         <div class="acc-list" id="accVideoList"></div>
         <div class="empty hidden" id="accVideoNone">이 레벨에 올린 영상이 없어요.</div>
+        <!-- ✂️ 수업영상 하이라이트: 만든 하이라이트는 여기서 넣어 줘야 학생 화면에 보여요 — 만든 학생 이름 카테고리를 누르면 그 학생 하이라이트 -->
+        <div class="acc-head"><b>✂️ 수업영상 하이라이트</b><span class="pill" id="accHlCount"></span>
+          <span class="acc-tools"><button class="btn-ghost btn-small" data-acc-all="hl">전체 선택</button><button class="btn-ghost btn-small" data-acc-none="hl">전체 해제</button></span></div>
+        <div class="acc-legend" id="accHlLegend"></div>
+        <div class="acc-list" id="accHlList"></div>
         <div class="row"><button class="btn-primary" id="accSaveBtn">💾 이 학생에게 저장</button></div>
       </div>
       <div class="status" id="accStatus"></div>
@@ -907,7 +981,7 @@ vegetable, particularly"></textarea>
   </div>
 </div>
 
-<script src="js/shadowing-engine.js?v=20261111a"></script>
+<script src="js/shadowing-engine.js?v=20261113a"></script>
 <script src="js/learning-report.js?v=20261023a"></script>
 <script src="js/video-transcript.js?v=20261107c"></script>
 <script src="js/yt-media.js?v=20261107a"></script>
@@ -1147,16 +1221,25 @@ vrecMember.addEventListener('change', loadVideoRecords);
 
 /* ===================== 관리 메뉴 글상자 ===================== */
 // 메뉴는 늘 보이고, 누른 글상자의 내용만 아래에 보여요. 고른 메뉴는 주소(#report 등)와 브라우저에 기억해요.
-const ADMIN_VIEWS = ['sets', 'lvrec', 'book', 'vrec', 'access', 'report', 'nvoim', 'nvvideo', 'members', 'video', 'lvmake'];
+const ADMIN_VIEWS = ['sets', 'lvrec', 'book', 'vrec', 'access', 'report', 'nvoim', 'nvvideo', 'members', 'video', 'lvmake', 'lvhl'];
 function showAdminView(v, scroll) {
   if (!ADMIN_VIEWS.includes(v)) v = ADMIN_VIEWS[0];
   document.querySelectorAll('#mainArea [data-aview]').forEach(el => el.classList.toggle('av-off', el.dataset.aview !== v));
   document.querySelectorAll('#adminMenu .am-tile').forEach(t => t.classList.toggle('on', t.dataset.go === v));
+  // 지금 화면이 들어 있는 묶음(기록 · 가져오기 · 만들기)은 열어 두고 표시해요
+  const grp = (document.querySelector(`#adminMenu .am-sub .am-tile[data-go="${v}"]`) || { closest: () => null }).closest('.am-sub');
+  openMenuGroup(grp ? grp.dataset.grp : '');
+  document.querySelectorAll('#adminMenu .am-group').forEach(g => g.classList.toggle('on', !!grp && g.dataset.grp === grp.dataset.grp));
   try { localStorage.setItem('admin_view', v); } catch (e) {}
   if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v);
   if (scroll) document.getElementById('adminMenu').scrollIntoView({ block: 'start' });
 }
+function openMenuGroup(g) {
+  document.querySelectorAll('#adminMenu .am-sub, #adminMenu .am-group').forEach(el => el.classList.toggle('open', !!g && el.dataset.grp === g));
+}
 document.getElementById('adminMenu').addEventListener('click', e => {
+  const g = e.target.closest('.am-group');
+  if (g) { openMenuGroup(g.classList.contains('open') ? '' : g.dataset.grp); return; }
   const t = e.target.closest('.am-tile'); if (t) showAdminView(t.dataset.go, true);
 });
 (function () {
@@ -1173,6 +1256,8 @@ let accessCache = {};      // { username: { books, videos, updatedAt } }
 let accBooks = null;       // 교재 목록 (admin-textbooks)
 let accVideos = null;      // 영상 목록 (admin-videos)
 let accVideoLv = 'all';    // 지금 보고 있는 영상 레벨 ('all' = 전체)
+let accHls = [];           // 저장한 수업영상 하이라이트(모든 학생) — /api/admin-highlights?all=1
+let accHlOwner = '';       // 지금 보고 있는 하이라이트 카테고리(만든 학생 아이디)
 const VIS_LABEL = { draft: '🔒 비공개', members: '👥 회원 공개', public: '🌐 전체 공개' };
 
 function accSummary(username) {
@@ -1191,11 +1276,13 @@ function renderAccessMemberSelect() {
 async function loadAccess() {
   const statusEl = document.getElementById('accStatus');
   try {
-    const [acc, books, vids] = await Promise.all([
+    const [acc, books, vids, hls] = await Promise.all([
       apiFetch(API.access),
       accBooks ? null : apiFetch(API.textbooks),
       apiFetch(API.videos), // 영상은 새로 올리거나 지울 수 있어서 매번 새로 가져와요
+      apiFetch('/api/admin-highlights?all=1').catch(() => null),
     ]);
+    if (hls) accHls = hls.highlights || [];
     accessCache = acc.access || {};
     if (books) accBooks = books.books || [];
     accVideos = (vids.lessons || []).filter(v => v.status === 'ready');
@@ -1241,8 +1328,26 @@ function renderAccessLists() {
     item('video', v.id, a.videos.includes(v.id), v.title || '(제목 없음)',
       [v.level ? (v.level === 'kids' ? '유아' : 'Lv ' + v.level) : '', VIS_LABEL[v.visibility] || '', v.visibility === 'draft' ? '비공개라 학생에게 안 보여요' : ''].filter(Boolean).join(' · '), accLevel(v.level), accLevel(v.level).lv,
       v.youtubeId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.youtubeId)}/mqdefault.jpg` : '')).join('') || '<div class="empty">올린 영상이 없어요.</div>';
+  // ✂️ 수업영상 하이라이트: 만든 학생 이름마다 카테고리 — 고른 학생 것이 있으면 그 학생 카테고리부터 보여요
+  const accessArea = document.getElementById('accessArea');
+  const hlOwners = [...new Set(accHls.map(h => h.username))].sort((x, y) => (y === username) - (x === username) || memberLabel(x).localeCompare(memberLabel(y)));
+  if (!hlOwners.includes(accHlOwner) || accessArea.dataset.hlFor !== username) accHlOwner = hlOwners.includes(username) ? username : (hlOwners[0] || '');
+  accessArea.dataset.hlFor = username;
+  document.getElementById('accHlLegend').innerHTML = hlOwners.map(o => `<button type="button" data-acc-hl="${escH(o)}">${escH(memberLabel(o))} (${accHls.filter(h => h.username === o).length})</button>`).join('');
+  document.getElementById('accHlList').innerHTML = accHls.map(h => {
+    const on = (h.to || []).includes(username);
+    const meta = [h.date ? `📅 수업일 ${Number(h.date.slice(5, 7))}/${Number(h.date.slice(8, 10))}` : '', h.duration ? `${Math.floor(h.duration / 60)}분 ${Math.round(h.duration % 60)}초` : '', h.subs || ''].filter(Boolean).join(' · ');
+    return `<label class="acc-item acc-hl${on ? ' on' : ''}" data-hlo="${escH(h.username)}"><input type="checkbox" data-kind="hl" value="${escH(h.id)}"${on ? ' checked' : ''}><span><span class="acc-name">✂️ ${escH(h.title)} 하이라이트${h.url ? `<a href="${escH(h.url)}" target="_blank" rel="noopener">▶ 보기</a>` : ''}</span><span class="meta">${escH(meta)}</span></span></label>`;
+  }).join('') || '<div class="empty">만든 수업영상 하이라이트가 아직 없어요. 「✂️ 수업영상 하이라이트」에서 만들어 주세요.</div>';
+  applyAccHl();
   applyAccLevel();
   updateAccCounts();
+}
+
+// 하이라이트 카테고리(만든 학생): 누르면 그 학생 하이라이트만 보여요. 숨긴 것의 체크도 그대로 저장돼요.
+function applyAccHl() {
+  document.querySelectorAll('#accHlList .acc-item').forEach(l => l.classList.toggle('acc-off', l.dataset.hlo !== accHlOwner));
+  document.querySelectorAll('#accHlLegend [data-acc-hl]').forEach(b => { const on = b.dataset.accHl === accHlOwner; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
 }
 
 // 영상 레벨 카테고리: 누르면 그 레벨 영상만 보여요. 숨긴 영상도 화면 안에 남아 있어서 체크한 것은 그대로 저장돼요.
@@ -1261,6 +1366,7 @@ function updateAccCounts() {
   const n = kind => document.querySelectorAll(`#accessArea input[data-kind="${kind}"]:checked`).length;
   document.getElementById('accBookCount').textContent = `${n('book')}개 선택`;
   document.getElementById('accVideoCount').textContent = `${n('video')}개 선택`;
+  document.getElementById('accHlCount').textContent = `${n('hl')}개 선택`;
   document.querySelectorAll('#accessArea .acc-item').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
 }
 
@@ -1268,6 +1374,7 @@ accessMember.addEventListener('change', () => { document.getElementById('accStat
 document.getElementById('accessArea').addEventListener('change', e => { if (e.target.matches('input[data-kind]')) updateAccCounts(); });
 document.getElementById('accessArea').addEventListener('click', e => {
   if (e.target.dataset.accLv != null) { accVideoLv = e.target.dataset.accLv; applyAccLevel(); return; }
+  if (e.target.dataset.accHl != null) { accHlOwner = e.target.dataset.accHl; applyAccHl(); return; }
   const all = e.target.dataset.accAll, none = e.target.dataset.accNone;
   if (!all && !none) return;
   // 레벨을 골라 둔 때는 보이는 영상만 선택·해제해요
@@ -1283,9 +1390,12 @@ document.getElementById('accSaveBtn').addEventListener('click', async () => {
   try {
     const { access } = await apiFetch(API.access, { method: 'POST', body: JSON.stringify({ username, books: ids('book'), videos: ids('video') }) });
     accessCache[username] = access;
+    // ✂️ 수업영상 하이라이트: 체크한 것만 이 학생 화면에 보여요
+    const given = (await apiFetch('/api/admin-highlights', { method: 'POST', body: JSON.stringify({ action: 'give', u: username, ids: ids('hl') }) })).given;
+    accHls.forEach(h => { h.to = (h.to || []).filter(x => x !== username).concat(ids('hl').includes(h.id) ? [username] : []); });
     const opt = [...accessMember.options].find(o => o.value === username);
     if (opt) opt.textContent = memberLabel(username) + accSummary(username);
-    statusEl.textContent = `✅ ${memberLabel(username)} 학생에게 교재 ${access.books.length}개 · 영상 ${access.videos.length}개를 넣었어요.`;
+    statusEl.textContent = `✅ ${memberLabel(username)} 학생에게 교재 ${access.books.length}개 · 영상 ${access.videos.length}개 · 하이라이트 ${given}개를 넣었어요.`;
     statusEl.className = 'status success';
   } catch (e) {
     statusEl.textContent = '⚠️ ' + e.message;
@@ -2136,5 +2246,7 @@ if (getToken()) showMain(); else showLogin();
 </script>
 <script src="js/video-admin.js?v=20261107a"></script>
 <script src="js/nvoim-video.js?v=20261107c"></script>
+<script src="js/lesson-voice.js?v=20261113a"></script>
+<script src="js/lesson-highlight.js?v=20261113b"></script>
 </body>
 </html>

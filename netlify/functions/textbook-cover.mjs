@@ -1,4 +1,4 @@
-// 📖 교재 표지 그림 — /images/textbooks/파일이름 으로 들어오면(netlify.toml) 저장해 둔 그림을 보내요 (로그인 없이)
+// 📖 교재 표지 그림 — /images/textbooks/파일이름 으로 들어오면 저장해 둔 그림을 보내요 (로그인 없이)
 // GET /api/textbook-cover?name=grammar-n.png
 import { coverStore, okCoverName } from './_lib/books.mjs';
 
@@ -14,4 +14,5 @@ export default async (req) => {
   return new Response(data, { headers: { 'Content-Type': TYPES[name.split('.').pop()] || 'image/png', 'Cache-Control': 'public, max-age=86400' } });
 };
 
-export const config = { path: ['/api/textbook-cover', '/images/textbooks/*'] };
+// preferStatic: 사이트에 들어 있는 기본 교재 표지(images/textbooks/*.png)가 있으면 그 파일을, 없으면 저장해 둔 그림을 보내요
+export const config = { path: ['/api/textbook-cover', '/images/textbooks/*'], preferStatic: true };
