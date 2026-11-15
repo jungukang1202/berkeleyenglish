@@ -44,3 +44,42 @@
   for = "/version.json"
   [headers.values]
     Cache-Control = "no-store"
+
+# 🛡️ 보안 헤더 (모든 화면)
+#   다른 사이트가 이 화면을 몰래 틀 안에 넣지 못하게 · 파일 종류 속이기 막기 · 항상 https · 마이크는 이 사이트만
+#   noai·noimageai: AI 학습에 쓰지 말라는 표시
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy = "microphone=(self), camera=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+    X-Robots-Tag = "noai, noimageai"
+
+# 관리자·회원·영상·쉐도잉·신청 화면과 서버 주소: 검색·저장·AI 학습 모두 금지
+[[headers]]
+  for = "/admin*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai"
+
+[[headers]]
+  for = "/member*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai"
+
+[[headers]]
+  for = "/video*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai"
+
+[[headers]]
+  for = "/shadowing*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai"
+
+[[headers]]
+  for = "/apply*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai"

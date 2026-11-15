@@ -1,10 +1,15 @@
 // POST /api/admin-login   body: { password }  →  200 { token }  /  401 { error }
 // 관리자 비밀번호 하나로 로그인합니다(Netlify 환경변수 ADMIN_PASSWORD와 비교).
+import crypto from 'node:crypto';
 import { signToken, jsonResponse } from './_lib/auth.mjs';
+import { clientIp, lockedOut, recordFailure, clearFailures, lockedResponse } from './_lib/login-guard.mjs';
+
+// 비밀번호 비교: 글자 수·맞은 글자 수에 따라 걸리는 시간이 달라지지 않게 (시간으로 비밀번호를 알아내기 방지)
+const sameSecret = (a, b) => crypto.timingSafeEqual(crypto.createHash('sha256').update(String(a)).digest(), crypto.createHash('sha256').update(String(b)).digest());
 
 const ADMIN_TOKEN_TTL = 60 * 60 * 12; // 12시간
 
-export default async (req) => {
+export default async (req, context) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'method_not_allowed' }, 405);
 
   let body;
@@ -16,9 +21,14 @@ export default async (req) => {
   if (!adminPassword) {
     return jsonResponse({ error: 'not_configured', message: 'Netlify 환경변수 ADMIN_PASSWORD가 설정되어 있지 않습니다.' }, 500);
   }
-  if (!password || password !== adminPassword) {
+  const ip = clientIp(req, context);
+  const lock = await lockedOut('admin', ip);
+  if (lock) return lockedResponse(jsonResponse, lock.wait);
+  if (!password || !sameSecret(password, adminPassword)) {
+    await recordFailure('admin', ip);
     return jsonResponse({ error: 'invalid_password' }, 401);
   }
+  await clearFailures('admin', ip);
 
   const token = signToken({ role: 'admin' }, ADMIN_TOKEN_TTL);
   return jsonResponse({ token, expiresIn: ADMIN_TOKEN_TTL });
