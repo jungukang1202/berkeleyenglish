@@ -545,8 +545,8 @@
       if (r.ok) return d || { segments: [], words: [] };
       if (r.status === 401) throw new Error('세션이 만료됐어요. 다시 로그인해주세요.');
       if (attempt >= 6) throw new Error('받아쓰기 실패: ' + ((d && (d.detail || d.error)) || r.status));
-      const wait = r.status === 429 ? Math.min(65, (d && d.retryAfter) || 20) : 3 * attempt;
-      label(`음성 인식 사용량 한도 — ${wait}초 기다렸다 계속해요…`);
+      const wait = r.status === 429 ? Math.min(65, Math.max(2, (d && d.retryAfter) || 20)) : 3 * attempt;
+      label(r.status === 429 ? `음성 인식 사용량 한도 — ${wait}초 기다렸다 계속해요…` : `받아쓰기 연결이 잠깐 끊겼어요 — ${wait}초 뒤 다시 해요…`);
       await sleep(wait * 1000);
     }
   }

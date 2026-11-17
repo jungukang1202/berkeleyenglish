@@ -26,9 +26,20 @@ export default async (req) => {
   const type = req.headers.get('content-type') || 'audio/wav';
 
   try {
-    let d;
+    // 정확한 whisper-large-v3를 먼저 쓰고, 사용량 한도(1분에 20번)에 걸리면 한도가 따로인 whisper-large-v3-turbo로 바로 받아써요
+    //   (예전엔 한도에 걸릴 때마다 몇 초씩 기다려서 긴 녹화가 아주 느렸어요 — 운영자 2026-11-17)
+    let d, model = 'whisper-large-v3';
     try { d = await transcribe(buf, type, prompt, 'whisper-large-v3', lang); }
-    catch (e) { if (e instanceof GroqError && (e.status === 429 || e.status === 500)) throw e; d = await transcribe(buf, type, prompt, undefined, lang); }
+    catch (e) {
+      if (e instanceof GroqError && e.status === 500) throw e;
+      model = 'whisper-large-v3-turbo';
+      try { d = await transcribe(buf, type, prompt, 'whisper-large-v3-turbo', lang); }
+      catch (e2) {
+        // 두 모델 모두 한도면, 둘 중 먼저 풀리는 시간을 알려 줘요
+        if (e2 instanceof GroqError && e2.status === 429 && e instanceof GroqError && e.status === 429) e2.retryAfter = Math.min(e.retryAfter || 10, e2.retryAfter || 10);
+        throw e2;
+      }
+    }
     // 조용한 곳에서 앞에 준 예문을 그대로 따라 쓴 줄(I am fine, thank you. 등)도 버려요
     const norm = t => String(t || '').toLowerCase().replace(/[^a-z가-힣 ]+/g, '').replace(/\s+/g, ' ').trim();
     const promptLines = new Set(LESSON_PROMPT.split(/(?<=[.?!])\s+/).map(norm).filter(Boolean));
@@ -38,7 +49,7 @@ export default async (req) => {
     const segments = (d.segments || []).filter(x => !silent(x)).map(x => ({ s: x.start, e: x.end, text: String(x.text || '').trim(), lp: typeof x.avg_logprob === 'number' ? +x.avg_logprob.toFixed(3) : null })).filter(x => x.text);
     const inDropped = w => dropped.some(g => w.start >= g.start - 0.05 && w.end <= g.end + 0.05) && !segments.some(g => w.start >= g.s - 0.05 && w.end <= g.e + 0.05);
     const words = (d.words || []).filter(w => !inDropped(w)).map(x => ({ w: String(x.word || '').trim(), s: x.start, e: x.end })).filter(x => x.w);
-    return jsonResponse({ segments, words });
+    return jsonResponse({ segments, words, model });
   } catch (e) {
     return groqErrorResponse(e, jsonResponse);
   }
