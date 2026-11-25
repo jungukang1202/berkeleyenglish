@@ -7,6 +7,7 @@
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { listMembers, createMember, resetMemberPassword, deleteMember, setMemberName } from './_lib/store.mjs';
 import { deleteAccess } from './_lib/access.mjs';
+import { clearUserLock } from './_lib/login-guard.mjs';
 import { clearMemberPractice } from './_lib/practice.mjs';
 
 const ERROR_MESSAGES = {
@@ -37,6 +38,7 @@ export default async (req) => {
       }
       if (action === 'reset-password') {
         const member = await resetMemberPassword(body.username, body.password);
+        await clearUserLock('member', String(body.username || '').trim().toLowerCase()); // 틀려서 잠긴 아이디도 바로 풀어요
         return jsonResponse({ member });
       }
       if (action === 'set-name') {
