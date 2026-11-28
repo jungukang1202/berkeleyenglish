@@ -36,9 +36,9 @@
       <span style="color:var(--muted); font-size:0.85rem;">하루 한 번 · 최근 7일 안에 수업이 없었으면 안 보내요</span>
     </div>
     <div style="font-size:0.85rem; margin:6px 0; line-height:1.7;">
-      💬 수업 피드백쉐도잉을 아직 안 했으면 → <b>꼭 하라고</b> 안내해요<br>
-      <label style="display:inline-flex; gap:6px; align-items:center;"><input type="checkbox" id="smsRecVideo"> 🎬 영상쉐도잉을 오늘 안 했으면 → 해 보라고 권장</label><br>
-      <label style="display:inline-flex; gap:6px; align-items:center;"><input type="checkbox" id="smsRecLesson"> 🎥 수업영상쉐도잉을 오늘 안 했으면 → 해 보라고 권장</label>
+      💬 <b>[필수]</b> 수업 피드백쉐도잉을 아직 안 했으면 → <b>꼭 하라고</b> 안내해요<br>
+      <label style="display:inline-flex; gap:6px; align-items:center;"><input type="checkbox" id="smsRecVideo"> 🎬 <b>[선택]</b> 영상쉐도잉을 오늘 안 했으면 → 해 보라고 권장</label><br>
+      <label style="display:inline-flex; gap:6px; align-items:center;"><input type="checkbox" id="smsRecLesson"> 🎥 <b>[선택]</b> 수업영상쉐도잉을 오늘 안 했으면 → 해 보라고 권장</label>
       <span style="color:var(--muted);">(넣어 준 영상이 있는 학생만)</span>
     </div>
     <div class="field" style="margin:6px 0;"><textarea id="smsDailyText" rows="2" maxlength="300"></textarea>
@@ -107,7 +107,7 @@
     $('smsNotifyOn').checked = !!n.on; $('smsNotifyPhone').value = pretty(n.phone || '');
   }
   function updateLen() {
-    const t = $('smsDailyText').value.replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27').replace(/#\{안내\}/g, '11/27 수업 피드백 쉐도잉을 아직 안 했어요! 꼭 해 주세요. 오늘 영상 쉐도잉·수업영상 쉐도잉도 5분만 해 보면 좋아요 🙂');
+    const t = $('smsDailyText').value.replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27').replace(/#\{안내\}/g, '[필수] 11/27 수업 피드백 쉐도잉을 아직 안 했어요. 꼭 해 주세요! [선택] 오늘 영상 쉐도잉·수업영상 쉐도잉도 해 보면 좋아요 🙂');
     const n = [...t].length;
     $('smsLen').textContent = `지금 ${n}자 ${n > 70 ? '(가장 긴 경우 예시) — 70자가 넘으면 긴 문자로 가요(문자 무제한 요금제면 괜찮아요)' : ''}`;
   }
@@ -150,7 +150,7 @@
     const label = u => { try { return memberLabel(u); } catch (e) { return u; } };
     $('smsPreviewBox').innerHTML = !t.length ? '<div class="empty">번호를 넣고 「받기」를 켠 학생이 아직 없어요.</div>' : `
       <div style="font-size:0.85rem; margin-bottom:4px;"><b>${go.length}명</b>에게 보내요 (번호 넣은 학생 ${t.length}명 중)</div>
-      <table><thead><tr><th>학생</th><th>💬 피드백</th><th>🎬 영상 · 🎥 수업영상 (오늘)</th><th>문자</th></tr></thead><tbody>${t.map(x => `
+      <table><thead><tr><th>학생</th><th>💬 피드백 (필수)</th><th>🎬 영상 · 🎥 수업영상 (선택, 오늘)</th><th>문자</th></tr></thead><tbody>${t.map(x => `
         <tr><td style="white-space:nowrap;">${esc(label(x.username))}</td>
         <td style="white-space:nowrap;">${!x.lesson ? '— 최근 7일 수업 없음' : x.todo ? '❌ ' + esc(md(x.todo.date)) + ' 수업 복습 안 함' + (x.todoCount > 1 ? ` (${x.todoCount}회차)` : '') : '✅ ' + esc(md(x.lesson.date)) + ' 수업 복습함'}${x.already ? ' · 오늘 이미 보냄' : ''}</td>
         <td style="white-space:nowrap;">${!x.lesson ? '' : vs(x.video.hasVideo, x.video.videoToday, '🎬') + ' ' + vs(x.video.hasLessonVideo, x.video.lessonVideoToday, '🎥')}</td>

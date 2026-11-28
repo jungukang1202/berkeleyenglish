@@ -227,8 +227,9 @@ function buildGuide(r, v, st) {
   if (st.daily.video && v.hasVideo && !v.videoToday) rec.push('영상 쉐도잉');
   if (st.daily.lessonVideo && v.hasLessonVideo && !v.lessonVideoToday) rec.push('수업영상 쉐도잉');
   const parts = [];
-  if (r.todo) parts.push(`${md(r.todo.lessonDate)} 수업 피드백 쉐도잉을 아직 안 했어요! 꼭 해 주세요.`);
-  if (rec.length) parts.push(`${r.todo ? '오늘 ' + rec.join('·') + '도' : '오늘 ' + rec.join('·') + '을 아직 안 했어요.'} 5분만 해 보면 좋아요 🙂`);
+  // 수업 피드백 = 필수(mandatory), 영상 · 수업영상 = 선택(optional) — 운영자 지시 2026-11-28
+  if (r.todo) parts.push(`[필수] ${md(r.todo.lessonDate)} 수업 피드백 쉐도잉을 아직 안 했어요. 꼭 해 주세요!`);
+  if (rec.length) parts.push(`[선택] 오늘 ${rec.join('·')}도 해 보면 좋아요 🙂`);
   return { guide: parts.join(' '), rec };
 }
 
