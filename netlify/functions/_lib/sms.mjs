@@ -18,6 +18,7 @@ import { listMembers, memberDisplayName, listSets, getSet, lessonDateOfSet } fro
 import { getSummary } from './practice.mjs';
 import { getAccess, canSeeVideoWith } from './access.mjs';
 import { listLessons } from './videos.mjs';
+import { getBook, parseUnitSetId } from './books.mjs';
 import { recordingLessonIds } from './nvoim-video.mjs';
 
 const store = () => getStore({ name: 'sms', consistency: 'strong' });
@@ -244,13 +245,13 @@ export const PHRASES = {
     R => `시간이 남으면 ${R}까지 해 보는 것도 좋아요 🙂`,
     R => `덤으로 ${R}도 하면 금상첨화예요 ✨`,
   ],
-  doneOne: [
-    (n, D) => `원장님, ${n} 학생이 ${D} 수업 피드백 쉐도잉을 끝냈어요 👏`,
-    (n, D) => `원장님, ${n} 학생이 ${D} 수업 피드백 쉐도잉을 마쳤어요 🎉`,
-    (n, D) => `원장님, ${n} 학생 ${D} 수업 복습 완료했어요 ✅`,
-    (n, D) => `원장님, 기쁜 소식이에요! ${n} 학생이 ${D} 수업 피드백 쉐도잉을 했어요 😊`,
+  actOne: [
+    n => `원장님, ${n} 학생이 공부했어요 👏`,
+    n => `원장님, ${n} 학생이 쉐도잉을 했어요 🎉`,
+    n => `원장님, 기쁜 소식이에요! ${n} 학생이 열심히 했어요 😊`,
+    n => `원장님, ${n} 학생 공부 완료 ✅`,
   ],
-  doneMany: ['원장님, 피드백 쉐도잉을 끝낸 학생들이에요 👏', '원장님, 복습을 마친 학생들 소식이에요 🎉', '원장님, 과제 완료한 학생들 알려 드려요 ✅', '원장님, 오늘도 열심히 한 학생들이에요 😊'],
+  actMany: ['원장님, 공부한 학생들 소식이에요 👏', '원장님, 쉐도잉을 한 학생들이에요 🎉', '원장님, 오늘도 열심히 한 학생들이에요 😊', '원장님, 공부 완료한 학생들 알려 드려요 ✅'],
 };
 export function pick(list, seed) {
   const h = crypto.createHash('sha256').update(String(seed)).digest();
@@ -329,60 +330,113 @@ export async function refreshLog(limit = 40) {
   return log;
 }
 
-/* ---------- 🔔 과제 완료 알림 (원장님 휴대폰으로) — 운영자 지시 2026-11-28 ----------
- * 학생이 최근 7일 안 수업의 피드백쉐도잉(회차)을 처음 연습하면 원장님 휴대폰으로 알려요.
- * 연습 기록 코드는 잠긴 파일이라 건드리지 않고, 30분마다 연습 기록(practice-summary)을 읽어서 새로 연습한 회차를 찾아요.
- *   sms : 'done-seen' → { 아이디: { 회차ID: 처음 본 시각 } }   (이미 알린 회차 — 처음 한 번은 지금까지 한 것을 모두 '본 것'으로만 적어요)
- *         'done-queue' → [{ username, date, title, at }]        (밤이라 아직 못 보낸 알림)
+/* ---------- 🔔 공부 알림 (원장님 휴대폰으로) — 운영자 지시 2026-11-28 ----------
+ * 모든 학생이 💬 수업 피드백 · 📖 교재 · 🎬 영상 · 🎥 수업영상 쉐도잉을 하면 원장님 휴대폰으로 알려요.
+ * 연습 기록 코드는 잠긴 파일이라 건드리지 않고, 30분마다 기록을 읽어서 새로 한 공부를 찾아요(읽기만).
+ *   · 수업 피드백 · 교재: practice-summary 의 회차/단원별 횟수가 늘었으면 → 그날 처음 한 번만 알림
+ *   · 영상 · 수업영상: video-progress 가 오늘 바뀌었으면 → 영상마다 그날 처음 한 번만 알림
+ *   sms : 'act-state' → { 아이디: { c:{ 회차ID: 횟수 }, v:{ 영상ID: 바뀐 시각 } } }   (처음 한 번은 기준만 잡아요)
+ *         'act-day'   → { date, keys:{ '아이디|종류|ID': 1 } }                      (오늘 이미 알린 것)
+ *         'done-queue'→ [{ username, kind, label, spoke, at }]                       (밤이라 아직 못 보낸 알림)
  */
-async function findNewlyDone() {
+const KIND_ORDER = ['feedback', 'book', 'lvideo', 'video'];
+async function findNewActivity() {
   const s = store();
-  const seen = (await s.get('done-seen', { type: 'json' })) || null;
-  const first = !seen;
-  const next = seen || {};
+  const state = (await s.get('act-state', { type: 'json' })) || null;
+  const first = !state;
+  const next = state || {};
   const today = kstDate();
-  const from = new Date(Date.parse(today + 'T00:00:00Z') - (LESSON_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+  let day = (await s.get('act-day', { type: 'json' })) || {};
+  if (day.date !== today) day = { date: today, keys: {} };
+  const [lessons, recIds] = await Promise.all([listLessons().catch(() => []), recordingLessonIds().catch(() => [])]);
+  const titleOf = new Map(lessons.map(v => [v.id, v.title || '']));
+  const rec = new Set(recIds);
+  const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  const bookCache = new Map();
   const found = [];
+  const ps = getStore({ name: 'video-progress', consistency: 'strong' });
   for (const m of await listMembers()) {
     const u = norm(m.username);
+    const mine = next[u] || (next[u] = { c: {}, v: {} });
+    mine.c = mine.c || {}; mine.v = mine.v || {};
+    // 💬 수업 피드백 · 📖 교재 (연습 횟수가 늘었는지)
     const sum = await getSummary(u);
-    const mine = next[u] || (next[u] = {});
     for (const [id, x] of Object.entries(sum || {})) {
-      if (mine[id]) continue;
       const n = ((x && x.listen) || 0) + ((x && x.spoke) || 0) + ((x && x.failed) || 0);
-      if (!n) continue;
-      mine[id] = new Date().toISOString();
-      if (first) continue; // 처음 한 번은 기준만 잡아요(예전에 한 연습까지 한꺼번에 알리지 않게)
-      let set = null; try { set = await getSet(u, id); } catch (e) {}
-      if (!set) continue; // 피드백 회차가 아닌 기록(교재 등)
-      const d = lessonDateOfSet(set);
-      if (!d || d < from) continue; // 최근 7일 수업의 과제만
-      found.push({ username: u, date: d, title: set.title || '', spoke: (x && x.spoke) || 0, at: new Date().toISOString() });
+      const before = mine.c[id] || 0;
+      if (n <= before) { if (n < before) mine.c[id] = n; continue; }
+      mine.c[id] = n;
+      if (first) continue;
+      const bu = parseUnitSetId(id);
+      const kind = bu ? 'book' : 'feedback';
+      const dkey = `${u}|${kind}|${id}`;
+      if (day.keys[dkey]) continue;
+      let label = '';
+      if (bu) {
+        if (!bookCache.has(bu.bookId)) bookCache.set(bu.bookId, await getBook(bu.bookId).catch(() => null));
+        const b = bookCache.get(bu.bookId);
+        label = b ? `교재 「${b.title}」${b.units && b.units[bu.unit] ? ' ' + b.units[bu.unit].title : ''}` : '교재';
+      } else {
+        let set = null; try { set = await getSet(u, id); } catch (e) {}
+        if (!set) continue;
+        const d = lessonDateOfSet(set);
+        label = d ? `${md(d)} 수업 피드백` : '수업 피드백';
+      }
+      day.keys[dkey] = 1;
+      found.push({ username: u, kind, label, spoke: Math.max(0, ((x && x.spoke) || 0) - 0), at: new Date().toISOString() });
+    }
+    // 🎬 영상 · 🎥 수업영상 (오늘 진도가 바뀌었는지)
+    const { blobs } = await ps.list({ prefix: `${u}/` });
+    for (const b of blobs) {
+      const id = b.key.slice(u.length + 1);
+      const p = await ps.get(b.key, { type: 'json' }).catch(() => null);
+      const t = p && (p.updatedAt || (p.last && p.last.at));
+      if (!t || t === mine.v[id]) continue;
+      mine.v[id] = t;
+      if (first) continue;
+      if (new Date(Date.parse(t) + 9 * 3600 * 1000).toISOString().slice(0, 10) !== today) continue;
+      const kind = rec.has(id) ? 'lvideo' : 'video';
+      const dkey = `${u}|${kind}|${id}`;
+      if (day.keys[dkey]) continue;
+      day.keys[dkey] = 1;
+      const title = titleOf.get(id) || '';
+      found.push({ username: u, kind, label: `${kind === 'lvideo' ? '수업영상' : '영상'}${title ? ' 「' + title.slice(0, 30) + '」' : ''}`, at: new Date().toISOString() });
     }
   }
-  await s.setJSON('done-seen', next);
+  await s.setJSON('act-state', next);
+  await s.setJSON('act-day', day);
   return found;
 }
 
 export async function notifyDone() {
   const st = await getSettings();
-  const found = await findNewlyDone(); // 알림을 꺼 둬도 기준은 계속 따라가요(켤 때 예전 것이 한꺼번에 오지 않게)
+  const found = await findNewActivity(); // 알림을 꺼 둬도 기준은 계속 따라가요(켤 때 예전 것이 한꺼번에 오지 않게)
   if (!st.notify.on || !st.notify.phone || !configured()) return { sent: 0, found: found.length };
   const s = store();
-  const queue = ((await s.get('done-queue', { type: 'json' })) || []).concat(found).slice(-60);
+  const queue = ((await s.get('done-queue', { type: 'json' })) || []).concat(found).slice(-80);
   const hour = kstNow().getUTCHours();
   if (!queue.length || hour < NOTIFY_FROM || hour >= NOTIFY_TO) { await s.setJSON('done-queue', queue); return { sent: 0, queued: queue.length }; }
   const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-  const items = [];
+  // 학생별로 묶어요: 김철수 — 11/27 수업 피드백(따라 말하기 5번) · 교재 「…」 · 수업영상 「…」
+  const byUser = new Map();
   for (const q of queue) {
-    let name = ''; try { name = await memberDisplayName(q.username); } catch (e) {}
-    items.push({ name: name || q.username, date: md(q.date), spoke: q.spoke || 0 });
+    const kind = q.kind || 'feedback';
+    const label = q.label || (q.date ? `${md(q.date)} 수업 피드백` : '수업 피드백');
+    const item = label + (kind === 'feedback' && q.spoke ? `(따라 말하기 ${q.spoke}번)` : '');
+    if (!byUser.has(q.username)) byUser.set(q.username, []);
+    byUser.get(q.username).push({ kind, item });
   }
-  // 사람이 보낸 것처럼 부드러운 말투로(운영자 지시 2026-11-28)
+  const lines = [];
+  for (const [u, list] of byUser) {
+    let name = ''; try { name = await memberDisplayName(u); } catch (e) {}
+    list.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
+    lines.push({ name: name || u, what: [...new Set(list.map(x => x.item))].join(' · ') });
+  }
+  // 사람이 보낸 것처럼 부드러운 말투로, 표현은 다양하게(운영자 지시 2026-11-28)
   const seed = Date.now();
-  const text = (items.length === 1
-    ? `[버클리] ${pick(PHRASES.doneOne, seed)(items[0].name, items[0].date)}${items[0].spoke ? ` (따라 말하기 ${items[0].spoke}번)` : ''}`
-    : `[버클리] ${pick(PHRASES.doneMany, seed)} ${items.map(x => `${x.name}(${x.date} 수업${x.spoke ? `, 따라 말하기 ${x.spoke}번` : ''})`).join(', ')}`).slice(0, 600);
+  const text = (lines.length === 1
+    ? `[버클리] ${pick(PHRASES.actOne, seed)(lines[0].name)} ${lines[0].what}`
+    : `[버클리] ${pick(PHRASES.actMany, seed)} ${lines.map(x => `${x.name}: ${x.what}`).join(' / ')}`).slice(0, 900);
   try {
     await sendMany([{ phone: st.notify.phone, text }], 'done');
     await s.setJSON('done-queue', []);

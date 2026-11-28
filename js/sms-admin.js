@@ -11,7 +11,7 @@
   const vs = (has, today, icon) => !has ? `${icon} 없음` : today ? `${icon} ✅` : `${icon} ❌`;
   const md = d => d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '';
   const pretty = e => { const d = String(e || '').replace(/^\+82/, '0'); return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d; };
-  const KIND = { daily: '⏰ 자동', manual: '▶️ 지금 보내기', test: '🧪 시험', done: '🔔 과제 완료' };
+  const KIND = { daily: '⏰ 자동', manual: '▶️ 지금 보내기', test: '🧪 시험', done: '🔔 공부 알림' };
   const STATE = { Pending: '⏳ 기다리는 중', Processed: '📤 휴대폰이 받음', Sent: '✅ 보냄', Delivered: '✅ 받음', Failed: '⚠️ 실패' };
   const status = (el, msg, kind) => { el.textContent = msg; el.className = 'status' + (kind ? ' ' + kind : ''); };
   let data = null;
@@ -26,6 +26,11 @@
     <h3 class="sub-h">📇 학생 전화번호</h3>
     <div class="card-desc" style="margin-top:0;">번호를 넣고 「받기」를 켠 학생에게만 자동 문자가 가요. 학부모 번호를 넣어도 돼요.</div>
     <div id="smsPhones" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:6px; margin:8px 0;"></div>
+    <details style="margin:4px 0 8px;"><summary style="cursor:pointer; font-weight:700; font-size:0.85rem;">📋 여러 명 한꺼번에 넣기</summary>
+      <div style="color:var(--muted); font-size:0.8rem; margin:4px 0;">한 줄에 한 명씩 「아이디 또는 이름 + 번호」를 붙여 넣고 「칸에 채우기」 → 「💾 전화번호 저장」. 엑셀에서 두 칸을 복사해 붙여도 돼요.<br>예: <code>kim01 010-1234-5678</code> · <code>김철수 01012345678</code></div>
+      <textarea id="smsBulk" rows="4" style="width:100%;" placeholder="kim01 010-1234-5678&#10;이영희 010-2222-3333"></textarea>
+      <div class="row"><button class="btn-ghost btn-small" id="smsBulkFill">⬇️ 칸에 채우기</button><span class="status" id="smsBulkStatus" style="margin:0;"></span></div>
+    </details>
     <div class="row"><button class="btn-ghost btn-small" id="smsSavePhones">💾 전화번호 저장</button><span class="status" id="smsPhonesStatus" style="margin:0;"></span></div>
 
     <h3 class="sub-h">⏰ 매일 공부 안내 문자</h3>
@@ -51,14 +56,14 @@
     </div>
     <div id="smsPreviewBox" style="margin:6px 0;"></div>
 
-    <h3 class="sub-h">🔔 과제 완료 알림 (원장님 휴대폰으로)</h3>
+    <h3 class="sub-h">🔔 공부 알림 (원장님 휴대폰으로)</h3>
     <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap;">
-      <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsNotifyOn"> 학생이 과제를 하면 알려 주기</label>
+      <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsNotifyOn"> 학생이 쉐도잉을 하면 알려 주기</label>
       <input type="tel" id="smsNotifyPhone" placeholder="원장님 번호 (예: 010-1234-5678)" style="width:220px;">
       <button class="btn-ghost btn-small" id="smsSaveNotify">💾 저장</button>
       <span class="status" id="smsNotifyStatus" style="margin:0;"></span>
     </div>
-    <div style="color:var(--muted); font-size:0.8rem; margin:4px 0 0;">최근 7일 안 수업의 피드백쉐도잉을 학생이 처음 연습하면 30분 안에 문자가 와요. 여러 명이면 한 통으로 묶어요. 밤(오후 10시~오전 9시)에 한 것은 아침 9시에 보내요.</div>
+    <div style="color:var(--muted); font-size:0.8rem; margin:4px 0 0;">모든 학생이 💬 수업 피드백 · 📖 교재 · 🎬 영상 · 🎥 수업영상 쉐도잉을 하면 30분 안에 문자가 와요(같은 회차·교재 단원·영상은 하루 한 번). 여러 명이면 한 통으로 묶어요. 밤(오후 10시~오전 9시)에 한 것은 아침 9시에 보내요.</div>
 
     <h3 class="sub-h">🧪 시험 문자</h3>
     <div class="row" style="gap:8px; align-items:center; flex-wrap:wrap;">
@@ -129,6 +134,18 @@
   }
 
   $('smsDailyText').addEventListener('input', updateLen);
+  $('smsBulkFill').onclick = () => {
+    const ms = members(); let ok = 0; const bad = [];
+    $('smsBulk').value.split(/\n/).map(l => l.trim()).filter(Boolean).forEach(line => {
+      const m = /(\+?82[\s-]?1\d[\d\s-]{7,10}|01\d[\d\s-]{7,10})\s*$/.exec(line);
+      const who = m ? line.slice(0, m.index).replace(/[\t,;:]+/g, ' ').trim() : '';
+      const mem = who && (ms.find(x => x.username.toLowerCase() === who.toLowerCase()) || ms.find(x => x.name && x.name.replace(/\s/g, '') === who.replace(/\s/g, '')));
+      const inp = mem && card.querySelector(`.smsPhone[data-u="${CSS.escape(mem.username)}"]`);
+      if (!m || !inp) { bad.push(who || line.slice(0, 12)); return; }
+      inp.value = m[1].trim(); inp.style.background = '#FFF9C4'; ok++;
+    });
+    status($('smsBulkStatus'), `${ok}명 채웠어요${bad.length ? ` · ⚠️ 못 찾음: ${bad.join(', ')}` : ''} — 「💾 전화번호 저장」을 눌러야 저장돼요`, bad.length ? 'error' : 'success');
+  };
   $('smsSavePhones').onclick = async () => {
     const st = $('smsPhonesStatus'); status(st, '저장 중…');
     const phones = {};
@@ -177,7 +194,7 @@
     try {
       const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'settings', notify: { on: $('smsNotifyOn').checked, phone: $('smsNotifyPhone').value } }) });
       data.settings = r.settings; renderSettings();
-      status(st, r.settings.notify.on ? '✅ 저장했어요 — 과제를 하면 알려 드려요' : '✅ 저장했어요 (알림 꺼짐)', 'success');
+      status(st, r.settings.notify.on ? '✅ 저장했어요 — 학생이 공부하면 알려 드려요' : '✅ 저장했어요 (알림 꺼짐)', 'success');
     } catch (e) { status(st, '⚠️ ' + e.message, 'error'); }
   };
   $('smsTestBtn').onclick = async () => {
