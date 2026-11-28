@@ -7,7 +7,7 @@
 // POST { action:'send-now' }                                      → { ok, fail, count } 최근 수업 복습 안 한 학생에게 지금 보내기
 // POST { action:'refresh' }                                       → { log }             보냄·받음 결과 새로 보기
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
-import { deviceStatus, getPhones, savePhones, getSettings, saveSettings, getLog, dailyTargets, sendOne, sendMany, refreshLog, toE164, kstDate, DEFAULT_TEXT } from './_lib/sms.mjs';
+import { stageNow, deviceStatus, getPhones, savePhones, getSettings, saveSettings, getLog, dailyTargets, sendOne, sendMany, refreshLog, toE164, kstDate, DEFAULT_TEXT } from './_lib/sms.mjs';
 
 export default async (req) => {
   if (!requireAuth(req, 'admin')) return jsonResponse({ error: 'unauthorized' }, 401);
@@ -21,7 +21,7 @@ export default async (req) => {
 
     if (b.action === 'phones') return jsonResponse({ phones: await savePhones(b.phones) });
     if (b.action === 'settings') return jsonResponse({ settings: await saveSettings(b) });
-    if (b.action === 'preview') return jsonResponse({ date: kstDate(), targets: await dailyTargets() });
+    if (b.action === 'preview') { const stage = b.stage === 1 || b.stage === 2 ? b.stage : stageNow(await getSettings()); return jsonResponse({ date: kstDate(), stage, targets: await dailyTargets(kstDate(), stage) }); }
     if (b.action === 'refresh') return jsonResponse({ log: await refreshLog() });
     if (b.action === 'test') {
       const phone = toE164(b.phone);
@@ -30,10 +30,11 @@ export default async (req) => {
       return jsonResponse(await sendMany([{ phone, text: text.slice(0, 300) }], 'test'));
     }
     if (b.action === 'send-now') {
-      const list = (await dailyTargets()).filter(x => x.send);
-      if (!list.length) return jsonResponse({ ok: 0, fail: [], count: 0 });
-      const r = await sendMany(list, 'manual');
-      return jsonResponse(Object.assign({ count: list.length }, r));
+      const stage = b.stage === 1 || b.stage === 2 ? b.stage : stageNow(await getSettings());
+      const list = (await dailyTargets(kstDate(), stage)).filter(x => x.send);
+      if (!list.length) return jsonResponse({ ok: 0, fail: [], count: 0, stage });
+      const r = await sendMany(list, 'manual', stage);
+      return jsonResponse(Object.assign({ count: list.length, stage }, r));
     }
     return jsonResponse({ error: 'unknown_action' }, 400);
   } catch (e) {

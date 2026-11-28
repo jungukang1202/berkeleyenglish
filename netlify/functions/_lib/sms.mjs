@@ -37,7 +37,7 @@ const OLD_DEFAULT_TEXTS = [
   '[버클리] #{이름} 학생, #{수업날짜} 수업 피드백 쉐도잉을 아직 안 했어요! 5분만 복습해 볼까요? berkeleyenglish.co.kr/member',
 ];
 export const LESSON_DAYS = 7; // 최근 며칠 안의 수업을 챙길지
-export const DEFAULT_SETTINGS = { daily: { on: false, hour: 20, days: 'all', text: DEFAULT_TEXT, video: true, lessonVideo: true }, notify: { on: false, phone: '', parents: true } };
+export const DEFAULT_SETTINGS = { daily: { on: false, hour: 17, second: true, hour2: 21, days: 'all', text: DEFAULT_TEXT, video: true, lessonVideo: true }, notify: { on: false, phone: '', parents: true } };
 export const NOTIFY_FROM = 9, NOTIFY_TO = 22; // 원장님 알림은 오전 9시 ~ 오후 10시에만 (그 밖의 시간은 모아 두었다가 아침에)
 
 export const configured = () => !!(process.env.SMSGATE_USER && process.env.SMSGATE_PASS);
@@ -79,6 +79,8 @@ export async function getSettings() {
   const r = (await store().get('settings', { type: 'json' })) || {};
   const daily = Object.assign({}, DEFAULT_SETTINGS.daily, r.daily || {});
   if (OLD_DEFAULT_TEXTS.includes(daily.text)) daily.text = DEFAULT_TEXT; // 기준이 바뀌어서 예전 기본 문구는 새 기본 문구로
+  // 1차 오후 5시 · 2차 오후 9시(운영자 지시 2026-11-28) — 그 전에 저장한 설정(2차가 없던 때)은 시각을 새 기본으로
+  if (!r.daily || r.daily.hour2 === undefined) { daily.hour = 17; daily.hour2 = 21; daily.second = true; }
   const notify = Object.assign({}, DEFAULT_SETTINGS.notify, r.notify || {});
   return { daily, notify };
 }
@@ -94,6 +96,8 @@ export async function saveSettings(b) {
   const next = { daily: {
     on: d.on === undefined ? cur.daily.on : !!d.on,
     hour: hour >= 6 && hour <= 23 ? hour : cur.daily.hour,
+    second: d.second === undefined ? cur.daily.second !== false : !!d.second,
+    hour2: (h2 => h2 >= 6 && h2 <= 23 ? h2 : cur.daily.hour2)(Math.round(Number(d.hour2))),
     days: ['all', 'weekdays', 'mon-sat'].includes(d.days) ? d.days : cur.daily.days,
     text: String(d.text == null ? cur.daily.text : d.text).replace(/\s+/g, ' ').trim().slice(0, 300) || DEFAULT_TEXT,
     video: d.video === undefined ? cur.daily.video : !!d.video,
@@ -103,6 +107,7 @@ export async function saveSettings(b) {
     phone: nPhone,
     parents: n.parents === undefined ? cur.notify.parents !== false : !!n.parents,
   } };
+  if (next.daily.second && next.daily.hour2 <= next.daily.hour) { const e = new Error('2차 문자는 1차보다 늦은 시각이어야 해요.'); e.status = 400; throw e; }
   if (next.notify.on && !next.notify.phone) { const e = new Error('과제 완료 알림을 받을 원장님 휴대폰 번호를 넣어 주세요.'); e.status = 400; throw e; }
   await store().setJSON('settings', next);
   return next;
@@ -244,6 +249,15 @@ export const PHRASES = {
     D => `${D} 수업 복습(피드백 쉐도잉)이 아직이에요. 오늘 꼭 한 번 따라 말해 봐요!`,
     D => `${D} 수업 피드백 쉐도잉, 오늘 안에 꼭 해 주세요. 5분이면 충분해요!`,
   ],
+  // 2차(오후 9시) — 1차를 받고도 아직 안 했을 때: 조금 더 간절하게, 하지만 부드럽게
+  greet2: ['오늘 하루도 수고 많았어요 😊', '늦은 시간에 미안해요 🙏', '아직 깨어 있죠? 🙂', '하루 마무리 잘하고 있나요? 🌙'],
+  feedback2: [
+    D => `${D} 수업 피드백 쉐도잉이 아직이에요! 자기 전에 5분만 꼭 해 주세요 🙏`,
+    D => `오늘이 가기 전에 ${D} 수업 피드백 쉐도잉 꼭 해 주세요! 선생님이 기다리고 있어요 😊`,
+    D => `${D} 수업 복습이 아직 남아 있어요. 잠들기 전에 꼭 한 번 따라 말해 봐요 💪`,
+    D => `오늘 마지막 알림이에요! ${D} 수업 피드백 쉐도잉, 오늘 안에 꼭 해 주세요!`,
+    D => `${D} 수업 피드백 쉐도잉, 딱 5분이면 돼요. 오늘 꼭 하고 자요 🙏`,
+  ],
   optional: [
     R => `시간 여유가 있으면 ${R}도 같이 해 보면 더 좋아요 🙂`,
     R => `여유가 되면 ${R}도 해 보세요. 실력이 쑥쑥 늘어요 🙂`,
@@ -274,20 +288,27 @@ export function pick(list, seed) {
 //  · 수업 피드백 = 필수: 안 했으면 「꼭 하라고」 (문자는 이때만 보내요)
 //  · 영상쉐도잉 · 수업영상쉐도잉 = 선택: 오늘 안 했으면 「여유가 있으면 해 보라고」 그 문자에 덧붙이기만
 //  · 최근 7일 안에 수업이 없었으면 아무것도 보내지 않아요
-function buildGuide(r, v, st, seed = '') {
+function buildGuide(r, v, st, seed = '', stage = 1) {
   const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
   const rec = [];
   if (st.daily.video && v.hasVideo && !v.videoToday) rec.push('영상 쉐도잉');
   if (st.daily.lessonVideo && v.hasLessonVideo && !v.lessonVideoToday) rec.push('수업영상 쉐도잉');
   const parts = [];
+  if (stage === 2) { // 2차는 꼭 해야 할 피드백만 (선택 권장은 1차에만)
+    if (r.todo) parts.push(pick(PHRASES.feedback2, seed + '/f2')(md(r.todo.lessonDate)));
+    return { guide: parts.join(' '), rec: [], greet: pick(PHRASES.greet2, seed + '/g2') };
+  }
   if (r.todo) parts.push(pick(PHRASES.feedback, seed + '/f')(md(r.todo.lessonDate)));
   if (r.todo && rec.length) parts.push(pick(PHRASES.optional, seed + '/o')(rec.join('이랑 ')));
   return { guide: parts.join(' '), rec, greet: pick(PHRASES.greet, seed + '/g') };
 }
 
 // 오늘 문자를 받을 학생: 번호가 있고 · 받기 켬 · 지금 회원 · 최근 7일 안에 수업이 있었고 ·
-// 그 수업 피드백쉐도잉을 아직 안 함(영상 권장은 덧붙이기만) · 오늘 아직 안 보냄
-export async function dailyTargets(date = kstDate()) {
+// 그 수업 피드백쉐도잉을 아직 안 함(영상 권장은 덧붙이기만) · 그 차수(1차 오후 5시 / 2차 오후 9시)를 오늘 아직 안 보냄
+const sentKey = (u, stage) => (stage === 2 ? `${u}#2` : u);
+// 지금 시각에 맞는 차수: 2차 시각이 지났으면 2차, 아니면 1차
+export function stageNow(st, kst = kstNow()) { return st.daily.second && kst.getUTCHours() >= st.daily.hour2 ? 2 : 1; }
+export async function dailyTargets(date = kstDate(), stage = 1) {
   const [phones, members, sent, st, lessons, recIds] = await Promise.all([getPhones(), listMembers(), sentToday(date), getSettings(), listLessons().catch(() => []), recordingLessonIds().catch(() => [])]);
   const ctx = { lessons, recIds: new Set(recIds) };
   const alive = new Set(members.map(m => norm(m.username)));
@@ -296,10 +317,11 @@ export async function dailyTargets(date = kstDate()) {
     if (!p || !p.phone || !p.on || !alive.has(u)) continue;
     const r = await pendingLesson(u, date);
     const v = r.lesson ? await videoStatus(u, ctx, date) : { hasVideo: false, hasLessonVideo: false, videoToday: false, lessonVideoToday: false };
-    const g = r.lesson ? buildGuide(r, v, st, `${u}/${date}`) : { guide: '', rec: [] };
+    const g = r.lesson ? buildGuide(r, v, st, `${u}/${date}`, stage) : { guide: '', rec: [] };
     const need = !!g.guide;
+    const already = !!sent[sentKey(u, stage)];
     out.push({
-      username: u, phone: p.phone, already: !!sent[u], send: need && !sent[u],
+      username: u, phone: p.phone, stage, already, first: !!sent[u], send: need && !already,
       lesson: r.lesson ? { date: r.lesson.lessonDate, title: r.lesson.title } : null,
       todo: r.todo ? { date: r.todo.lessonDate, title: r.todo.title } : null,
       todoCount: r.todoCount || 0,
@@ -311,14 +333,14 @@ export async function dailyTargets(date = kstDate()) {
 }
 
 // 여러 학생에게 보내기 (5명씩 나눠서). kind: daily · manual · test
-export async function sendMany(list, kind) {
+export async function sendMany(list, kind, stage = 1) {
   const date = kstDate(), logs = [], ok = [], fail = [];
   for (let i = 0; i < list.length; i += 5) {
     await Promise.all(list.slice(i, i + 5).map(async x => {
       try {
         const r = await sendOne(x.phone, x.text);
         ok.push(x.username || x.phone);
-        logs.push({ at: new Date().toISOString(), kind, to: x.username || '', phone: x.phone, text: x.text, id: r.id, state: r.state });
+        logs.push({ at: new Date().toISOString(), kind, stage: kind === 'daily' || kind === 'manual' ? stage : undefined, to: x.username || '', phone: x.phone, text: x.text, id: r.id, state: r.state });
       } catch (e) {
         fail.push({ to: x.username || x.phone, error: e.message });
         logs.push({ at: new Date().toISOString(), kind, to: x.username || '', phone: x.phone, text: x.text, id: '', state: 'Failed', error: e.message });
@@ -327,7 +349,7 @@ export async function sendMany(list, kind) {
     }));
   }
   await addLog(logs);
-  if (kind === 'daily' || kind === 'manual') await markSent(date, ok.filter(u => !u.startsWith('+')));
+  if (kind === 'daily' || kind === 'manual') await markSent(date, ok.filter(u => !u.startsWith('+')).map(u => sentKey(u, stage)));
   return { ok: ok.length, fail };
 }
 

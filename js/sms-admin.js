@@ -36,9 +36,14 @@
     <h3 class="sub-h">⏰ 매일 공부 안내 문자</h3>
     <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap;">
       <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsDailyOn"> 자동으로 보내기</label>
-      <select id="smsDailyHour" style="width:auto;"></select>
       <select id="smsDailyDays" style="width:auto;"><option value="all">매일</option><option value="mon-sat">월~토</option><option value="weekdays">평일(월~금)</option></select>
-      <span style="color:var(--muted); font-size:0.85rem;">하루 한 번 · 피드백을 안 했을 때만 보내요(최근 7일 수업이 없으면 안 보내요)</span>
+      <span style="color:var(--muted); font-size:0.85rem;">피드백을 안 했을 때만 보내요(최근 7일 수업이 없으면 안 보내요)</span>
+    </div>
+    <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px;">
+      <span style="font-weight:700;">1차</span> <select id="smsDailyHour" style="width:auto;"></select>
+      <span style="color:var(--muted); font-size:0.85rem;">하라고 안내</span>
+      <label style="display:flex; gap:6px; align-items:center; font-weight:700; margin-left:10px;"><input type="checkbox" id="smsSecondOn"> 2차</label> <select id="smsDailyHour2" style="width:auto;"></select>
+      <span style="color:var(--muted); font-size:0.85rem;">그래도 아직 안 했으면 「꼭」 하라고</span>
     </div>
     <div style="font-size:0.85rem; margin:6px 0; line-height:1.7;">
       💬 <b>[필수]</b> 수업 피드백쉐도잉을 아직 안 했으면 → <b>꼭 하라고</b> 안내해요<br>
@@ -50,6 +55,7 @@
       <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{인사}</code> 인사말 · <code>#{안내}</code> 할 일(피드백 꼭 하기 · 영상 권장). 인사말과 안내는 날마다 표현이 바뀌어요. (학생 이름을 넣고 싶으면 <code>#{이름}</code>) <span id="smsLen"></span></div></div>
     <div class="row" style="gap:8px; flex-wrap:wrap;">
       <button class="btn-ghost btn-small" id="smsSaveSettings">💾 자동 문자 저장</button>
+      <select id="smsStage" style="width:auto;"><option value="">지금 시각에 맞게</option><option value="1">1차 문자로</option><option value="2">2차 문자로</option></select>
       <button class="btn-ghost btn-small" id="smsPreview">👀 지금 보내면 받을 학생 보기</button>
       <button class="btn-ghost btn-small" id="smsSendNow">▶️ 지금 보내기</button>
       <span class="status" id="smsSettingsStatus" style="margin:0;"></span>
@@ -77,7 +83,7 @@
     <div id="smsLog" style="font-size:0.85rem;"></div>
     <div class="row"><button class="btn-ghost btn-small" id="smsRefresh">🔄 결과 새로 보기</button></div>`;
 
-  $('smsDailyHour').innerHTML = Array.from({ length: 18 }, (_, k) => k + 6).map(h => `<option value="${h}">${h < 12 ? '오전' : '오후'} ${h <= 12 ? h : h - 12}시</option>`).join('');
+  $('smsDailyHour2').innerHTML = $('smsDailyHour').innerHTML = Array.from({ length: 18 }, (_, k) => k + 6).map(h => `<option value="${h}">${h < 12 ? '오전' : '오후'} ${h <= 12 ? h : h - 12}시</option>`).join('');
 
   function renderState() {
     const s = data.status || {};
@@ -108,7 +114,7 @@
   }
   function renderSettings() {
     const d = data.settings.daily;
-    $('smsDailyOn').checked = !!d.on; $('smsRecVideo').checked = d.video !== false; $('smsRecLesson').checked = d.lessonVideo !== false; $('smsDailyHour').value = String(d.hour); $('smsDailyDays').value = d.days || 'all'; $('smsDailyText').value = d.text;
+    $('smsDailyOn').checked = !!d.on; $('smsRecVideo').checked = d.video !== false; $('smsRecLesson').checked = d.lessonVideo !== false; $('smsDailyHour').value = String(d.hour); $('smsSecondOn').checked = d.second !== false; $('smsDailyHour2').value = String(d.hour2 || 21); $('smsDailyDays').value = d.days || 'all'; $('smsDailyText').value = d.text;
     updateLen();
     const n = data.settings.notify || {};
     $('smsNotifyOn').checked = !!n.on; $('smsNotifyPhone').value = pretty(n.phone || ''); $('smsNotifyParents').checked = n.parents !== false;
@@ -123,7 +129,7 @@
     const label = u => { try { return memberLabel(u); } catch (e) { return u; } };
     $('smsLog').innerHTML = log.length ? `<table><thead><tr><th>보낸 때</th><th>종류</th><th>받는 사람</th><th>내용</th><th>결과</th></tr></thead><tbody>${log.slice(0, 40).map(x => `
       <tr><td style="white-space:nowrap;">${esc(new Date(x.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}</td>
-      <td style="white-space:nowrap;">${esc(KIND[x.kind] || x.kind)}</td>
+      <td style="white-space:nowrap;">${esc(KIND[x.kind] || x.kind)}${x.stage ? ' ' + x.stage + '차' : ''}</td>
       <td style="white-space:nowrap;">${esc(x.to ? label(x.to) : '')}<br><span style="color:var(--muted);">${esc(pretty(x.phone))}</span></td>
       <td style="min-width:240px;">${esc(x.text)}</td>
       <td style="white-space:nowrap;" title="${esc(x.error || '')}">${esc(STATE[x.state] || x.state || '')}${x.error ? '<br><span style="color:#C62828; font-size:0.75rem;">' + esc(String(x.error).replace(/^sendSMS: Sending SMS message: /, '').slice(0, 80)) + '</span>' : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">아직 보낸 문자가 없어요.</div>';
@@ -170,20 +176,23 @@
   $('smsSaveSettings').onclick = async () => {
     const st = $('smsSettingsStatus'); status(st, '저장 중…');
     try {
-      const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'settings', daily: { on: $('smsDailyOn').checked, hour: Number($('smsDailyHour').value), days: $('smsDailyDays').value, text: $('smsDailyText').value, video: $('smsRecVideo').checked, lessonVideo: $('smsRecLesson').checked } }) });
+      const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'settings', daily: { on: $('smsDailyOn').checked, hour: Number($('smsDailyHour').value), second: $('smsSecondOn').checked, hour2: Number($('smsDailyHour2').value), days: $('smsDailyDays').value, text: $('smsDailyText').value, video: $('smsRecVideo').checked, lessonVideo: $('smsRecLesson').checked } }) });
       data.settings = r.settings; renderSettings();
-      status(st, r.settings.daily.on ? `✅ 저장했어요 — ${$('smsDailyHour').selectedOptions[0].textContent}에 자동으로 보내요` : '✅ 저장했어요 (자동 문자 꺼짐)', 'success');
+      status(st, r.settings.daily.on ? `✅ 저장했어요 — 1차 ${$('smsDailyHour').selectedOptions[0].textContent}${r.settings.daily.second ? ` · 2차 ${$('smsDailyHour2').selectedOptions[0].textContent}` : ''}에 자동으로 보내요` : '✅ 저장했어요 (자동 문자 꺼짐)', 'success');
     } catch (e) { status(st, '⚠️ ' + e.message, 'error'); }
   };
+  let lastStage = 1;
   async function preview() {
-    const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'preview' }) });
+    const sg = Number($('smsStage').value) || undefined;
+    const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'preview', stage: sg }) });
+    lastStage = r.stage;
     const t = r.targets || [], go = t.filter(x => x.send);
     const label = u => { try { return memberLabel(u); } catch (e) { return u; } };
     $('smsPreviewBox').innerHTML = !t.length ? '<div class="empty">번호를 넣고 「받기」를 켠 학생이 아직 없어요.</div>' : `
-      <div style="font-size:0.85rem; margin-bottom:4px;"><b>${go.length}명</b>에게 보내요 (번호 넣은 학생 ${t.length}명 중)</div>
+      <div style="font-size:0.85rem; margin-bottom:4px;"><b>${r.stage}차 문자</b> · <b>${go.length}명</b>에게 보내요 (번호 넣은 학생 ${t.length}명 중)</div>
       <table><thead><tr><th>학생</th><th>💬 피드백 (필수)</th><th>🎬 영상 · 🎥 수업영상 (선택, 오늘)</th><th>문자</th></tr></thead><tbody>${t.map(x => `
         <tr><td style="white-space:nowrap;">${esc(label(x.username))}</td>
-        <td style="white-space:nowrap;">${!x.lesson ? '— 최근 7일 수업 없음' : x.todo ? '❌ ' + esc(md(x.todo.date)) + ' 수업 복습 안 함' + (x.todoCount > 1 ? ` (${x.todoCount}회차)` : '') : '✅ ' + esc(md(x.lesson.date)) + ' 수업 복습함'}${x.already ? ' · 오늘 이미 보냄' : ''}</td>
+        <td style="white-space:nowrap;">${!x.lesson ? '— 최근 7일 수업 없음' : x.todo ? '❌ ' + esc(md(x.todo.date)) + ' 수업 복습 안 함' + (x.todoCount > 1 ? ` (${x.todoCount}회차)` : '') : '✅ ' + esc(md(x.lesson.date)) + ' 수업 복습함'}${x.already ? ` · 오늘 ${r.stage}차 이미 보냄` : ''}</td>
         <td style="white-space:nowrap;">${!x.lesson ? '' : vs(x.video.hasVideo, x.video.videoToday, '🎬') + ' ' + vs(x.video.hasLessonVideo, x.video.lessonVideoToday, '🎥')}</td>
         <td>${x.send ? esc(x.text) : '<span style="color:var(--muted);">안 보내요</span>'}</td></tr>`).join('')}</tbody></table>`;
     return go.length;
@@ -195,9 +204,9 @@
       status(st, '확인 중…');
       const n = await preview();
       if (!n) { status(st, '지금 보낼 학생이 없어요 (할 일을 다 했거나, 최근 수업이 없었거나, 오늘 이미 보냈어요).'); return; }
-      if (!confirm(`할 일이 남은 ${n}명에게 지금 문자를 보낼까요?\n(아래 표의 내용 그대로 학원 휴대폰 번호로 가요)`)) { status(st, ''); return; }
+      if (!confirm(`할 일이 남은 ${n}명에게 지금 ${lastStage}차 문자를 보낼까요?\n(아래 표의 내용 그대로 학원 휴대폰 번호로 가요)`)) { status(st, ''); return; }
       b.disabled = true; status(st, '보내는 중…');
-      const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'send-now' }) });
+      const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'send-now', stage: lastStage }) });
       status(st, `✅ ${r.ok}명에게 보냈어요${r.fail.length ? ` · ⚠️ ${r.fail.length}명 실패` : ''}`, r.fail.length ? 'error' : 'success');
       load(); preview().catch(() => {});
     } catch (e) { status(st, '⚠️ ' + e.message, 'error'); }
