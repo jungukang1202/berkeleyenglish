@@ -37,7 +37,7 @@ const OLD_DEFAULT_TEXTS = [
   '[버클리] #{이름} 학생, #{수업날짜} 수업 피드백 쉐도잉을 아직 안 했어요! 5분만 복습해 볼까요? berkeleyenglish.co.kr/member',
 ];
 export const LESSON_DAYS = 7; // 최근 며칠 안의 수업을 챙길지
-export const DEFAULT_SETTINGS = { daily: { on: false, hour: 20, days: 'all', text: DEFAULT_TEXT, video: true, lessonVideo: true }, notify: { on: false, phone: '' } };
+export const DEFAULT_SETTINGS = { daily: { on: false, hour: 20, days: 'all', text: DEFAULT_TEXT, video: true, lessonVideo: true }, notify: { on: false, phone: '', parents: true } };
 export const NOTIFY_FROM = 9, NOTIFY_TO = 22; // 원장님 알림은 오전 9시 ~ 오후 10시에만 (그 밖의 시간은 모아 두었다가 아침에)
 
 export const configured = () => !!(process.env.SMSGATE_USER && process.env.SMSGATE_PASS);
@@ -55,14 +55,19 @@ export function toE164(raw) {
 export const prettyPhone = e => { const d = String(e || '').replace(/^\+82/, '0'); return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d; };
 
 export async function getPhones() { return (await store().get('phones', { type: 'json' })) || {}; }
+// 학생마다 { phone: 학생 번호(공부 안내 문자), on: 받기, parent: 학부모 번호(선택 — 아이가 공부하면 알림) }
 export async function savePhones(map) {
   const out = {}, bad = [];
   for (const [u, v] of Object.entries(map || {})) {
-    const raw = v && typeof v === 'object' ? v.phone : v;
-    if (!String(raw || '').trim()) continue;
-    const e = toE164(raw);
-    if (!e) { bad.push(u); continue; }
-    out[norm(u)] = { phone: e, on: !(v && v.on === false) };
+    const o = v && typeof v === 'object' ? v : { phone: v };
+    const rawS = String(o.phone || '').trim(), rawP = String(o.parent || '').trim();
+    if (!rawS && !rawP) continue;
+    const e = rawS ? toE164(rawS) : '', pe = rawP ? toE164(rawP) : '';
+    if ((rawS && !e) || (rawP && !pe)) { bad.push(u); continue; }
+    const rec = { on: o.on !== false };
+    if (e) rec.phone = e;
+    if (pe) rec.parent = pe;
+    out[norm(u)] = rec;
   }
   if (bad.length) { const err = new Error(`전화번호가 이상해요: ${bad.join(', ')} (010으로 시작하는 휴대폰 번호만 돼요)`); err.status = 400; throw err; }
   await store().setJSON('phones', out);
@@ -96,6 +101,7 @@ export async function saveSettings(b) {
   }, notify: {
     on: n.on === undefined ? cur.notify.on : !!n.on,
     phone: nPhone,
+    parents: n.parents === undefined ? cur.notify.parents !== false : !!n.parents,
   } };
   if (next.notify.on && !next.notify.phone) { const e = new Error('과제 완료 알림을 받을 원장님 휴대폰 번호를 넣어 주세요.'); e.status = 400; throw e; }
   await store().setJSON('settings', next);
@@ -251,7 +257,13 @@ export const PHRASES = {
     n => `원장님, 기쁜 소식이에요! ${n} 학생이 열심히 했어요 😊`,
     n => `원장님, ${n} 학생 공부 완료 ✅`,
   ],
-  actMany: ['원장님, 공부한 학생들 소식이에요 👏', '원장님, 쉐도잉을 한 학생들이에요 🎉', '원장님, 오늘도 열심히 한 학생들이에요 😊', '원장님, 공부 완료한 학생들 알려 드려요 ✅'],
+  parentOne: [
+    n => `안녕하세요, 버클리원어민영어회화예요 😊 ${n} 학생이 공부했어요 👏`,
+    n => `안녕하세요 😊 ${n} 학생이 열심히 쉐도잉했어요 🎉`,
+    n => `학부모님, 기쁜 소식이에요! ${n} 학생이 공부를 마쳤어요 😊`,
+    n => `안녕하세요, 버클리예요 🙂 ${n} 학생이 과제를 했어요 ✅`,
+  ],
+  actMany: ['원장님, 공부한 학생들 소식이에요 👏', '원장님, 쉐도잉을 한 학생들이에요 🎉', '원장님, 열심히 한 학생들이에요 😊', '원장님, 공부 완료한 학생들 알려 드려요 ✅'],
 };
 export function pick(list, seed) {
   const h = crypto.createHash('sha256').update(String(seed)).digest();
@@ -281,7 +293,7 @@ export async function dailyTargets(date = kstDate()) {
   const alive = new Set(members.map(m => norm(m.username)));
   const out = [];
   for (const [u, p] of Object.entries(phones)) {
-    if (!p || !p.on || !alive.has(u)) continue;
+    if (!p || !p.phone || !p.on || !alive.has(u)) continue;
     const r = await pendingLesson(u, date);
     const v = r.lesson ? await videoStatus(u, ctx, date) : { hasVideo: false, hasLessonVideo: false, videoToday: false, lessonVideoToday: false };
     const g = r.lesson ? buildGuide(r, v, st, `${u}/${date}`) : { guide: '', rec: [] };
@@ -411,7 +423,10 @@ async function findNewActivity() {
 export async function notifyDone() {
   const st = await getSettings();
   const found = await findNewActivity(); // 알림을 꺼 둬도 기준은 계속 따라가요(켤 때 예전 것이 한꺼번에 오지 않게)
-  if (!st.notify.on || !st.notify.phone || !configured()) return { sent: 0, found: found.length };
+  const phones = await getPhones();
+  const ownerOn = !!(st.notify.on && st.notify.phone);
+  const parentsOn = st.notify.parents !== false && Object.values(phones).some(p => p && p.parent);
+  if ((!ownerOn && !parentsOn) || !configured()) return { sent: 0, found: found.length };
   const s = store();
   const queue = ((await s.get('done-queue', { type: 'json' })) || []).concat(found).slice(-80);
   const hour = kstNow().getUTCHours();
@@ -430,16 +445,24 @@ export async function notifyDone() {
   for (const [u, list] of byUser) {
     let name = ''; try { name = await memberDisplayName(u); } catch (e) {}
     list.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
-    lines.push({ name: name || u, what: [...new Set(list.map(x => x.item))].join(' · ') });
+    lines.push({ username: u, name: name || u, what: [...new Set(list.map(x => x.item))].join(' · ') });
   }
   // 사람이 보낸 것처럼 부드러운 말투로, 표현은 다양하게(운영자 지시 2026-11-28)
   const seed = Date.now();
-  const text = (lines.length === 1
+  const out = [];
+  // 👩‍🏫 원장님: 모든 학생을 한 통으로
+  if (ownerOn) out.push({ phone: st.notify.phone, text: (lines.length === 1
     ? `[버클리] ${pick(PHRASES.actOne, seed)(lines[0].name)} ${lines[0].what}`
-    : `[버클리] ${pick(PHRASES.actMany, seed)} ${lines.map(x => `${x.name}: ${x.what}`).join(' / ')}`).slice(0, 900);
+    : `[버클리] ${pick(PHRASES.actMany, seed)} ${lines.map(x => `${x.name}: ${x.what}`).join(' / ')}`).slice(0, 900) });
+  // 👪 학부모(선택): 자기 아이 것만 (운영자 지시 2026-11-28)
+  if (parentsOn) for (const x of lines) {
+    const p = phones[x.username];
+    if (p && p.parent && p.parent !== st.notify.phone) out.push({ username: x.username, phone: p.parent, text: `[버클리] ${pick(PHRASES.parentOne, seed + x.username)(x.name)} ${x.what}`.slice(0, 900) });
+  }
+  if (!out.length) { await s.setJSON('done-queue', []); return { sent: 0 }; }
   try {
-    await sendMany([{ phone: st.notify.phone, text }], 'done');
+    const r = await sendMany(out.map(o => ({ phone: o.phone, text: o.text })), 'done');
     await s.setJSON('done-queue', []);
-    return { sent: queue.length };
+    return { sent: queue.length, messages: r.ok };
   } catch (e) { await s.setJSON('done-queue', queue); throw e; }
 }

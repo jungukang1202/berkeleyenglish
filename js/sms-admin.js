@@ -24,10 +24,10 @@
     <div id="smsState" style="margin:8px 0; font-weight:700;"></div>
 
     <h3 class="sub-h">📇 학생 전화번호</h3>
-    <div class="card-desc" style="margin-top:0;">번호를 넣고 「받기」를 켠 학생에게만 자동 문자가 가요. 학부모 번호를 넣어도 돼요.</div>
-    <div id="smsPhones" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:6px; margin:8px 0;"></div>
+    <div class="card-desc" style="margin-top:0;"><b>학생 번호</b>: 「받기」를 켜면 공부 안내 문자가 가요. <b>학부모 번호(선택)</b>: 아이가 쉐도잉을 하면 학부모님께 알려 드려요(자기 아이 것만).</div>
+    <div id="smsPhones" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(440px,1fr)); gap:6px; margin:8px 0;"></div>
     <details style="margin:4px 0 8px;"><summary style="cursor:pointer; font-weight:700; font-size:0.85rem;">📋 여러 명 한꺼번에 넣기</summary>
-      <div style="color:var(--muted); font-size:0.8rem; margin:4px 0;">한 줄에 한 명씩 「아이디 또는 이름 + 번호」를 붙여 넣고 「칸에 채우기」 → 「💾 전화번호 저장」. 엑셀에서 두 칸을 복사해 붙여도 돼요.<br>예: <code>kim01 010-1234-5678</code> · <code>김철수 01012345678</code></div>
+      <div style="color:var(--muted); font-size:0.8rem; margin:4px 0;">한 줄에 한 명씩 「아이디 또는 이름 + 학생 번호 (+ 학부모 번호)」를 붙여 넣고 「칸에 채우기」 → 「💾 전화번호 저장」. 엑셀에서 두 칸을 복사해 붙여도 돼요.<br>예: <code>kim01 010-1234-5678</code> · <code>김철수 010-1111-2222 010-3333-4444</code>(학생 · 학부모) · <code>이영희 학부모 010-5555-6666</code></div>
       <textarea id="smsBulk" rows="4" style="width:100%;" placeholder="kim01 010-1234-5678&#10;이영희 010-2222-3333"></textarea>
       <div class="row"><button class="btn-ghost btn-small" id="smsBulkFill">⬇️ 칸에 채우기</button><span class="status" id="smsBulkStatus" style="margin:0;"></span></div>
     </details>
@@ -60,6 +60,7 @@
     <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap;">
       <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsNotifyOn"> 학생이 쉐도잉을 하면 알려 주기</label>
       <input type="tel" id="smsNotifyPhone" placeholder="원장님 번호 (예: 010-1234-5678)" style="width:220px;">
+      <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsNotifyParents"> 👪 학부모 번호가 있으면 학부모님께도</label>
       <button class="btn-ghost btn-small" id="smsSaveNotify">💾 저장</button>
       <span class="status" id="smsNotifyStatus" style="margin:0;"></span>
     </div>
@@ -100,8 +101,9 @@
       const p = phones[u] || {};
       return `<div style="display:flex; gap:6px; align-items:center; padding:6px 8px; border:1px solid #e3e3e3; border-radius:10px;">
         <span style="flex:1; font-weight:700; font-size:0.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(u)}">${esc(u)}${nameOf(u) ? ` <span style="font-weight:400; color:var(--muted);">${esc(nameOf(u))}</span>` : ''}</span>
-        <input type="tel" data-u="${esc(u)}" class="smsPhone" value="${esc(pretty(p.phone))}" placeholder="010-0000-0000" style="width:130px; margin:0; padding:6px 8px;">
-        <label style="display:flex; gap:3px; align-items:center; font-size:0.8rem;" title="자동 문자 받기"><input type="checkbox" class="smsOn" data-u="${esc(u)}" ${p.phone && p.on === false ? '' : 'checked'}> 받기</label></div>`;
+        <input type="tel" data-u="${esc(u)}" class="smsPhone" value="${esc(pretty(p.phone))}" placeholder="학생 010-…" title="학생 번호 — 공부 안내 문자" style="width:122px; margin:0; padding:6px 8px;">
+        <label style="display:flex; gap:3px; align-items:center; font-size:0.8rem;" title="공부 안내 문자 받기"><input type="checkbox" class="smsOn" data-u="${esc(u)}" ${p.phone && p.on === false ? '' : 'checked'}> 받기</label>
+        <input type="tel" data-u="${esc(u)}" class="smsParent" value="${esc(pretty(p.parent))}" placeholder="학부모(선택)" title="학부모 번호(선택) — 아이가 공부하면 알림" style="width:122px; margin:0; padding:6px 8px;"></div>`;
     }).join('') || '<div class="empty">등록된 회원이 없어요.</div>';
   }
   function renderSettings() {
@@ -109,7 +111,7 @@
     $('smsDailyOn').checked = !!d.on; $('smsRecVideo').checked = d.video !== false; $('smsRecLesson').checked = d.lessonVideo !== false; $('smsDailyHour').value = String(d.hour); $('smsDailyDays').value = d.days || 'all'; $('smsDailyText').value = d.text;
     updateLen();
     const n = data.settings.notify || {};
-    $('smsNotifyOn').checked = !!n.on; $('smsNotifyPhone').value = pretty(n.phone || '');
+    $('smsNotifyOn').checked = !!n.on; $('smsNotifyPhone').value = pretty(n.phone || ''); $('smsNotifyParents').checked = n.parents !== false;
   }
   function updateLen() {
     const t = $('smsDailyText').value.replace(/#\{인사\}/g, '오늘 하루 잘 보내고 있나요? 🙂').replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27').replace(/#\{안내\}/g, '11/27 수업 피드백 쉐도잉이 아직 남아 있어요. 오늘 꼭 한 번 해 주세요! 시간 여유가 있으면 영상 쉐도잉이랑 수업영상 쉐도잉도 같이 해 보면 더 좋아요 🙂');
@@ -137,19 +139,31 @@
   $('smsBulkFill').onclick = () => {
     const ms = members(); let ok = 0; const bad = [];
     $('smsBulk').value.split(/\n/).map(l => l.trim()).filter(Boolean).forEach(line => {
-      const m = /(\+?82[\s-]?1\d[\d\s-]{7,10}|01\d[\d\s-]{7,10})\s*$/.exec(line);
+      const re = /(\+?82[\s-]?1\d[\d\s-]{7,10}\d|01\d[\d\s-]{7,10}\d)/g;
+      const nums = [...line.matchAll(re)];
+      const m = nums[0];
       const who = m ? line.slice(0, m.index).replace(/[\t,;:]+/g, ' ').trim() : '';
-      const mem = who && (ms.find(x => x.username.toLowerCase() === who.toLowerCase()) || ms.find(x => x.name && x.name.replace(/\s/g, '') === who.replace(/\s/g, '')));
+      const whoName = who.replace(/학부모|부모|엄마|아빠|어머니|아버지/g, '').trim();
+      const mem = whoName && (ms.find(x => x.username.toLowerCase() === whoName.toLowerCase()) || ms.find(x => x.name && x.name.replace(/\s/g, '') === whoName.replace(/\s/g, '')));
       const inp = mem && card.querySelector(`.smsPhone[data-u="${CSS.escape(mem.username)}"]`);
       if (!m || !inp) { bad.push(who || line.slice(0, 12)); return; }
-      inp.value = m[1].trim(); inp.style.background = '#FFF9C4'; ok++;
+      // 번호가 하나면 학생 번호, 둘이면 「학생 번호 학부모 번호」 — 줄에 '학부모'·'부모'·'엄마'·'아빠'가 있고 번호가 하나면 학부모 번호
+      const par = card.querySelector(`.smsParent[data-u="${CSS.escape(mem.username)}"]`);
+      if (nums.length >= 2) { inp.value = nums[0][1].trim(); par.value = nums[1][1].trim(); par.style.background = '#FFF9C4'; }
+      else if (/학부모|부모|엄마|아빠|어머니|아버지/.test(line)) { par.value = m[1].trim(); par.style.background = '#FFF9C4'; ok++; return; }
+      else inp.value = m[1].trim();
+      inp.style.background = '#FFF9C4'; ok++;
     });
     status($('smsBulkStatus'), `${ok}명 채웠어요${bad.length ? ` · ⚠️ 못 찾음: ${bad.join(', ')}` : ''} — 「💾 전화번호 저장」을 눌러야 저장돼요`, bad.length ? 'error' : 'success');
   };
   $('smsSavePhones').onclick = async () => {
     const st = $('smsPhonesStatus'); status(st, '저장 중…');
     const phones = {};
-    card.querySelectorAll('.smsPhone').forEach(i => { if (i.value.trim()) phones[i.dataset.u] = { phone: i.value.trim(), on: card.querySelector(`.smsOn[data-u="${CSS.escape(i.dataset.u)}"]`).checked }; });
+    card.querySelectorAll('.smsPhone').forEach(i => {
+      const u = i.dataset.u, q = CSS.escape(u);
+      const parent = card.querySelector(`.smsParent[data-u="${q}"]`).value.trim();
+      if (i.value.trim() || parent) phones[u] = { phone: i.value.trim(), parent, on: card.querySelector(`.smsOn[data-u="${q}"]`).checked };
+    });
     try { const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'phones', phones }) }); data.phones = r.phones; renderPhones(); status(st, `✅ ${Object.keys(r.phones).length}명 저장했어요`, 'success'); }
     catch (e) { status(st, '⚠️ ' + e.message, 'error'); }
   };
@@ -192,7 +206,7 @@
   $('smsSaveNotify').onclick = async () => {
     const st = $('smsNotifyStatus'); status(st, '저장 중…');
     try {
-      const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'settings', notify: { on: $('smsNotifyOn').checked, phone: $('smsNotifyPhone').value } }) });
+      const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'settings', notify: { on: $('smsNotifyOn').checked, phone: $('smsNotifyPhone').value, parents: $('smsNotifyParents').checked } }) });
       data.settings = r.settings; renderSettings();
       status(st, r.settings.notify.on ? '✅ 저장했어요 — 학생이 공부하면 알려 드려요' : '✅ 저장했어요 (알림 꺼짐)', 'success');
     } catch (e) { status(st, '⚠️ ' + e.message, 'error'); }
