@@ -107,7 +107,7 @@
     $('smsNotifyOn').checked = !!n.on; $('smsNotifyPhone').value = pretty(n.phone || '');
   }
   function updateLen() {
-    const t = $('smsDailyText').value.replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27').replace(/#\{안내\}/g, '[필수] 11/27 수업 피드백 쉐도잉을 아직 안 했어요. 꼭 해 주세요! [선택] 오늘 영상 쉐도잉·수업영상 쉐도잉도 해 보면 좋아요 🙂');
+    const t = $('smsDailyText').value.replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27').replace(/#\{안내\}/g, '11/27 수업 피드백 쉐도잉이 아직 남아 있어요. 오늘 꼭 한 번 해 주세요! 시간 여유가 있으면 영상 쉐도잉이랑 수업영상 쉐도잉도 같이 해 보면 더 좋아요 🙂');
     const n = [...t].length;
     $('smsLen').textContent = `지금 ${n}자 ${n > 70 ? '(가장 긴 경우 예시) — 70자가 넘으면 긴 문자로 가요(문자 무제한 요금제면 괜찮아요)' : ''}`;
   }

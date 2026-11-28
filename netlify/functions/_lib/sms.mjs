@@ -26,8 +26,9 @@ export const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000);
 export const kstDate = () => kstNow().toISOString().slice(0, 10);
 const API = () => (process.env.SMSGATE_URL || 'https://api.sms-gate.app/3rdparty/v1').replace(/\/+$/, '');
 
-export const DEFAULT_TEXT = '[버클리] #{이름} 학생, #{안내} berkeleyenglish.co.kr/member';
+export const DEFAULT_TEXT = '[버클리] #{이름} 학생, 안녕하세요 😊 #{안내} ▶ berkeleyenglish.co.kr/member';
 const OLD_DEFAULT_TEXTS = [
+  '[버클리] #{이름} 학생, #{안내} berkeleyenglish.co.kr/member',
   '[버클리] #{이름} 학생, 오늘 쉐도잉 아직 안 했어요! 5분만 해 볼까요? berkeleyenglish.co.kr/member',
   '[버클리] #{이름} 학생, #{수업날짜} 수업 피드백 쉐도잉을 아직 안 했어요! 5분만 복습해 볼까요? berkeleyenglish.co.kr/member',
 ];
@@ -228,9 +229,10 @@ function buildGuide(r, v, st) {
   if (st.daily.lessonVideo && v.hasLessonVideo && !v.lessonVideoToday) rec.push('수업영상 쉐도잉');
   const parts = [];
   // 수업 피드백 = 필수(mandatory), 영상 · 수업영상 = 선택(optional) — 운영자 지시 2026-11-28
-  if (r.todo) parts.push(`[필수] ${md(r.todo.lessonDate)} 수업 피드백 쉐도잉을 아직 안 했어요. 꼭 해 주세요!`);
+  // 사람이 보낸 것처럼 부드러운 말투로(운영자 지시 2026-11-28) — 피드백은 '꼭', 영상은 '여유가 있으면'
+  if (r.todo) parts.push(`${md(r.todo.lessonDate)} 수업 피드백 쉐도잉이 아직 남아 있어요. 오늘 꼭 한 번 해 주세요!`);
   // 문자는 피드백을 안 했을 때만 보내고, 영상 권장은 그 문자에 덧붙이기만 해요(운영자 지시 2026-11-28)
-  if (r.todo && rec.length) parts.push(`[선택] 오늘 ${rec.join('·')}도 해 보면 좋아요 🙂`);
+  if (r.todo && rec.length) parts.push(`시간 여유가 있으면 ${rec.join('이랑 ')}도 같이 해 보면 더 좋아요 🙂`);
   return { guide: parts.join(' '), rec };
 }
 
@@ -335,12 +337,15 @@ export async function notifyDone() {
   const hour = kstNow().getUTCHours();
   if (!queue.length || hour < NOTIFY_FROM || hour >= NOTIFY_TO) { await s.setJSON('done-queue', queue); return { sent: 0, queued: queue.length }; }
   const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-  const parts = [];
+  const items = [];
   for (const q of queue) {
     let name = ''; try { name = await memberDisplayName(q.username); } catch (e) {}
-    parts.push(`${name || q.username}(${md(q.date)} 수업${q.spoke ? ', 따라 말하기 ' + q.spoke + '번' : ''})`);
+    items.push({ name: name || q.username, date: md(q.date), spoke: q.spoke || 0 });
   }
-  const text = `[버클리] 과제 완료 ✅ ${parts.join(', ')}`.slice(0, 600);
+  // 사람이 보낸 것처럼 부드러운 말투로(운영자 지시 2026-11-28)
+  const text = (items.length === 1
+    ? `[버클리] 원장님, ${items[0].name} 학생이 ${items[0].date} 수업 피드백 쉐도잉을 끝냈어요 👏${items[0].spoke ? ` (따라 말하기 ${items[0].spoke}번)` : ''}`
+    : `[버클리] 원장님, 피드백 쉐도잉을 끝낸 학생들이에요 👏 ${items.map(x => `${x.name}(${x.date} 수업${x.spoke ? `, 따라 말하기 ${x.spoke}번` : ''})`).join(', ')}`).slice(0, 600);
   try {
     await sendMany([{ phone: st.notify.phone, text }], 'done');
     await s.setJSON('done-queue', []);
