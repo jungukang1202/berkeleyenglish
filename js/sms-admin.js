@@ -42,7 +42,7 @@
       <span style="color:var(--muted);">(피드백 안내 문자에 덧붙이기만 · 넣어 준 영상이 있는 학생만)</span>
     </div>
     <div class="field" style="margin:6px 0;"><textarea id="smsDailyText" rows="2" maxlength="300"></textarea>
-      <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{이름}</code> 학생 이름 · <code>#{인사}</code> 인사말 · <code>#{안내}</code> 할 일(피드백 꼭 하기 · 영상 권장). 인사말과 안내는 날마다 표현이 바뀌어요. <span id="smsLen"></span></div></div>
+      <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{인사}</code> 인사말 · <code>#{안내}</code> 할 일(피드백 꼭 하기 · 영상 권장). 인사말과 안내는 날마다 표현이 바뀌어요. (학생 이름을 넣고 싶으면 <code>#{이름}</code>) <span id="smsLen"></span></div></div>
     <div class="row" style="gap:8px; flex-wrap:wrap;">
       <button class="btn-ghost btn-small" id="smsSaveSettings">💾 자동 문자 저장</button>
       <button class="btn-ghost btn-small" id="smsPreview">👀 지금 보내면 받을 학생 보기</button>

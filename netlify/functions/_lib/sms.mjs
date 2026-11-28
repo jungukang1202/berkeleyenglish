@@ -26,8 +26,10 @@ export const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000);
 export const kstDate = () => kstNow().toISOString().slice(0, 10);
 const API = () => (process.env.SMSGATE_URL || 'https://api.sms-gate.app/3rdparty/v1').replace(/\/+$/, '');
 
-export const DEFAULT_TEXT = '[버클리] #{이름} 학생, #{인사} #{안내} ▶ berkeleyenglish.co.kr/member';
+// 학생 문자에는 이름을 넣지 않아요(운영자 지시 2026-11-28) — 원장님 알림에는 누가 했는지 이름이 들어가요
+export const DEFAULT_TEXT = '[버클리] #{인사} #{안내} ▶ berkeleyenglish.co.kr/member';
 const OLD_DEFAULT_TEXTS = [
+  '[버클리] #{이름} 학생, #{인사} #{안내} ▶ berkeleyenglish.co.kr/member',
   '[버클리] #{이름} 학생, 안녕하세요 😊 #{안내} ▶ berkeleyenglish.co.kr/member',
   '[버클리] #{이름} 학생, #{안내} berkeleyenglish.co.kr/member',
   '[버클리] #{이름} 학생, 오늘 쉐도잉 아직 안 했어요! 5분만 해 볼까요? berkeleyenglish.co.kr/member',
