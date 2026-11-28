@@ -33,13 +33,13 @@
       <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsDailyOn"> 자동으로 보내기</label>
       <select id="smsDailyHour" style="width:auto;"></select>
       <select id="smsDailyDays" style="width:auto;"><option value="all">매일</option><option value="mon-sat">월~토</option><option value="weekdays">평일(월~금)</option></select>
-      <span style="color:var(--muted); font-size:0.85rem;">하루 한 번 · 최근 7일 안에 수업이 없었으면 안 보내요</span>
+      <span style="color:var(--muted); font-size:0.85rem;">하루 한 번 · 피드백을 안 했을 때만 보내요(최근 7일 수업이 없으면 안 보내요)</span>
     </div>
     <div style="font-size:0.85rem; margin:6px 0; line-height:1.7;">
       💬 <b>[필수]</b> 수업 피드백쉐도잉을 아직 안 했으면 → <b>꼭 하라고</b> 안내해요<br>
       <label style="display:inline-flex; gap:6px; align-items:center;"><input type="checkbox" id="smsRecVideo"> 🎬 <b>[선택]</b> 영상쉐도잉을 오늘 안 했으면 → 해 보라고 권장</label><br>
       <label style="display:inline-flex; gap:6px; align-items:center;"><input type="checkbox" id="smsRecLesson"> 🎥 <b>[선택]</b> 수업영상쉐도잉을 오늘 안 했으면 → 해 보라고 권장</label>
-      <span style="color:var(--muted);">(넣어 준 영상이 있는 학생만)</span>
+      <span style="color:var(--muted);">(피드백 안내 문자에 덧붙이기만 · 넣어 준 영상이 있는 학생만)</span>
     </div>
     <div class="field" style="margin:6px 0;"><textarea id="smsDailyText" rows="2" maxlength="300"></textarea>
       <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{이름}</code> 자리에 학생 이름, <code>#{안내}</code> 자리에 그 학생이 할 일(피드백 꼭 하기 · 영상 권장)이 들어가요. <span id="smsLen"></span></div></div>

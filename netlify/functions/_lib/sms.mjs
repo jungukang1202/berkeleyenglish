@@ -229,12 +229,13 @@ function buildGuide(r, v, st) {
   const parts = [];
   // 수업 피드백 = 필수(mandatory), 영상 · 수업영상 = 선택(optional) — 운영자 지시 2026-11-28
   if (r.todo) parts.push(`[필수] ${md(r.todo.lessonDate)} 수업 피드백 쉐도잉을 아직 안 했어요. 꼭 해 주세요!`);
-  if (rec.length) parts.push(`[선택] 오늘 ${rec.join('·')}도 해 보면 좋아요 🙂`);
+  // 문자는 피드백을 안 했을 때만 보내고, 영상 권장은 그 문자에 덧붙이기만 해요(운영자 지시 2026-11-28)
+  if (r.todo && rec.length) parts.push(`[선택] 오늘 ${rec.join('·')}도 해 보면 좋아요 🙂`);
   return { guide: parts.join(' '), rec };
 }
 
 // 오늘 문자를 받을 학생: 번호가 있고 · 받기 켬 · 지금 회원 · 최근 7일 안에 수업이 있었고 ·
-// (그 수업 피드백쉐도잉을 아직 안 함 또는 오늘 영상/수업영상 쉐도잉을 안 함) · 오늘 아직 안 보냄
+// 그 수업 피드백쉐도잉을 아직 안 함(영상 권장은 덧붙이기만) · 오늘 아직 안 보냄
 export async function dailyTargets(date = kstDate()) {
   const [phones, members, sent, st, lessons, recIds] = await Promise.all([getPhones(), listMembers(), sentToday(date), getSettings(), listLessons().catch(() => []), recordingLessonIds().catch(() => [])]);
   const ctx = { lessons, recIds: new Set(recIds) };
