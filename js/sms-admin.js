@@ -8,8 +8,9 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const members = () => { try { return (membersCache || []).slice(); } catch (e) { return []; } };
+  const md = d => d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '';
   const pretty = e => { const d = String(e || '').replace(/^\+82/, '0'); return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d; };
-  const KIND = { daily: '⏰ 자동', manual: '▶️ 지금 보내기', test: '🧪 시험' };
+  const KIND = { daily: '⏰ 자동', manual: '▶️ 지금 보내기', test: '🧪 시험', done: '🔔 과제 완료' };
   const STATE = { Pending: '⏳ 기다리는 중', Processed: '📤 휴대폰이 받음', Sent: '✅ 보냄', Delivered: '✅ 받음', Failed: '⚠️ 실패' };
   const status = (el, msg, kind) => { el.textContent = msg; el.className = 'status' + (kind ? ' ' + kind : ''); };
   let data = null;
@@ -31,17 +32,26 @@
       <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsDailyOn"> 자동으로 보내기</label>
       <select id="smsDailyHour" style="width:auto;"></select>
       <select id="smsDailyDays" style="width:auto;"><option value="all">매일</option><option value="mon-sat">월~토</option><option value="weekdays">평일(월~금)</option></select>
-      <span style="color:var(--muted); font-size:0.85rem;">그날 쉐도잉을 하나도 안 한 학생에게만, 하루 한 번</span>
+      <span style="color:var(--muted); font-size:0.85rem;">최근 7일 안에 수업이 있었는데 그 수업 피드백쉐도잉을 아직 안 한 학생에게만, 하루 한 번 (수업이 없었으면 안 보내요)</span>
     </div>
     <div class="field" style="margin:6px 0;"><textarea id="smsDailyText" rows="2" maxlength="300"></textarea>
-      <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{이름}</code> 자리에 학생 이름이 들어가요. <span id="smsLen"></span></div></div>
+      <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{이름}</code> 자리에 학생 이름, <code>#{수업날짜}</code> 자리에 아직 복습 안 한 수업 날짜(예: 11/27)가 들어가요. <span id="smsLen"></span></div></div>
     <div class="row" style="gap:8px; flex-wrap:wrap;">
       <button class="btn-ghost btn-small" id="smsSaveSettings">💾 자동 문자 저장</button>
       <button class="btn-ghost btn-small" id="smsPreview">👀 지금 보내면 받을 학생 보기</button>
-      <button class="btn-ghost btn-small" id="smsSendNow">▶️ 오늘 안 한 학생에게 지금 보내기</button>
+      <button class="btn-ghost btn-small" id="smsSendNow">▶️ 복습 안 한 학생에게 지금 보내기</button>
       <span class="status" id="smsSettingsStatus" style="margin:0;"></span>
     </div>
     <div id="smsPreviewBox" style="margin:6px 0;"></div>
+
+    <h3 class="sub-h">🔔 과제 완료 알림 (원장님 휴대폰으로)</h3>
+    <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap;">
+      <label style="display:flex; gap:6px; align-items:center; font-weight:700;"><input type="checkbox" id="smsNotifyOn"> 학생이 과제를 하면 알려 주기</label>
+      <input type="tel" id="smsNotifyPhone" placeholder="원장님 번호 (예: 010-1234-5678)" style="width:220px;">
+      <button class="btn-ghost btn-small" id="smsSaveNotify">💾 저장</button>
+      <span class="status" id="smsNotifyStatus" style="margin:0;"></span>
+    </div>
+    <div style="color:var(--muted); font-size:0.8rem; margin:4px 0 0;">최근 7일 안 수업의 피드백쉐도잉을 학생이 처음 연습하면 30분 안에 문자가 와요. 여러 명이면 한 통으로 묶어요. 밤(오후 10시~오전 9시)에 한 것은 아침 9시에 보내요.</div>
 
     <h3 class="sub-h">🧪 시험 문자</h3>
     <div class="row" style="gap:8px; align-items:center; flex-wrap:wrap;">
@@ -86,9 +96,11 @@
     const d = data.settings.daily;
     $('smsDailyOn').checked = !!d.on; $('smsDailyHour').value = String(d.hour); $('smsDailyDays').value = d.days || 'all'; $('smsDailyText').value = d.text;
     updateLen();
+    const n = data.settings.notify || {};
+    $('smsNotifyOn').checked = !!n.on; $('smsNotifyPhone').value = pretty(n.phone || '');
   }
   function updateLen() {
-    const t = $('smsDailyText').value.replace(/#\{이름\}/g, '홍길동');
+    const t = $('smsDailyText').value.replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27');
     const n = [...t].length;
     $('smsLen').textContent = `지금 ${n}자 ${n > 70 ? '— 70자가 넘으면 긴 문자(여러 통)로 가요' : ''}`;
   }
@@ -131,9 +143,9 @@
     const label = u => { try { return memberLabel(u); } catch (e) { return u; } };
     $('smsPreviewBox').innerHTML = !t.length ? '<div class="empty">번호를 넣고 「받기」를 켠 학생이 아직 없어요.</div>' : `
       <div style="font-size:0.85rem; margin-bottom:4px;"><b>${go.length}명</b>에게 보내요 (번호 넣은 학생 ${t.length}명 중)</div>
-      <table><thead><tr><th>학생</th><th>오늘 공부</th><th>문자</th></tr></thead><tbody>${t.map(x => `
+      <table><thead><tr><th>학생</th><th>최근 수업 · 복습</th><th>문자</th></tr></thead><tbody>${t.map(x => `
         <tr><td style="white-space:nowrap;">${esc(label(x.username))}</td>
-        <td style="white-space:nowrap;">${x.studied ? '✅ ' + Math.round(x.studied / 60) + '분' : '❌ 0분'}${x.already ? ' · 오늘 이미 보냄' : ''}</td>
+        <td style="white-space:nowrap;">${!x.lesson ? '— 최근 7일 수업 없음' : x.todo ? '❌ ' + esc(md(x.todo.date)) + ' 수업 복습 안 함' + (x.todoCount > 1 ? ` (${x.todoCount}회차)` : '') : '✅ ' + esc(md(x.lesson.date)) + ' 수업 복습함'}${x.already ? ' · 오늘 이미 보냄' : ''}</td>
         <td>${x.send ? esc(x.text) : '<span style="color:var(--muted);">안 보내요</span>'}</td></tr>`).join('')}</tbody></table>`;
     return go.length;
   }
@@ -143,14 +155,22 @@
     try {
       status(st, '확인 중…');
       const n = await preview();
-      if (!n) { status(st, '오늘 보낼 학생이 없어요 (모두 공부했거나 이미 보냈어요).'); return; }
-      if (!confirm(`오늘 쉐도잉을 안 한 ${n}명에게 지금 문자를 보낼까요?\n(아래 표의 내용 그대로 학원 휴대폰 번호로 가요)`)) { status(st, ''); return; }
+      if (!n) { status(st, '지금 보낼 학생이 없어요 (최근 수업을 모두 복습했거나, 수업이 없었거나, 오늘 이미 보냈어요).'); return; }
+      if (!confirm(`수업 피드백쉐도잉을 아직 안 한 ${n}명에게 지금 문자를 보낼까요?\n(아래 표의 내용 그대로 학원 휴대폰 번호로 가요)`)) { status(st, ''); return; }
       b.disabled = true; status(st, '보내는 중…');
       const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'send-now' }) });
       status(st, `✅ ${r.ok}명에게 보냈어요${r.fail.length ? ` · ⚠️ ${r.fail.length}명 실패` : ''}`, r.fail.length ? 'error' : 'success');
       load(); preview().catch(() => {});
     } catch (e) { status(st, '⚠️ ' + e.message, 'error'); }
     b.disabled = false;
+  };
+  $('smsSaveNotify').onclick = async () => {
+    const st = $('smsNotifyStatus'); status(st, '저장 중…');
+    try {
+      const r = await apiFetch(API, { method: 'POST', body: JSON.stringify({ action: 'settings', notify: { on: $('smsNotifyOn').checked, phone: $('smsNotifyPhone').value } }) });
+      data.settings = r.settings; renderSettings();
+      status(st, r.settings.notify.on ? '✅ 저장했어요 — 과제를 하면 알려 드려요' : '✅ 저장했어요 (알림 꺼짐)', 'success');
+    } catch (e) { status(st, '⚠️ ' + e.message, 'error'); }
   };
   $('smsTestBtn').onclick = async () => {
     const st = $('smsTestStatus'), b = $('smsTestBtn');

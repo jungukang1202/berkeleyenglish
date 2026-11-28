@@ -4,7 +4,7 @@
 // POST { action:'settings', daily:{ on, hour, days, text } }     → { settings }
 // POST { action:'preview' }                                       → { date, targets }   오늘 지금 보내면 받을 학생
 // POST { action:'test', phone, text }                             → { ok, fail }        시험 문자 한 통
-// POST { action:'send-now' }                                      → { ok, fail, count } 오늘 쉐도잉 안 한 학생에게 지금 보내기
+// POST { action:'send-now' }                                      → { ok, fail, count } 최근 수업 복습 안 한 학생에게 지금 보내기
 // POST { action:'refresh' }                                       → { log }             보냄·받음 결과 새로 보기
 import { requireAuth, jsonResponse } from './_lib/auth.mjs';
 import { deviceStatus, getPhones, savePhones, getSettings, saveSettings, getLog, dailyTargets, sendOne, sendMany, refreshLog, toE164, kstDate, DEFAULT_TEXT } from './_lib/sms.mjs';

@@ -14,7 +14,8 @@
 //   'log'             → [{ at, kind, to, phone, text, id, state }]  (최근 150건)
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { listMembers, memberDisplayName } from './store.mjs';
+import { listMembers, memberDisplayName, listSets, getSet, lessonDateOfSet } from './store.mjs';
+import { getSummary } from './practice.mjs';
 
 const store = () => getStore({ name: 'sms', consistency: 'strong' });
 const norm = u => String(u || '').trim().toLowerCase();
@@ -22,8 +23,11 @@ export const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000);
 export const kstDate = () => kstNow().toISOString().slice(0, 10);
 const API = () => (process.env.SMSGATE_URL || 'https://api.sms-gate.app/3rdparty/v1').replace(/\/+$/, '');
 
-export const DEFAULT_TEXT = '[버클리] #{이름} 학생, 오늘 쉐도잉 아직 안 했어요! 5분만 해 볼까요? berkeleyenglish.co.kr/member';
-export const DEFAULT_SETTINGS = { daily: { on: false, hour: 20, days: 'all', text: DEFAULT_TEXT } };
+export const DEFAULT_TEXT = '[버클리] #{이름} 학생, #{수업날짜} 수업 피드백 쉐도잉을 아직 안 했어요! 5분만 복습해 볼까요? berkeleyenglish.co.kr/member';
+const OLD_DEFAULT_TEXT = '[버클리] #{이름} 학생, 오늘 쉐도잉 아직 안 했어요! 5분만 해 볼까요? berkeleyenglish.co.kr/member';
+export const LESSON_DAYS = 7; // 최근 며칠 안의 수업을 챙길지
+export const DEFAULT_SETTINGS = { daily: { on: false, hour: 20, days: 'all', text: DEFAULT_TEXT }, notify: { on: false, phone: '' } };
+export const NOTIFY_FROM = 9, NOTIFY_TO = 22; // 원장님 알림은 오전 9시 ~ 오후 10시에만 (그 밖의 시간은 모아 두었다가 아침에)
 
 export const configured = () => !!(process.env.SMSGATE_USER && process.env.SMSGATE_PASS);
 
@@ -57,17 +61,30 @@ export async function savePhones(map) {
 /* ---------- 설정 ---------- */
 export async function getSettings() {
   const r = (await store().get('settings', { type: 'json' })) || {};
-  return { daily: Object.assign({}, DEFAULT_SETTINGS.daily, r.daily || {}) };
+  const daily = Object.assign({}, DEFAULT_SETTINGS.daily, r.daily || {});
+  if (daily.text === OLD_DEFAULT_TEXT) daily.text = DEFAULT_TEXT; // 기준이 '수업 복습'으로 바뀌어서 예전 기본 문구는 새 기본 문구로
+  const notify = Object.assign({}, DEFAULT_SETTINGS.notify, r.notify || {});
+  return { daily, notify };
 }
 export async function saveSettings(b) {
   const cur = await getSettings(), d = (b && b.daily) || {};
   const hour = Math.round(Number(d.hour));
+  const n = (b && b.notify) || {};
+  let nPhone = cur.notify.phone;
+  if (n.phone !== undefined) {
+    nPhone = String(n.phone || '').trim() ? toE164(n.phone) : '';
+    if (String(n.phone || '').trim() && !nPhone) { const e = new Error('원장님 휴대폰 번호가 이상해요 (010으로 시작하는 번호)'); e.status = 400; throw e; }
+  }
   const next = { daily: {
     on: d.on === undefined ? cur.daily.on : !!d.on,
     hour: hour >= 6 && hour <= 23 ? hour : cur.daily.hour,
     days: ['all', 'weekdays', 'mon-sat'].includes(d.days) ? d.days : cur.daily.days,
     text: String(d.text == null ? cur.daily.text : d.text).replace(/\s+/g, ' ').trim().slice(0, 300) || DEFAULT_TEXT,
+  }, notify: {
+    on: n.on === undefined ? cur.notify.on : !!n.on,
+    phone: nPhone,
   } };
+  if (next.notify.on && !next.notify.phone) { const e = new Error('과제 완료 알림을 받을 원장님 휴대폰 번호를 넣어 주세요.'); e.status = 400; throw e; }
   await store().setJSON('settings', next);
   return next;
 }
@@ -153,21 +170,41 @@ export async function studiedToday(username, date = kstDate()) {
   return row ? Object.values(row).reduce((a, b) => a + (Number(b) || 0), 0) : 0;
 }
 
-export async function fillText(tpl, username) {
+export async function fillText(tpl, username, lessonDate = '') {
   let name = '';
   try { name = await memberDisplayName(username); } catch (e) {}
-  return String(tpl || DEFAULT_TEXT).replace(/#\{이름\}/g, name || username).replace(/#\{아이디\}/g, username);
+  const md = lessonDate ? `${Number(lessonDate.slice(5, 7))}/${Number(lessonDate.slice(8, 10))}` : '지난';
+  return String(tpl || DEFAULT_TEXT).replace(/#\{이름\}/g, name || username).replace(/#\{아이디\}/g, username).replace(/#\{수업날짜\}/g, md);
 }
 
-// 오늘 문자를 받을 학생: 번호가 있고 · 받기 켬 · 지금 회원 · 오늘 쉐도잉 0분 · 오늘 아직 안 보냄
+// 최근 수업(피드백 회차) 중 아직 한 번도 연습하지 않은 회차 — 운영자 지시 2026-11-28
+// 「수업을 안 했으면 문자를 보내지 마」: 최근 7일 안에 수업이 없으면 null(보내지 않음)
+export async function pendingLesson(username, date = kstDate()) {
+  const from = new Date(Date.parse(date + 'T00:00:00Z') - (LESSON_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+  const sets = (await listSets(username)).filter(x => x.lessonDate && x.lessonDate >= from && x.lessonDate <= date && x.sentenceCount > 0);
+  if (!sets.length) return { lesson: null };
+  const sum = await getSummary(username);
+  const done = id => { const x = sum[id]; return !!(x && ((x.listen || 0) + (x.spoke || 0) + (x.failed || 0)) > 0); };
+  const todo = sets.filter(x => !done(x.id)); // 최근 수업이 앞
+  return { lesson: sets[0], todo: todo[0] || null, todoCount: todo.length };
+}
+
+// 오늘 문자를 받을 학생: 번호가 있고 · 받기 켬 · 지금 회원 · 최근 7일 안에 수업이 있었고 그 수업 피드백쉐도잉을 아직 안 함 · 오늘 아직 안 보냄
 export async function dailyTargets(date = kstDate()) {
   const [phones, members, sent, st] = await Promise.all([getPhones(), listMembers(), sentToday(date), getSettings()]);
   const alive = new Set(members.map(m => norm(m.username)));
   const out = [];
   for (const [u, p] of Object.entries(phones)) {
     if (!p || !p.on || !alive.has(u)) continue;
-    const sec = await studiedToday(u, date);
-    out.push({ username: u, phone: p.phone, studied: sec, already: !!sent[u], send: sec === 0 && !sent[u], text: sec === 0 ? await fillText(st.daily.text, u) : '' });
+    const r = await pendingLesson(u, date);
+    const send = !!r.todo && !sent[u];
+    out.push({
+      username: u, phone: p.phone, already: !!sent[u], send,
+      lesson: r.lesson ? { date: r.lesson.lessonDate, title: r.lesson.title } : null,
+      todo: r.todo ? { date: r.todo.lessonDate, title: r.todo.title } : null,
+      todoCount: r.todoCount || 0,
+      text: r.todo ? await fillText(st.daily.text, u, r.todo.lessonDate) : '',
+    });
   }
   return out.sort((a, b) => (a.username < b.username ? -1 : 1));
 }
@@ -202,4 +239,61 @@ export async function refreshLog(limit = 40) {
   }));
   if (todo.length) await store().setJSON('log', log);
   return log;
+}
+
+/* ---------- 🔔 과제 완료 알림 (원장님 휴대폰으로) — 운영자 지시 2026-11-28 ----------
+ * 학생이 최근 7일 안 수업의 피드백쉐도잉(회차)을 처음 연습하면 원장님 휴대폰으로 알려요.
+ * 연습 기록 코드는 잠긴 파일이라 건드리지 않고, 30분마다 연습 기록(practice-summary)을 읽어서 새로 연습한 회차를 찾아요.
+ *   sms : 'done-seen' → { 아이디: { 회차ID: 처음 본 시각 } }   (이미 알린 회차 — 처음 한 번은 지금까지 한 것을 모두 '본 것'으로만 적어요)
+ *         'done-queue' → [{ username, date, title, at }]        (밤이라 아직 못 보낸 알림)
+ */
+async function findNewlyDone() {
+  const s = store();
+  const seen = (await s.get('done-seen', { type: 'json' })) || null;
+  const first = !seen;
+  const next = seen || {};
+  const today = kstDate();
+  const from = new Date(Date.parse(today + 'T00:00:00Z') - (LESSON_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+  const found = [];
+  for (const m of await listMembers()) {
+    const u = norm(m.username);
+    const sum = await getSummary(u);
+    const mine = next[u] || (next[u] = {});
+    for (const [id, x] of Object.entries(sum || {})) {
+      if (mine[id]) continue;
+      const n = ((x && x.listen) || 0) + ((x && x.spoke) || 0) + ((x && x.failed) || 0);
+      if (!n) continue;
+      mine[id] = new Date().toISOString();
+      if (first) continue; // 처음 한 번은 기준만 잡아요(예전에 한 연습까지 한꺼번에 알리지 않게)
+      let set = null; try { set = await getSet(u, id); } catch (e) {}
+      if (!set) continue; // 피드백 회차가 아닌 기록(교재 등)
+      const d = lessonDateOfSet(set);
+      if (!d || d < from) continue; // 최근 7일 수업의 과제만
+      found.push({ username: u, date: d, title: set.title || '', spoke: (x && x.spoke) || 0, at: new Date().toISOString() });
+    }
+  }
+  await s.setJSON('done-seen', next);
+  return found;
+}
+
+export async function notifyDone() {
+  const st = await getSettings();
+  const found = await findNewlyDone(); // 알림을 꺼 둬도 기준은 계속 따라가요(켤 때 예전 것이 한꺼번에 오지 않게)
+  if (!st.notify.on || !st.notify.phone || !configured()) return { sent: 0, found: found.length };
+  const s = store();
+  const queue = ((await s.get('done-queue', { type: 'json' })) || []).concat(found).slice(-60);
+  const hour = kstNow().getUTCHours();
+  if (!queue.length || hour < NOTIFY_FROM || hour >= NOTIFY_TO) { await s.setJSON('done-queue', queue); return { sent: 0, queued: queue.length }; }
+  const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  const parts = [];
+  for (const q of queue) {
+    let name = ''; try { name = await memberDisplayName(q.username); } catch (e) {}
+    parts.push(`${name || q.username}(${md(q.date)} 수업${q.spoke ? ', 따라 말하기 ' + q.spoke + '번' : ''})`);
+  }
+  const text = `[버클리] 과제 완료 ✅ ${parts.join(', ')}`.slice(0, 600);
+  try {
+    await sendMany([{ phone: st.notify.phone, text }], 'done');
+    await s.setJSON('done-queue', []);
+    return { sent: queue.length };
+  } catch (e) { await s.setJSON('done-queue', queue); throw e; }
 }
