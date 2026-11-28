@@ -99,8 +99,8 @@
       <tr><td style="white-space:nowrap;">${esc(new Date(x.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}</td>
       <td style="white-space:nowrap;">${esc(KIND[x.kind] || x.kind)}</td>
       <td style="white-space:nowrap;">${esc(x.to ? label(x.to) : '')}<br><span style="color:var(--muted);">${esc(pretty(x.phone))}</span></td>
-      <td>${esc(x.text)}</td>
-      <td style="white-space:nowrap;" title="${esc(x.error || '')}">${esc(STATE[x.state] || x.state || '')}${x.error ? '<br><span style="color:#C62828; font-size:0.75rem;">' + esc(String(x.error).slice(0, 60)) + '</span>' : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">아직 보낸 문자가 없어요.</div>';
+      <td style="min-width:240px;">${esc(x.text)}</td>
+      <td style="white-space:nowrap;" title="${esc(x.error || '')}">${esc(STATE[x.state] || x.state || '')}${x.error ? '<br><span style="color:#C62828; font-size:0.75rem;">' + esc(String(x.error).replace(/^sendSMS: Sending SMS message: /, '').slice(0, 80)) + '</span>' : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">아직 보낸 문자가 없어요.</div>';
   }
   async function load() {
     try {
