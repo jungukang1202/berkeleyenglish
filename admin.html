@@ -651,6 +651,9 @@ if (navigator.webdriver) { try { window.stop(); } catch (e) {} document.document
       <div class="empty" id="memberEmpty">아직 등록된 회원이 없어요.</div>
     </div>
 
+    <!-- ============ 📱 공부 안내 문자 (js/sms-admin.js, 2026-11-28) ============ -->
+    <div class="card" id="smsCard" data-aview="members"></div>
+
     <!-- ============ 🎁 학생별 쉐도잉 넣어주기 ============ -->
     <div class="card" id="accessCard" data-aview="access">
       <h2>🎁 학생별 쉐도잉 넣어주기</h2>
@@ -2248,5 +2251,6 @@ if (getToken()) showMain(); else showLogin();
 <script src="js/nvoim-video.js?v=20261117a"></script>
 <script src="js/lesson-voice.js?v=20261113a"></script>
 <script src="js/lesson-highlight.js?v=20261113b"></script>
+<script src="js/sms-admin.js?v=20261128a"></script>
 </body>
 </html>

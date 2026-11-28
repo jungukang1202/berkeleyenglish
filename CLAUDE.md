@@ -71,3 +71,9 @@
 ## 버전
 
 `js/shadowing-engine.js`의 `ENGINE_VERSION`, `version.json`, html의 `shadowing-engine.js?v=`는 셋이 같아야 해요(기기가 최신 코드로 자동 새로고침). 엔진을 고치면 셋 다 올려요.
+
+## 📱 공부 안내 문자 (운영자 지시 2026-11-28)
+
+- 학원 안드로이드 휴대폰의 「SMS Gateway」 앱(sms-gate.app, 클라우드 모드)이 진짜 문자로 보내요. 사이트 설정(환경 변수) `SMSGATE_USER`·`SMSGATE_PASS`(앱의 Username·Password), 선택 `SMSGATE_PASSPHRASE`(앱 암호화 암호 — 넣으면 번호·내용을 AES로 암호화).
+- 관리자 「👤 회원 관리」 아래 「📱 공부 안내 문자」(`js/sms-admin.js`, `/api/admin-sms`): 학생 전화번호·받기, 매일 자동 문자(시각·매일/월~토/평일·문구 `#{이름}`), 받을 학생 미리 보기, 지금 보내기, 시험 문자, 보낸 기록(보냄·받음 결과).
+- `sms-daily.mjs`(매시 정각): 정한 시각에 번호가 있고 받기를 켠 학생 중 오늘 쉐도잉 0분(`study-time` 읽기만)인 학생에게 하루 한 번. 저장소 `sms`(phones·settings·sent/날짜·log). 자동 문자는 처음엔 꺼져 있어요.
