@@ -42,7 +42,7 @@
       <span style="color:var(--muted);">(피드백 안내 문자에 덧붙이기만 · 넣어 준 영상이 있는 학생만)</span>
     </div>
     <div class="field" style="margin:6px 0;"><textarea id="smsDailyText" rows="2" maxlength="300"></textarea>
-      <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{이름}</code> 자리에 학생 이름, <code>#{안내}</code> 자리에 그 학생이 할 일(피드백 꼭 하기 · 영상 권장)이 들어가요. <span id="smsLen"></span></div></div>
+      <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;"><code>#{이름}</code> 학생 이름 · <code>#{인사}</code> 인사말 · <code>#{안내}</code> 할 일(피드백 꼭 하기 · 영상 권장). 인사말과 안내는 날마다 표현이 바뀌어요. <span id="smsLen"></span></div></div>
     <div class="row" style="gap:8px; flex-wrap:wrap;">
       <button class="btn-ghost btn-small" id="smsSaveSettings">💾 자동 문자 저장</button>
       <button class="btn-ghost btn-small" id="smsPreview">👀 지금 보내면 받을 학생 보기</button>
@@ -107,7 +107,7 @@
     $('smsNotifyOn').checked = !!n.on; $('smsNotifyPhone').value = pretty(n.phone || '');
   }
   function updateLen() {
-    const t = $('smsDailyText').value.replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27').replace(/#\{안내\}/g, '11/27 수업 피드백 쉐도잉이 아직 남아 있어요. 오늘 꼭 한 번 해 주세요! 시간 여유가 있으면 영상 쉐도잉이랑 수업영상 쉐도잉도 같이 해 보면 더 좋아요 🙂');
+    const t = $('smsDailyText').value.replace(/#\{인사\}/g, '오늘 하루 잘 보내고 있나요? 🙂').replace(/#\{이름\}/g, '홍길동').replace(/#\{수업날짜\}/g, '11/27').replace(/#\{안내\}/g, '11/27 수업 피드백 쉐도잉이 아직 남아 있어요. 오늘 꼭 한 번 해 주세요! 시간 여유가 있으면 영상 쉐도잉이랑 수업영상 쉐도잉도 같이 해 보면 더 좋아요 🙂');
     const n = [...t].length;
     $('smsLen').textContent = `지금 ${n}자 ${n > 70 ? '(가장 긴 경우 예시) — 70자가 넘으면 긴 문자로 가요(문자 무제한 요금제면 괜찮아요)' : ''}`;
   }
