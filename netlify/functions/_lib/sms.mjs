@@ -16,6 +16,9 @@ import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { listMembers, memberDisplayName, listSets, getSet, lessonDateOfSet } from './store.mjs';
 import { getSummary } from './practice.mjs';
+import { getAccess, canSeeVideoWith } from './access.mjs';
+import { listLessons } from './videos.mjs';
+import { recordingLessonIds } from './nvoim-video.mjs';
 
 const store = () => getStore({ name: 'sms', consistency: 'strong' });
 const norm = u => String(u || '').trim().toLowerCase();
@@ -23,10 +26,13 @@ export const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000);
 export const kstDate = () => kstNow().toISOString().slice(0, 10);
 const API = () => (process.env.SMSGATE_URL || 'https://api.sms-gate.app/3rdparty/v1').replace(/\/+$/, '');
 
-export const DEFAULT_TEXT = '[버클리] #{이름} 학생, #{수업날짜} 수업 피드백 쉐도잉을 아직 안 했어요! 5분만 복습해 볼까요? berkeleyenglish.co.kr/member';
-const OLD_DEFAULT_TEXT = '[버클리] #{이름} 학생, 오늘 쉐도잉 아직 안 했어요! 5분만 해 볼까요? berkeleyenglish.co.kr/member';
+export const DEFAULT_TEXT = '[버클리] #{이름} 학생, #{안내} berkeleyenglish.co.kr/member';
+const OLD_DEFAULT_TEXTS = [
+  '[버클리] #{이름} 학생, 오늘 쉐도잉 아직 안 했어요! 5분만 해 볼까요? berkeleyenglish.co.kr/member',
+  '[버클리] #{이름} 학생, #{수업날짜} 수업 피드백 쉐도잉을 아직 안 했어요! 5분만 복습해 볼까요? berkeleyenglish.co.kr/member',
+];
 export const LESSON_DAYS = 7; // 최근 며칠 안의 수업을 챙길지
-export const DEFAULT_SETTINGS = { daily: { on: false, hour: 20, days: 'all', text: DEFAULT_TEXT }, notify: { on: false, phone: '' } };
+export const DEFAULT_SETTINGS = { daily: { on: false, hour: 20, days: 'all', text: DEFAULT_TEXT, video: true, lessonVideo: true }, notify: { on: false, phone: '' } };
 export const NOTIFY_FROM = 9, NOTIFY_TO = 22; // 원장님 알림은 오전 9시 ~ 오후 10시에만 (그 밖의 시간은 모아 두었다가 아침에)
 
 export const configured = () => !!(process.env.SMSGATE_USER && process.env.SMSGATE_PASS);
@@ -62,7 +68,7 @@ export async function savePhones(map) {
 export async function getSettings() {
   const r = (await store().get('settings', { type: 'json' })) || {};
   const daily = Object.assign({}, DEFAULT_SETTINGS.daily, r.daily || {});
-  if (daily.text === OLD_DEFAULT_TEXT) daily.text = DEFAULT_TEXT; // 기준이 '수업 복습'으로 바뀌어서 예전 기본 문구는 새 기본 문구로
+  if (OLD_DEFAULT_TEXTS.includes(daily.text)) daily.text = DEFAULT_TEXT; // 기준이 바뀌어서 예전 기본 문구는 새 기본 문구로
   const notify = Object.assign({}, DEFAULT_SETTINGS.notify, r.notify || {});
   return { daily, notify };
 }
@@ -80,6 +86,8 @@ export async function saveSettings(b) {
     hour: hour >= 6 && hour <= 23 ? hour : cur.daily.hour,
     days: ['all', 'weekdays', 'mon-sat'].includes(d.days) ? d.days : cur.daily.days,
     text: String(d.text == null ? cur.daily.text : d.text).replace(/\s+/g, ' ').trim().slice(0, 300) || DEFAULT_TEXT,
+    video: d.video === undefined ? cur.daily.video : !!d.video,
+    lessonVideo: d.lessonVideo === undefined ? cur.daily.lessonVideo : !!d.lessonVideo,
   }, notify: {
     on: n.on === undefined ? cur.notify.on : !!n.on,
     phone: nPhone,
@@ -170,11 +178,11 @@ export async function studiedToday(username, date = kstDate()) {
   return row ? Object.values(row).reduce((a, b) => a + (Number(b) || 0), 0) : 0;
 }
 
-export async function fillText(tpl, username, lessonDate = '') {
+export async function fillText(tpl, username, lessonDate = '', guide = '') {
   let name = '';
   try { name = await memberDisplayName(username); } catch (e) {}
   const md = lessonDate ? `${Number(lessonDate.slice(5, 7))}/${Number(lessonDate.slice(8, 10))}` : '지난';
-  return String(tpl || DEFAULT_TEXT).replace(/#\{이름\}/g, name || username).replace(/#\{아이디\}/g, username).replace(/#\{수업날짜\}/g, md);
+  return String(tpl || DEFAULT_TEXT).replace(/#\{이름\}/g, name || username).replace(/#\{아이디\}/g, username).replace(/#\{수업날짜\}/g, md).replace(/#\{안내\}/g, guide);
 }
 
 // 최근 수업(피드백 회차) 중 아직 한 번도 연습하지 않은 회차 — 운영자 지시 2026-11-28
@@ -189,21 +197,61 @@ export async function pendingLesson(username, date = kstDate()) {
   return { lesson: sets[0], todo: todo[0] || null, todoCount: todo.length };
 }
 
-// 오늘 문자를 받을 학생: 번호가 있고 · 받기 켬 · 지금 회원 · 최근 7일 안에 수업이 있었고 그 수업 피드백쉐도잉을 아직 안 함 · 오늘 아직 안 보냄
+// 🎬 영상쉐도잉 · 🎥 수업영상쉐도잉 — 이 학생에게 보이는 영상이 있는지, 오늘 했는지 (video-progress 읽기만)
+async function videoStatus(username, ctx, date) {
+  const u = norm(username);
+  const access = await getAccess(u);
+  const visible = ctx.lessons.filter(v => canSeeVideoWith(v, u, access));
+  const lessonIds = new Set(visible.filter(v => ctx.recIds.has(v.id)).map(v => v.id));
+  const hasVideo = visible.some(v => !ctx.recIds.has(v.id)), hasLessonVideo = lessonIds.size > 0;
+  let videoToday = false, lessonVideoToday = false;
+  const ps = getStore({ name: 'video-progress', consistency: 'strong' });
+  const { blobs } = await ps.list({ prefix: `${u}/` });
+  await Promise.all(blobs.map(async b => {
+    const p = await ps.get(b.key, { type: 'json' }).catch(() => null);
+    const t = p && (p.updatedAt || (p.last && p.last.at));
+    if (!t || new Date(Date.parse(t) + 9 * 3600 * 1000).toISOString().slice(0, 10) !== date) return;
+    const id = b.key.slice(u.length + 1);
+    if (ctx.recIds.has(id)) lessonVideoToday = true; else videoToday = true;
+  }));
+  return { hasVideo, hasLessonVideo, videoToday, lessonVideoToday };
+}
+
+// 학생에게 보낼 안내 — 운영자 지시 2026-11-28
+//  · 수업 피드백쉐도잉을 안 했으면 「꼭 하라고」
+//  · 영상쉐도잉 · 수업영상쉐도잉을 오늘 안 했으면 「해 보라고 권장」
+//  · 최근 7일 안에 수업이 없었으면 아무것도 보내지 않아요
+function buildGuide(r, v, st) {
+  const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  const rec = [];
+  if (st.daily.video && v.hasVideo && !v.videoToday) rec.push('영상 쉐도잉');
+  if (st.daily.lessonVideo && v.hasLessonVideo && !v.lessonVideoToday) rec.push('수업영상 쉐도잉');
+  const parts = [];
+  if (r.todo) parts.push(`${md(r.todo.lessonDate)} 수업 피드백 쉐도잉을 아직 안 했어요! 꼭 해 주세요.`);
+  if (rec.length) parts.push(`${r.todo ? '오늘 ' + rec.join('·') + '도' : '오늘 ' + rec.join('·') + '을 아직 안 했어요.'} 5분만 해 보면 좋아요 🙂`);
+  return { guide: parts.join(' '), rec };
+}
+
+// 오늘 문자를 받을 학생: 번호가 있고 · 받기 켬 · 지금 회원 · 최근 7일 안에 수업이 있었고 ·
+// (그 수업 피드백쉐도잉을 아직 안 함 또는 오늘 영상/수업영상 쉐도잉을 안 함) · 오늘 아직 안 보냄
 export async function dailyTargets(date = kstDate()) {
-  const [phones, members, sent, st] = await Promise.all([getPhones(), listMembers(), sentToday(date), getSettings()]);
+  const [phones, members, sent, st, lessons, recIds] = await Promise.all([getPhones(), listMembers(), sentToday(date), getSettings(), listLessons().catch(() => []), recordingLessonIds().catch(() => [])]);
+  const ctx = { lessons, recIds: new Set(recIds) };
   const alive = new Set(members.map(m => norm(m.username)));
   const out = [];
   for (const [u, p] of Object.entries(phones)) {
     if (!p || !p.on || !alive.has(u)) continue;
     const r = await pendingLesson(u, date);
-    const send = !!r.todo && !sent[u];
+    const v = r.lesson ? await videoStatus(u, ctx, date) : { hasVideo: false, hasLessonVideo: false, videoToday: false, lessonVideoToday: false };
+    const g = r.lesson ? buildGuide(r, v, st) : { guide: '', rec: [] };
+    const need = !!g.guide;
     out.push({
-      username: u, phone: p.phone, already: !!sent[u], send,
+      username: u, phone: p.phone, already: !!sent[u], send: need && !sent[u],
       lesson: r.lesson ? { date: r.lesson.lessonDate, title: r.lesson.title } : null,
       todo: r.todo ? { date: r.todo.lessonDate, title: r.todo.title } : null,
       todoCount: r.todoCount || 0,
-      text: r.todo ? await fillText(st.daily.text, u, r.todo.lessonDate) : '',
+      video: v, rec: g.rec,
+      text: need ? await fillText(st.daily.text, u, r.todo ? r.todo.lessonDate : '', g.guide) : '',
     });
   }
   return out.sort((a, b) => (a.username < b.username ? -1 : 1));
